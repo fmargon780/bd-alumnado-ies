@@ -46,7 +46,7 @@ const MARCAS_JEFATURA = { 'REP': 'repite', 'PIL': 'pil', 'CONF': 'conflictivo',
 /* Quita tildes y pasa a mayúsculas. Para comparar códigos, no nombres. */
 function codigoJef_(v) {
   return String(v === null || v === undefined ? '' : v)
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
     .replace(/\s+/g, ' ').trim().toUpperCase();
 }
 

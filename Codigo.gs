@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v2';
+const VERSION = 'BD v3';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -75,13 +75,7 @@ const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corre
 const TITULOS_HISTORIAL = ['Alumno/a', 'Nº Id. Escolar', 'Unidad', 'Curso', 'Edad a 31/12',
   'Repite el curso actual', 'Repeticiones en ESO', 'Rep. Primaria (calculado)', 'Fuente Primaria'];
 
-/*** ================= MENÚ ================= ***/
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Base de datos')
-    .addItem('1. Leer el histórico de matrículas', 'cargarHistorico')
-    .addItem('2. Construir la tabla ALUMNADO', 'construirAlumnado')
-    .addToUi();
-}
+/*** El menú lo crea Actualizador.gs, no este fichero. ***/
 
 /*** ================= AUXILIARES DE TEXTO ================= ***/
 function normalizar(v) {

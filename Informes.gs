@@ -618,6 +618,7 @@ function escribirPortada_(libro, A, resumenGrupos) {
        '     Repetidores: ' + nRep + '     PIL: ' + nPil +
        '     En diversificación: ' + nDiv + '     Con materias pendientes: ' + nPen);
   mete('');
+
   banda('ALUMNADO SIN UNIDAD ASIGNADA EN SÉNECA');
   if (!A.sinUnidad.length) {
     mete('Ninguno. Todo el alumnado tiene su grupo.');

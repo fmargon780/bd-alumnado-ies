@@ -377,6 +377,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       avisos.push({ curso: a.curso, grupo: '', alumno: a.nombre, aviso: 'Sin unidad asignada',
         detalle: 'No aparecerá en ningún informe de grupo' });
     }
+
     /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
        Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
     /* En 4º Séneca lo marca poniendo ÁMB en la columna MAT. En 1º, 2º y 3º

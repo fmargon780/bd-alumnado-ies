@@ -432,42 +432,75 @@ function contarPaginas_(blob) {
   } catch (e) { return 1; }
 }
 
-function exportarHoja_(libro, hoja, token) {
+/* Google no deja pedirle muchos PDF seguidos: a partir del quinto o sexto
+   empieza a decir que no. Por eso se le pide despacio, y si dice que no se
+   espera un poco y se vuelve a intentar, cada vez esperando más. */
+const ESPERAS_PDF = [0, 5000, 15000];   // milisegundos
+
+function exportarHoja_(libro, hoja, token, aviso) {
   const url = 'https://docs.google.com/spreadsheets/d/' + libro.getId() + '/export?' +
               PDF_OPCIONES + '&gid=' + hoja.getSheetId();
-  const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true,
-    headers: { 'Authorization': 'Bearer ' + token } });
-  return resp.getResponseCode() === 200 ? resp.getBlob() : null;
+  let codigo = 0;
+  for (let i = 0; i < ESPERAS_PDF.length; i++) {
+    if (ESPERAS_PDF[i]) Utilities.sleep(ESPERAS_PDF[i]);
+    let resp;
+    try {
+      resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true,
+        headers: { 'Authorization': 'Bearer ' + token } });
+    } catch (e) { codigo = -1; continue; }
+    codigo = resp.getResponseCode();
+    if (codigo === 200) return resp.getBlob();
+  }
+  if (aviso) aviso.codigo = codigo;
+  return null;
 }
 
 function pdfsPorInforme_(libro, entradas) {
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const raiz = DriveApp.getFolderById(CARPETA_ID);
   const nombreCarpeta = 'Informes ' + hoy;
-  const viejas = raiz.getFoldersByName(nombreCarpeta);
-  while (viejas.hasNext()) viejas.next().setTrashed(true);
-  const carpeta = raiz.createFolder(nombreCarpeta);
+  /* La carpeta se reaprovecha. Cada fichero se sustituye cuando se consigue
+     sacar, así que si un día Google corta a medias, lo que ya estaba sigue
+     ahí y basta con volver a pulsar para completar lo que falte. */
+  const encontradas = raiz.getFoldersByName(nombreCarpeta);
+  const carpeta = encontradas.hasNext() ? encontradas.next() : raiz.createFolder(nombreCarpeta);
 
   const token = ScriptApp.getOAuthToken();
-  let hechos = 0, dobles = [];
+  let hechos = 0, dobles = [], fallidos = [], seguidos = 0;
   for (let i = 0; i < entradas.length; i++) {
     const e = entradas[i];
-    let blob = exportarHoja_(libro, e.hoja, token);
-    if (!blob) continue;
+    if (i) Utilities.sleep(2500);            // sin prisa, que Google se agobia
+    const aviso = {};
+    let blob = exportarHoja_(libro, e.hoja, token, aviso);
+    if (!blob) {
+      fallidos.push(e.nombre + ' (Google respondió ' + aviso.codigo + ')');
+      seguidos++;
+      /* Si falla dos veces seguidas es que Google ha cerrado el grifo.
+         Mejor parar y decirlo, que seguir dando golpes. */
+      if (seguidos >= 2) {
+        for (let k = i + 1; k < entradas.length; k++) fallidos.push(entradas[k].nombre + ' (no intentado)');
+        break;
+      }
+      continue;
+    }
+    seguidos = 0;
     const paginas = contarPaginas_(blob);
     /* Si el informe ocupa más de una hoja, se lo decimos al tutor en la
        cabecera, que se repite en todas sus páginas, y lo volvemos a sacar. */
     if (paginas > 1 && e.celda) {
       e.celda.setValue(e.texto + ' · ' + paginas + ' hojas');
       SpreadsheetApp.flush();
-      const otro = exportarHoja_(libro, e.hoja, token);
+      Utilities.sleep(1500);
+      const otro = exportarHoja_(libro, e.hoja, token, {});
       if (otro) blob = otro;
       dobles.push(e.nombre + ' (' + paginas + ' hojas)');
     }
+    const anteriores = carpeta.getFilesByName(e.nombre + '.pdf');
+    while (anteriores.hasNext()) anteriores.next().setTrashed(true);
     carpeta.createFile(blob.setName(e.nombre + '.pdf'));
     hechos++;
   }
-  return { carpeta: nombreCarpeta, hechos: hechos, dobles: dobles };
+  return { carpeta: nombreCarpeta, hechos: hechos, dobles: dobles, fallidos: fallidos };
 }
 
 /*** ================= LA PORTADA ================= ***/
@@ -766,6 +799,10 @@ function rellenarInformes() {
       avisos.push(['', '', 'Informe de más de una hoja', sueltos.dobles[i] +
                    '. Lo pone en su cabecera, para que el tutor lo sepa.']);
     }
+    for (let i = 0; i < sueltos.fallidos.length; i++) {
+      avisos.push(['', '', 'PDF suelto que no ha salido', sueltos.fallidos[i] +
+                   '. Vuelve a pulsar la opción 3 dentro de un rato.']);
+    }
   } catch (e) {
     avisos.push(['', '', 'No he podido hacer los PDF sueltos', e.message]);
   }
@@ -781,7 +818,9 @@ function rellenarInformes() {
     (pdf ? '\n\nPDF con todo junto: ' + pdf.nombre
          : '\n\nNo he podido hacer el PDF: ' + fallo) +
     (sueltos ? '\nY un PDF por informe en la carpeta "' + sueltos.carpeta + '": ' +
-               sueltos.hechos + ' ficheros.' : '') +
+               sueltos.hechos + ' de ' + (sueltos.hechos + sueltos.fallidos.length) + ' ficheros.' +
+               (sueltos.fallidos.length ? '\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +
+                '. Vuelve a pulsar la opción 3 dentro de un rato.' : '') : '') +
     '\n\nAvisos anotados: ' + avisos.length +
     (avisos.length ? '\nMíralos en la pestaña "' + HOJA_AV_INF + '".' : ''),
     ui.ButtonSet.OK);

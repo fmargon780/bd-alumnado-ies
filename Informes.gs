@@ -47,6 +47,8 @@ const ALIAS_COLUMNAS = {
   'itinerario': 'itinerario',
   'opt': 'opt',
   'fr -> alct': 'fr -> alct',
+  'exento frances': 'fr -> alct',
+  'exento de frances': 'fr -> alct',
   'rel/atedu': 'rel/atedu',
   'mat': 'mat', 'opc1': 'opc1', 'opc2': 'opc2', 'opc3': 'opc3', 'opc4': 'opc4',
   'veces repite primaria': 'veces repite primaria'
@@ -65,7 +67,7 @@ const ROTULOS = {
   'medidas/recursos': 'MEDIDAS Y RECURSOS',
   'itinerario': 'ITINERARIO',
   'opt': 'OPT',
-  'fr -> alct': 'FR -> ALCT',
+  'fr -> alct': 'EXENTO FRANCÉS',
   'rel/atedu': 'REL/Atedu'
 };
 
@@ -90,14 +92,14 @@ const COLUMNAS_RETIRADAS = ['mat', 'opc1', 'opc2', 'opc3', 'opc4'];
    persona, y el programa nunca las toca. */
 const MAPA_INFORMES = {
   'alumno/a:':  { col: 'Alumno/a' },
-  'rep':        { col: 'Repite el curso actual', si: 'R' },
+  'rep':        { col: 'Repite el curso actual', si: 'SÍ' },
   'mat no sup.':{ col: 'MAT NO SUP.' },
   'mat. pend.': { col: 'Asignaturas pendientes' },
   'pil':        { col: 'PIL', si: 'SÍ' },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
   'opt':        { col: 'OPT' },
-  'fr -> alct': { col: 'FR -> ALCT' },
+  'fr -> alct': { col: 'FR -> ALCT', siLleno: 'SÍ' },
   'rel/atedu':  { col: 'REL/Atedu' }
 };
 
@@ -113,7 +115,7 @@ const ANCHO_NUMERACION = 26;
 const ANCHOS_MINIMOS = {
   'alumno/a:': 130, 'rep': 30, 'mat no sup.': 90, 'mat. pend.': 85,
   'mat. pend. 6º': 85, 'pil': 30, 'div': 28, 'neae': 35,
-  'medidas/recursos': 60, 'itinerario': 130, 'opt': 45, 'fr -> alct': 48,
+  'medidas/recursos': 60, 'itinerario': 130, 'opt': 45, 'fr -> alct': 55,
   'rel/atedu': 64, 'veces repite primaria': 45
 };
 const ANCHO_DESCONOCIDA = 80;
@@ -137,7 +139,7 @@ const FILAS_CABECERA   = 6;
    23 pestañas. Si no está, deja el que haya y no toca nada. */
 const NOMBRE_MEMBRETE  = 'membrete';
 const RATIO_MEMBRETE   = 6.667;   // ancho dividido por alto de esa imagen
-const ESCALA_MEMBRETE  = 0.85;    // un poco más pequeño, para ganar alto de folio
+const ANCHO_MEMBRETE   = 460;     // puntos. Fijo, para que salga igual en las 23 pestañas
 const ALTO_MINIMO_FILA = 8;
 const AIRE_BAJO_LOGO   = 6;
 
@@ -236,6 +238,9 @@ function valorInforme(regla, alumno, idxAlum) {
   if (regla.si) return String(v).trim().toUpperCase() === 'SÍ' ? regla.si : '';
   /* 'siEmpieza' es para Diversificación, que vale "SÍ", "SÍ (solo Jefatura)" o "NO". */
   if (regla.siEmpieza) return normalizar(v).indexOf('si') === 0 ? regla.siEmpieza : '';
+  /* 'siLleno' es para columnas que en ALUMNADO llevan un código y en el
+     informe solo hace falta saber si el alumno está o no en ese caso. */
+  if (regla.siLleno) return String(v === null || v === undefined ? '' : v).trim() ? regla.siLleno : '';
   return v === null || v === undefined ? '' : v;
 }
 
@@ -339,10 +344,9 @@ function ponerMembrete_(hoja, blob) {
     let fila;
     try { fila = img.getAnchorCell().getRow(); } catch (e) { continue; }
     if (fila > FILAS_CABECERA) continue;
-    const ancho = Math.round(img.getWidth() * ESCALA_MEMBRETE);
     img.replace(blob);
-    img.setWidth(ancho);
-    img.setHeight(Math.round(ancho / RATIO_MEMBRETE));
+    img.setWidth(ANCHO_MEMBRETE);
+    img.setHeight(Math.round(ANCHO_MEMBRETE / RATIO_MEMBRETE));
     cambiada = true;
   }
   return cambiada;
@@ -414,6 +418,58 @@ function generarPdfInformes_(libro, visibles) {
   }
 }
 
+/*** ================= UN PDF POR INFORME ================= ***/
+/* Además del PDF con todo junto, se deja una carpeta con un PDF por informe:
+   uno para el equipo directivo (el resumen) y uno para cada tutor.
+   Así cada uno numera sus páginas desde 1, y el tutor sabe cuántas hojas son. */
+
+/* Cuenta las páginas de un PDF sin abrirlo: mira cuántos objetos de página tiene. */
+function contarPaginas_(blob) {
+  try {
+    const t = blob.getDataAsString('ISO-8859-1');
+    const m = t.match(/\/Type\s*\/Page[^s]/g);
+    return m && m.length ? m.length : 1;
+  } catch (e) { return 1; }
+}
+
+function exportarHoja_(libro, hoja, token) {
+  const url = 'https://docs.google.com/spreadsheets/d/' + libro.getId() + '/export?' +
+              PDF_OPCIONES + '&gid=' + hoja.getSheetId();
+  const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true,
+    headers: { 'Authorization': 'Bearer ' + token } });
+  return resp.getResponseCode() === 200 ? resp.getBlob() : null;
+}
+
+function pdfsPorInforme_(libro, entradas) {
+  const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const raiz = DriveApp.getFolderById(CARPETA_ID);
+  const nombreCarpeta = 'Informes ' + hoy;
+  const viejas = raiz.getFoldersByName(nombreCarpeta);
+  while (viejas.hasNext()) viejas.next().setTrashed(true);
+  const carpeta = raiz.createFolder(nombreCarpeta);
+
+  const token = ScriptApp.getOAuthToken();
+  let hechos = 0, dobles = [];
+  for (let i = 0; i < entradas.length; i++) {
+    const e = entradas[i];
+    let blob = exportarHoja_(libro, e.hoja, token);
+    if (!blob) continue;
+    const paginas = contarPaginas_(blob);
+    /* Si el informe ocupa más de una hoja, se lo decimos al tutor en la
+       cabecera, que se repite en todas sus páginas, y lo volvemos a sacar. */
+    if (paginas > 1 && e.celda) {
+      e.celda.setValue(e.texto + ' · ' + paginas + ' hojas');
+      SpreadsheetApp.flush();
+      const otro = exportarHoja_(libro, e.hoja, token);
+      if (otro) blob = otro;
+      dobles.push(e.nombre + ' (' + paginas + ' hojas)');
+    }
+    carpeta.createFile(blob.setName(e.nombre + '.pdf'));
+    hechos++;
+  }
+  return { carpeta: nombreCarpeta, hechos: hechos, dobles: dobles };
+}
+
 /*** ================= LA PORTADA ================= ***/
 /* Primera hoja del PDF. Es para Francisco, no para los tutores: dice qué
    falta por cuadrar en Séneca antes de que los informes sean del todo fiables. */
@@ -427,6 +483,7 @@ function escribirPortada_(libro, A, resumenGrupos) {
 
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   const filas = [], bandas = [];
+  let filaCabeceraTabla = 0;
   const mete = function (a, b, c, d, e) { filas.push([a || '', b || '', c || '', d || '', e || '']); };
   const banda = function (t) { bandas.push(filas.length); mete(t); };
 
@@ -471,16 +528,20 @@ function escribirPortada_(libro, A, resumenGrupos) {
     mete('Nada pendiente. Séneca coincide con lo que quiere Jefatura de Estudios.');
   } else {
     mete('Escribe algo en la columna Estado de la pestaña DISCREPANCIAS y esa línea desaparece de aquí.');
-    const cabecera = filas.length;
+    filaCabeceraTabla = filas.length + 1;
     mete('Grupo', 'Alumno/a', 'Qué no cuadra', 'Séneca dice', 'Jefatura quiere');
     for (let i = 0; i < pend.length; i++) {
       mete(pend[i][0], pend[i][1], pend[i][2], pend[i][3], pend[i][4]);
     }
-    bandas.push(-cabecera - 1);   // marca: fila de títulos, con otro color
+    bandas.push(-filaCabeceraTabla);   // marca: fila de títulos, con otro color
   }
 
   hoja.getRange(1, 1, filas.length, 5).setValues(filas)
       .setFontSize(8).setVerticalAlignment('middle').setWrap(false);
+  /* La tabla de abajo sí ajusta el texto, para que ninguna celda invada la de al lado. */
+  if (filaCabeceraTabla) {
+    hoja.getRange(filaCabeceraTabla, 1, filas.length - filaCabeceraTabla + 1, 5).setWrap(true);
+  }
   hoja.getRange(1, 1).setFontSize(15).setFontWeight('bold');
   hoja.getRange(2, 1).setFontStyle('italic');
   for (let i = 0; i < bandas.length; i++) {
@@ -490,14 +551,20 @@ function escribirPortada_(libro, A, resumenGrupos) {
       hoja.getRange(-bandas[i], 1, 1, 5).setFontWeight('bold').setBackground('#F2F2F2');
     }
   }
-  hoja.setColumnWidth(1, 70);
-  hoja.setColumnWidth(2, 185);
-  hoja.setColumnWidth(3, 215);
-  hoja.setColumnWidth(4, 105);
-  hoja.setColumnWidth(5, 105);
-  hoja.setRowHeights(1, filas.length, 13);
+  hoja.setColumnWidth(1, 65);
+  hoja.setColumnWidth(2, 175);
+  hoja.setColumnWidth(3, 235);
+  hoja.setColumnWidth(4, 100);
+  hoja.setColumnWidth(5, 100);
+  hoja.setRowHeights(1, filas.length, 12);
   hoja.setRowHeight(1, 22);
-  hoja.setFrozenRows(0);
+  if (filaCabeceraTabla) {
+    hoja.autoResizeRows(filaCabeceraTabla, filas.length - filaCabeceraTabla + 1);
+    /* Si la lista se va a una segunda hoja, que los títulos salgan también allí. */
+    hoja.setFrozenRows(filaCabeceraTabla);
+  } else {
+    hoja.setFrozenRows(0);
+  }
   return pend.length;
 }
 
@@ -537,7 +604,7 @@ function rellenarInformes() {
     return;
   }
 
-  const avisos = [], resumen = [], usadas = {}, pestanasDeGrupo = [];
+  const avisos = [], resumen = [], usadas = {}, pestanasDeGrupo = [], informes = [];
   let totalEscritos = 0, membretesCambiados = 0;
   let membrete = null;
   try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
@@ -628,9 +695,11 @@ function rellenarInformes() {
     // La leyenda y el recuento de la cabecera
     hoja.getRange(FILA_LEYENDA, 1).setValue(TEXTO_LEYENDA)
         .setFontSize(8).setFontStyle('italic').setWrap(false);
-    hoja.getRange(FILA_GRUPO, ancho)
-        .setValue(alumnos.length + ' alumnos · ' + hoy)
+    const textoCabecera = alumnos.length + ' alumnos · ' + hoy;
+    const celdaCabecera = hoja.getRange(FILA_GRUPO, ancho);
+    celdaCabecera.setValue(textoCabecera)
         .setFontSize(9).setFontStyle('italic').setHorizontalAlignment('right').setWrap(false);
+    informes.push({ hoja: hoja, nombre: grupo, celda: celdaCabecera, texto: textoCabecera });
 
     // Formato
     hoja.getRange(FILA_TITULOS, 1, 1, ancho).setFontWeight('bold').setWrap(true)
@@ -685,6 +754,22 @@ function rellenarInformes() {
     avisos.push(['', '', 'No he podido hacer el PDF', e.message]);
   }
 
+  /* Y ahora uno por informe, cada uno con su propia numeración de páginas. */
+  let sueltos = null;
+  try {
+    const hojaPortada = libro.getSheetByName(HOJA_PORTADA);
+    const entradas = [];
+    if (hojaPortada) entradas.push({ hoja: hojaPortada, nombre: 'RESUMEN para el equipo directivo' });
+    for (let i = 0; i < informes.length; i++) entradas.push(informes[i]);
+    sueltos = pdfsPorInforme_(libro, entradas);
+    for (let i = 0; i < sueltos.dobles.length; i++) {
+      avisos.push(['', '', 'Informe de más de una hoja', sueltos.dobles[i] +
+                   '. Lo pone en su cabecera, para que el tutor lo sepa.']);
+    }
+  } catch (e) {
+    avisos.push(['', '', 'No he podido hacer los PDF sueltos', e.message]);
+  }
+
   escribirAvisosInformes_(avisos);
 
   ui.alert('Informes rellenados (' + VERSION + ')',
@@ -693,9 +778,10 @@ function rellenarInformes() {
     '\nAlumnos escritos: ' + totalEscritos +
     '\nAlumnos sin unidad (salen solo en la portada): ' + A.sinUnidad.length +
     '\nPendiente de ajustar en Séneca: ' + nPend +
-    (pdf ? '\n\nPDF listo para imprimir: ' + pdf.nombre +
-           '\nEstá en la carpeta "Datos de matrícula".\nLa primera hoja es la portada, y es para ti.'
+    (pdf ? '\n\nPDF con todo junto: ' + pdf.nombre
          : '\n\nNo he podido hacer el PDF: ' + fallo) +
+    (sueltos ? '\nY un PDF por informe en la carpeta "' + sueltos.carpeta + '": ' +
+               sueltos.hechos + ' ficheros.' : '') +
     '\n\nAvisos anotados: ' + avisos.length +
     (avisos.length ? '\nMíralos en la pestaña "' + HOJA_AV_INF + '".' : ''),
     ui.ButtonSet.OK);

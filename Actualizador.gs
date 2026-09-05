@@ -19,6 +19,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Base de datos')
     .addItem('1. Leer el histórico de matrículas', 'cargarHistorico')
     .addItem('2. Construir la tabla ALUMNADO', 'construirAlumnado')
+    .addItem('3. Rellenar los informes por unidad', 'rellenarInformes')
     .addSeparator()
     .addItem('Actualizar el programa', 'actualizarPrograma')
     .addItem('Cambiar la contraseña de GitHub', 'cambiarClaveGitHub')
@@ -91,13 +92,9 @@ function leerProyecto_() {
     headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() }
   });
   const c = resp.getResponseCode();
-  if (c === 403) {
-    throw new Error('Falta activar la API de Apps Script.\n\n' +
-      'Entra en script.google.com/home/usersettings y pon en ON ' +
-      '"API de Google Apps Script". Luego vuelve a intentarlo.');
-  }
   if (c !== 200) {
-    throw new Error('No he podido leer el proyecto (error ' + c + ').');
+    throw new Error('Google no me deja leer el proyecto (error ' + c + ').\n\n' +
+      resp.getContentText().slice(0, 400));
   }
   return JSON.parse(resp.getContentText());
 }

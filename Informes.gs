@@ -23,7 +23,8 @@ const MAPA_INFORMES = {
   'alumno/a:':             { col: 'Alumno/a' },
   'rep':                   { col: 'Repite el curso actual', si: 'R' },
   'mat no sup.':           { col: 'MAT NO SUP.' },
-  'pil':                   { col: 'PIL', si: 'PIL' },
+  'pil':                   { col: 'PIL', si: 'SÍ' },
+  'div':                   { col: 'Diversificación', siEmpieza: 'SÍ' },
   'mat. pend.':            { col: 'Asignaturas pendientes' },
   'neae':                  { col: 'NEAE' },
   'opt':                   { col: 'OPT' },
@@ -52,7 +53,9 @@ const ALIAS_COLUMNAS = {
   'mat. pend.':                         'mat. pend.',
   'pendientes de cursos anteriores':     'mat. pend.',
   'mat. pend. 6º':                      'mat. pend. 6º',
-  'pendientes de 6º de primaria':        'mat. pend. 6º'
+  'pendientes de 6º de primaria':        'mat. pend. 6º',
+  'div':                                'div',
+  'diversificacion':                    'div'
 };
 const TITULOS_NUEVOS = {
   'mat no sup.':   'NO SUPERADAS del curso que repite',
@@ -63,8 +66,12 @@ const TITULOS_NUEVOS = {
 /* La línea que se imprime encima de los títulos, en la fila 8. */
 const FILA_LEYENDA = 8;
 const TEXTO_LEYENDA =
-  'NO SUPERADAS: las suspendió el curso pasado y las repite. ' +
-  'PENDIENTES: las arrastra de cursos anteriores; detrás va el curso del que vienen.';
+  'NO SUPERADAS: las suspendió el curso que repite. ' +
+  'PENDIENTES: las arrastra de cursos anteriores, con su curso detrás. ' +
+  'DIV: alumnado de diversificación.';
+
+/* La diversificación solo existe en 3º y 4º. En 1º y 2º no se crea la columna. */
+const NIVELES_CON_DIV = ['3º', '4º'];
 
 /* Devuelve la clave con la que el programa conoce a esa columna. */
 function claveColumna_(titulo) {
@@ -76,17 +83,17 @@ function claveColumna_(titulo) {
  *
  * En píxeles. Un folio A4 en vertical, con márgenes de 0,9 cm, da unos
  * 726 píxeles útiles. La suma de cada nivel tiene que caber ahí:
- *   1º = 638   2º y 3º = 590   4º = 719   (1ºA = 683, 2ºB = 680)
+ *   1º = 618 · 1ºA = 663 · 2º = 570 · 2ºB = 660 · 3º = 600 · 4º = 717
  *
  * Las columnas largas (nombre, materias no superadas, pendientes, NEAE)
  * llevan ajuste de texto: se parten en varias líneas y la fila crece.
  * Las columnas que no conozco no se tocan.
  * ==================================================================== ***/
 const ANCHOS_INFORME = {
-  'alumno/a:': 150, 'rep': 30, 'mat no sup.': 105, 'pil': 32,
-  'mat. pend.': 100, 'mat. pend. 6º': 100, 'neae': 50,
+  'alumno/a:': 145, 'rep': 30, 'mat no sup.': 100, 'pil': 32, 'div': 30,
+  'mat. pend.': 95, 'mat. pend. 6º': 95, 'neae': 45,
   'opt': 45, 'fr -> alct': 48, 'rel/atedu': 52,
-  'mat': 38, 'opc1': 34, 'opc2': 34, 'opc3': 34, 'opc4': 34,
+  'mat': 38, 'opc1': 31, 'opc2': 31, 'opc3': 31, 'opc4': 31,
   'veces repite primaria': 45, 'medidas/recursos': 90
 };
 const ANCHO_NUMERACION = 26;
@@ -133,6 +140,9 @@ function valorInforme(regla, alumno, idxAlum) {
   if (i === undefined) return '';
   const v = alumno[i];
   if (regla.si) return String(v).trim().toUpperCase() === 'SÍ' ? regla.si : '';
+  /* 'siEmpieza' es para la columna Diversificación, que puede valer
+     "SÍ", "SÍ (solo Jefatura)" o "NO". */
+  if (regla.siEmpieza) return normalizar(v).indexOf('si') === 0 ? regla.siEmpieza : '';
   return v === null || v === undefined ? '' : v;
 }
 
@@ -157,6 +167,34 @@ function construirBloque(titulos, alumnos, idxAlum, previos) {
     filas.push(fila);
   }
   return filas;
+}
+
+/*** ================= LA COLUMNA DIV ================= ***/
+
+/* Jefatura tenía suelta la palabra DIVERSIFICACIÓN en la fila 7, sin señalar
+   a nadie. Ya no hace falta: ahora hay una columna. Se borra esa celda. */
+function limpiarRotuloDiver_(hoja, fila7) {
+  for (let c = 0; c < fila7.length; c++) {
+    if (normalizar(fila7[c]) === 'diversificacion') {
+      hoja.getRange(FILA_GRUPO, c + 1).clearContent().setBackground(null);
+    }
+  }
+}
+
+/* Crea la columna DIV si no está, justo detrás de PIL. Si no encuentra PIL,
+   la pone al final. Devuelve true si ha creado algo. */
+function asegurarColumnaDiv_(hoja) {
+  const ancho = hoja.getLastColumn();
+  const titulos = hoja.getRange(FILA_TITULOS, 1, 1, ancho).getValues()[0];
+  let detrasDe = ancho;                       // por defecto, al final
+  for (let c = 0; c < ancho; c++) {
+    const clave = claveColumna_(titulos[c]);
+    if (clave === 'div') return false;        // ya existe
+    if (clave === 'pil') detrasDe = c + 1;    // número de columna, empezando en 1
+  }
+  hoja.insertColumnAfter(detrasDe);
+  hoja.getRange(FILA_TITULOS, detrasDe + 1).setValue('DIV');
+  return true;
 }
 
 /*** ================= LECTURA DE ALUMNADO ================= ***/
@@ -289,8 +327,16 @@ function rellenarInformes() {
     if (hoja.getLastRow() < FILA_TITULOS) continue;
 
     const anchoFila7 = Math.max(hoja.getLastColumn(), 15);
-    const grupo = grupoDeFila7(hoja.getRange(FILA_GRUPO, 1, 1, anchoFila7).getValues()[0]);
+    const fila7 = hoja.getRange(FILA_GRUPO, 1, 1, anchoFila7).getValues()[0];
+    const grupo = grupoDeFila7(fila7);
     if (!grupo) continue;   // no es una pestaña de grupo (AVISOS, etc.)
+
+    limpiarRotuloDiver_(hoja, fila7);
+    const nivel = grupo.substring(0, 2);
+    if (NIVELES_CON_DIV.indexOf(nivel) !== -1 && asegurarColumnaDiv_(hoja)) {
+      avisos.push([grupo, hoja.getName(), 'Columna DIV creada',
+                   'He añadido la columna DIV detrás de PIL. Solo se hace la primera vez.']);
+    }
 
     const ancho = hoja.getLastColumn();
     const titulos = hoja.getRange(FILA_TITULOS, 1, 1, ancho).getValues()[0];

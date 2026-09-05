@@ -111,15 +111,15 @@ const MAPA_INFORMES = {
 const ANCHO_FOLIO = 707;
 const ANCHO_NUMERACION = 26;
 const ANCHOS_MINIMOS = {
-  'alumno/a:': 135, 'rep': 30, 'mat no sup.': 95, 'mat. pend.': 90,
-  'mat. pend. 6º': 90, 'pil': 32, 'div': 30, 'neae': 42,
-  'medidas/recursos': 80, 'itinerario': 110, 'opt': 45, 'fr -> alct': 48,
-  'rel/atedu': 54, 'veces repite primaria': 45
+  'alumno/a:': 130, 'rep': 30, 'mat no sup.': 90, 'mat. pend.': 85,
+  'mat. pend. 6º': 85, 'pil': 30, 'div': 28, 'neae': 35,
+  'medidas/recursos': 60, 'itinerario': 130, 'opt': 45, 'fr -> alct': 48,
+  'rel/atedu': 64, 'veces repite primaria': 45
 };
 const ANCHO_DESCONOCIDA = 80;
 const COLUMNAS_ELASTICAS = ['mat no sup.', 'mat. pend.', 'mat. pend. 6º', 'alumno/a:'];
 const CON_AJUSTE = ['alumno/a:', 'mat no sup.', 'mat. pend.', 'mat. pend. 6º',
-                    'neae', 'medidas/recursos', 'itinerario'];
+                    'neae', 'medidas/recursos', 'itinerario', 'opt'];
 const LETRA_INFORME = 9;
 const ALTO_LINEA = 12;
 
@@ -131,13 +131,20 @@ const TEXTO_LEYENDA =
 /* El membrete es una imagen flotante encima de las filas 1 a 6. No se pueden
    esconder esas filas: la imagen se iría con ellas. */
 const FILAS_CABECERA   = 6;
+
+/* El membrete nuevo. Es un fichero de imagen en la carpeta de datos que se
+   llama MEMBRETE (da igual la extensión). Si está, el programa lo pone en las
+   23 pestañas. Si no está, deja el que haya y no toca nada. */
+const NOMBRE_MEMBRETE  = 'membrete';
+const RATIO_MEMBRETE   = 6.667;   // ancho dividido por alto de esa imagen
+const ESCALA_MEMBRETE  = 0.85;    // un poco más pequeño, para ganar alto de folio
 const ALTO_MINIMO_FILA = 8;
 const AIRE_BAJO_LOGO   = 6;
 
 const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
   '&sheetnames=false&printtitle=false&pagenumbers=true&pagenum=CENTER' +
   '&gridlines=false&fzr=true' +
-  '&top_margin=0.25&bottom_margin=0.25&left_margin=0.45&right_margin=0.45' +
+  '&top_margin=0.20&bottom_margin=0.20&left_margin=0.45&right_margin=0.45' +
   '&horizontal_alignment=LEFT&vertical_alignment=TOP';
 
 /*** ================= LÓGICA PURA ================= ***/
@@ -301,6 +308,46 @@ function leerAlumnado_() {
   return { porUnidad: porUnidad, idx: idx, sinUnidad: sinUnidad, filas: datos };
 }
 
+/*** ================= EL MEMBRETE ================= ***/
+
+/* Busca el fichero de imagen llamado MEMBRETE en la carpeta de datos. */
+function blobMembrete_() {
+  const carpetas = carpetasDondeBuscar();
+  for (let c = 0; c < carpetas.length; c++) {
+    const it = carpetas[c].getFiles();
+    while (it.hasNext()) {
+      const f = it.next();
+      const nombre = f.getName();
+      const sinExt = normalizar(nombre.replace(/\.[^.]+$/, ''));
+      if (sinExt !== NOMBRE_MEMBRETE) continue;
+      if (String(f.getMimeType()).indexOf('image/') !== 0) continue;
+      return f.getBlob();
+    }
+  }
+  return null;
+}
+
+/* Cambia el membrete de una pestaña, conservando dónde está y encogiéndolo
+   un poco para ganar alto de folio. Devuelve true si lo ha cambiado. */
+function ponerMembrete_(hoja, blob) {
+  if (!blob) return false;
+  let imagenes;
+  try { imagenes = hoja.getImages(); } catch (e) { return false; }
+  let cambiada = false;
+  for (let i = 0; i < imagenes.length; i++) {
+    const img = imagenes[i];
+    let fila;
+    try { fila = img.getAnchorCell().getRow(); } catch (e) { continue; }
+    if (fila > FILAS_CABECERA) continue;
+    const ancho = Math.round(img.getWidth() * ESCALA_MEMBRETE);
+    img.replace(blob);
+    img.setWidth(ancho);
+    img.setHeight(Math.round(ancho / RATIO_MEMBRETE));
+    cambiada = true;
+  }
+  return cambiada;
+}
+
 /*** ================= EL HUECO DEL MEMBRETE ================= ***/
 function ajustarFilasDelLogo_(hoja) {
   let imagenes;
@@ -374,73 +421,82 @@ function escribirPortada_(libro, A, resumenGrupos) {
   let hoja = libro.getSheetByName(HOJA_PORTADA);
   if (!hoja) hoja = libro.insertSheet(HOJA_PORTADA);
   hoja.clear();
-  if (hoja.getMaxColumns() < 6) hoja.insertColumnsAfter(hoja.getMaxColumns(), 6 - hoja.getMaxColumns());
+  if (hoja.getMaxColumns() < 5) hoja.insertColumnsAfter(hoja.getMaxColumns(), 5 - hoja.getMaxColumns());
   libro.setActiveSheet(hoja);
   libro.moveActiveSheet(1);
 
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
-  const filas = [];
-  filas.push(['INFORMES POR UNIDAD', '', '', '', '', '']);
-  filas.push(['Generado el ' + hoy + ' · ' + VERSION, '', '', '', '', '']);
-  filas.push(['', '', '', '', '', '']);
+  const filas = [], bandas = [];
+  const mete = function (a, b, c, d, e) { filas.push([a || '', b || '', c || '', d || '', e || '']); };
+  const banda = function (t) { bandas.push(filas.length); mete(t); };
 
-  const iPil = A.idx[normalizar('PIL')], iRep = A.idx[normalizar('Repite el curso actual')];
-  const iDiv = A.idx[normalizar('Diversificación')], iPen = A.idx[normalizar('Nº pendientes')];
+  mete('INFORMES POR UNIDAD');
+  mete('IES Fuente Lucena · Generado el ' + hoy + ' · ' + VERSION);
+  mete('');
+
+  const dame = function (fila, t) {
+    const i = A.idx[normalizar(t)];
+    return i === undefined ? '' : String(fila[i] === null || fila[i] === undefined ? '' : fila[i]).trim();
+  };
   let nPil = 0, nRep = 0, nDiv = 0, nPen = 0, nTot = 0;
   for (let f = 0; f < A.filas.length; f++) {
     const fila = A.filas[f];
-    if (!String(fila[A.idx[normalizar('Alumno/a')]] || '').trim()) continue;
+    if (!dame(fila, 'Alumno/a')) continue;
     nTot++;
-    if (iPil !== undefined && String(fila[iPil]).trim() === 'SÍ') nPil++;
-    if (iRep !== undefined && String(fila[iRep]).trim() === 'SÍ') nRep++;
-    if (iDiv !== undefined && normalizar(fila[iDiv]).indexOf('si') === 0) nDiv++;
-    if (iPen !== undefined && String(fila[iPen]).trim() !== '') nPen++;
+    if (dame(fila, 'PIL') === 'SÍ') nPil++;
+    if (dame(fila, 'Repite el curso actual') === 'SÍ') nRep++;
+    if (normalizar(dame(fila, 'Diversificación')).indexOf('si') === 0) nDiv++;
+    if (dame(fila, 'Nº pendientes') !== '') nPen++;
   }
-  filas.push(['EL CENTRO EN CIFRAS', '', '', '', '', '']);
-  filas.push(['Alumnado de ESO', nTot, '', 'Repetidores', nRep, '']);
-  filas.push(['Grupos con informe', resumenGrupos.length, '', 'PIL (no pueden repetir más)', nPil, '']);
-  filas.push(['En diversificación', nDiv, '', 'Con materias pendientes', nPen, '']);
-  filas.push(['', '', '', '', '', '']);
+  banda('EL CENTRO EN CIFRAS');
+  mete('Alumnado de ESO: ' + nTot + '     Grupos con informe: ' + resumenGrupos.length +
+       '     Repetidores: ' + nRep + '     PIL: ' + nPil +
+       '     En diversificación: ' + nDiv + '     Con materias pendientes: ' + nPen);
+  mete('');
 
-  if (A.sinUnidad.length) {
-    filas.push(['ALUMNADO SIN UNIDAD ASIGNADA EN SÉNECA', '', '', '', '', '']);
-    filas.push(['Estos alumnos no salen en ningún informe de grupo. Hay que ponerles unidad en Séneca.',
-                '', '', '', '', '']);
+  banda('ALUMNADO SIN UNIDAD ASIGNADA EN SÉNECA');
+  if (!A.sinUnidad.length) {
+    mete('Ninguno. Todo el alumnado tiene su grupo.');
+  } else {
+    mete('No salen en ningún informe de grupo. Hay que ponerles unidad en Séneca.');
     for (let i = 0; i < A.sinUnidad.length; i++) {
-      filas.push(['   ' + A.sinUnidad[i][0], A.sinUnidad[i][1] + ' ESO', '', '', '', '']);
+      mete(A.sinUnidad[i][0] + '   (' + A.sinUnidad[i][1] + ' ESO)');
     }
-    filas.push(['', '', '', '', '', '']);
   }
+  mete('');
 
   const pend = discrepanciasPendientes_();
-  filas.push(['PENDIENTE DE AJUSTAR EN SÉNECA', '', '', '', '', '']);
+  banda('PENDIENTE DE AJUSTAR EN SÉNECA (' + pend.length + ')');
   if (!pend.length) {
-    filas.push(['Nada pendiente. Séneca coincide con lo que quiere Jefatura de Estudios.',
-                '', '', '', '', '']);
+    mete('Nada pendiente. Séneca coincide con lo que quiere Jefatura de Estudios.');
   } else {
-    filas.push(['Diferencias entre Séneca y el fichero de Jefatura. Desaparecen de aquí cuando ' +
-                'escribes algo en la columna Estado de la pestaña DISCREPANCIAS.', '', '', '', '', '']);
-    filas.push(['Grupo', 'Alumno/a', 'Qué no cuadra', 'Séneca dice', 'Jefatura quiere', '']);
-    for (let i = 0; i < pend.length; i++) filas.push(pend[i].concat(['']));
+    mete('Escribe algo en la columna Estado de la pestaña DISCREPANCIAS y esa línea desaparece de aquí.');
+    const cabecera = filas.length;
+    mete('Grupo', 'Alumno/a', 'Qué no cuadra', 'Séneca dice', 'Jefatura quiere');
+    for (let i = 0; i < pend.length; i++) {
+      mete(pend[i][0], pend[i][1], pend[i][2], pend[i][3], pend[i][4]);
+    }
+    bandas.push(-cabecera - 1);   // marca: fila de títulos, con otro color
   }
 
-  hoja.getRange(1, 1, filas.length, 6).setValues(filas);
-  hoja.getRange(1, 1).setFontSize(16).setFontWeight('bold');
-  hoja.getRange(2, 1).setFontSize(9).setFontStyle('italic');
-  for (let f = 0; f < filas.length; f++) {
-    const t = String(filas[f][0]);
-    if (t === t.toUpperCase() && t.replace(/[^A-ZÁÉÍÓÚÑ]/g, '').length > 4) {
-      hoja.getRange(f + 1, 1, 1, 6).setFontWeight('bold').setBackground('#D9E1F2');
+  hoja.getRange(1, 1, filas.length, 5).setValues(filas)
+      .setFontSize(8).setVerticalAlignment('middle').setWrap(false);
+  hoja.getRange(1, 1).setFontSize(15).setFontWeight('bold');
+  hoja.getRange(2, 1).setFontStyle('italic');
+  for (let i = 0; i < bandas.length; i++) {
+    if (bandas[i] >= 0) {
+      hoja.getRange(bandas[i] + 1, 1, 1, 5).setFontWeight('bold').setBackground('#D9E1F2').setFontSize(9);
+    } else {
+      hoja.getRange(-bandas[i], 1, 1, 5).setFontWeight('bold').setBackground('#F2F2F2');
     }
   }
-  hoja.setColumnWidth(1, 300);
-  hoja.setColumnWidth(2, 150);
-  hoja.setColumnWidth(3, 170);
-  hoja.setColumnWidth(4, 120);
-  hoja.setColumnWidth(5, 120);
-  hoja.setColumnWidth(6, 40);
-  hoja.getRange(1, 1, filas.length, 6).setFontSize(9).setVerticalAlignment('middle').setWrap(true);
-  hoja.getRange(1, 1).setFontSize(16);
+  hoja.setColumnWidth(1, 70);
+  hoja.setColumnWidth(2, 185);
+  hoja.setColumnWidth(3, 215);
+  hoja.setColumnWidth(4, 105);
+  hoja.setColumnWidth(5, 105);
+  hoja.setRowHeights(1, filas.length, 13);
+  hoja.setRowHeight(1, 22);
   hoja.setFrozenRows(0);
   return pend.length;
 }
@@ -482,7 +538,9 @@ function rellenarInformes() {
   }
 
   const avisos = [], resumen = [], usadas = {}, pestanasDeGrupo = [];
-  let totalEscritos = 0;
+  let totalEscritos = 0, membretesCambiados = 0;
+  let membrete = null;
+  try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
 
   const hojas = libro.getSheets();
@@ -590,6 +648,7 @@ function rellenarInformes() {
     }
     hoja.setRowHeight(FILA_TITULOS, altoDeLosRotulos_(claves, W.anchos));
     hoja.autoResizeRows(FILA_DATOS, bloque.length);
+    if (ponerMembrete_(hoja, membrete)) membretesCambiados++;
     ajustarFilasDelLogo_(hoja);
     hoja.setFrozenRows(FILA_TITULOS);
 
@@ -630,6 +689,7 @@ function rellenarInformes() {
 
   ui.alert('Informes rellenados (' + VERSION + ')',
     'Grupos actualizados: ' + resumen.length +
+    (membrete ? '\nMembretes actualizados: ' + membretesCambiados : '') +
     '\nAlumnos escritos: ' + totalEscritos +
     '\nAlumnos sin unidad (salen solo en la portada): ' + A.sinUnidad.length +
     '\nPendiente de ajustar en Séneca: ' + nPend +

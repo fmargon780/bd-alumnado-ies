@@ -99,6 +99,11 @@ const MAPA_INFORMES = {
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
   'opt':        { col: 'OPT' },
+  /* NEAE y MEDIDAS Y RECURSOS las rellena ahora el censo NEAE de Séneca.
+     'conservaSiVacio' es la red de seguridad: si el censo no dice nada de un
+     alumno, se respeta lo que hubiera escrito una persona en el informe. */
+  'neae':       { col: 'NEAE', conservaSiVacio: true },
+  'medidas/recursos': { col: 'MEDIDAS Y RECURSOS', conservaSiVacio: true },
   'fr -> alct': { col: 'FR -> ALCT', siLleno: 'SÍ' },
   'rel/atedu':  { col: 'REL/Atedu' }
 };
@@ -112,23 +117,43 @@ const MAPA_INFORMES = {
  * ============================================================== ***/
 const ANCHO_FOLIO = 707;
 const ANCHO_NUMERACION = 26;
+/* Ajustados a la letra 8: las columnas de marca (una letra o un código corto)
+   se han apretado para dar sitio a NEAE y MEDIDAS Y RECURSOS. */
 const ANCHOS_MINIMOS = {
-  'alumno/a:': 130, 'rep': 30, 'mat no sup.': 90, 'mat. pend.': 85,
-  'mat. pend. 6º': 85, 'pil': 30, 'div': 28, 'neae': 35,
-  'medidas/recursos': 60, 'itinerario': 130, 'opt': 45, 'fr -> alct': 55,
-  'rel/atedu': 64, 'veces repite primaria': 45
+  'alumno/a:': 130, 'rep': 26, 'mat no sup.': 90, 'mat. pend.': 85,
+  'mat. pend. 6º': 85, 'pil': 26, 'div': 26, 'neae': 55,
+  'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 45,
+  'rel/atedu': 52, 'veces repite primaria': 45
 };
 const ANCHO_DESCONOCIDA = 80;
-const COLUMNAS_ELASTICAS = ['mat no sup.', 'mat. pend.', 'mat. pend. 6º', 'alumno/a:'];
+const COLUMNAS_ELASTICAS = ['mat no sup.', 'mat. pend.', 'mat. pend. 6º', 'alumno/a:',
+                            'neae', 'medidas/recursos'];
 const CON_AJUSTE = ['alumno/a:', 'mat no sup.', 'mat. pend.', 'mat. pend. 6º',
                     'neae', 'medidas/recursos', 'itinerario', 'opt'];
-const LETRA_INFORME = 9;
+/* Se baja de 9 a 8 al meter las columnas NEAE y MEDIDAS Y RECURSOS.
+   Medido con el simulador sobre los datos reales del curso 26-27:
+   con letra 9 el PDF pasaría de 27 a 33 páginas y de 3 a 9 grupos de dos
+   folios; con letra 8 se queda en 25 páginas y ningún grupo se parte. */
+const LETRA_INFORME = 8;
 const ALTO_LINEA = 12;
 
-const TEXTO_LEYENDA =
-  'NO SUPERADAS: las suspendió el curso que repite. ' +
-  'PENDIENTES: las arrastra de cursos anteriores, con su curso detrás. ' +
-  'DIV: diversificación.';
+/* La leyenda ya no ocupa una fila propia: se escribe en el hueco que queda a
+   la derecha del membrete, en las filas 1 a 6, que antes estaban desperdiciadas.
+   Así no empuja ni una fila hacia abajo y se imprime en todas las páginas,
+   porque esas filas van congeladas. */
+const LEYENDA = [
+  'NO SUPERADAS: las suspendió el curso que repite.   DIV: diversificación.',
+  'PENDIENTES: las arrastra de cursos anteriores, con su curso detrás.',
+  'NEAE — NEE: n. educativas especiales.   DIA: dificultades de aprendizaje.',
+  'AACC: altas capacidades.   COM: compensación educativa.',
+  'MEDIDAS — ACS, ACI, ACAI y AAC: adaptaciones curriculares.',
+  'PE: programa específico.   PRA: refuerzo del aprendizaje.   PP: profundización.',
+  'RECURSOS (detrás de la raya) — PT, AL, ATAL, COMP, PTIS, ONCE.'
+];
+const LETRA_LEYENDA = 6;
+const ALTO_LINEA_LEYENDA = 7.2;   // puntos que ocupa una línea a esa letra
+const ANCHO_LETRA_LEYENDA = 3.0;  // ancho medio de un carácter, en puntos
+const AIRE_TRAS_MEMBRETE = 12;    // separación entre el membrete y la leyenda
 
 /* El membrete es una imagen flotante encima de las filas 1 a 6. No se pueden
    esconder esas filas: la imagen se iría con ellas. */
@@ -139,9 +164,9 @@ const FILAS_CABECERA   = 6;
    23 pestañas. Si no está, deja el que haya y no toca nada. */
 const NOMBRE_MEMBRETE  = 'membrete';
 const RATIO_MEMBRETE   = 6.667;   // ancho dividido por alto de esa imagen
-const ANCHO_MEMBRETE   = 460;     // puntos. Fijo, para que salga igual en las 23 pestañas
+const ANCHO_MEMBRETE   = 312;     // puntos = 110 mm. Deja sitio a su derecha para la leyenda
 const ALTO_MINIMO_FILA = 8;
-const AIRE_BAJO_LOGO   = 6;
+const AIRE_BAJO_LOGO   = 10;   // sitio para que respire la leyenda de al lado
 
 const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
   '&sheetnames=false&printtitle=false&pagenumbers=true&pagenum=CENTER' +
@@ -255,8 +280,13 @@ function construirBloque(claves, alumnos, idxAlum, previos) {
     const fila = [f + 1];
     for (let c = 0; c < claves.length; c++) {
       const regla = MAPA_INFORMES[claves[c]];
-      if (regla) fila.push(valorInforme(regla, alumno, idxAlum));
-      else fila.push(antes[claves[c]] === undefined ? '' : antes[claves[c]]);
+      if (regla) {
+        let v = valorInforme(regla, alumno, idxAlum);
+        if (String(v).trim() === '' && regla.conservaSiVacio && antes[claves[c]] !== undefined) {
+          v = antes[claves[c]];
+        }
+        fila.push(v);
+      } else fila.push(antes[claves[c]] === undefined ? '' : antes[claves[c]]);
     }
     filas.push(fila);
   }
@@ -335,7 +365,6 @@ function blobMembrete_() {
 /* Cambia el membrete de una pestaña, conservando dónde está y encogiéndolo
    un poco para ganar alto de folio. Devuelve true si lo ha cambiado. */
 function ponerMembrete_(hoja, blob) {
-  if (!blob) return false;
   let imagenes;
   try { imagenes = hoja.getImages(); } catch (e) { return false; }
   let cambiada = false;
@@ -344,12 +373,58 @@ function ponerMembrete_(hoja, blob) {
     let fila;
     try { fila = img.getAnchorCell().getRow(); } catch (e) { continue; }
     if (fila > FILAS_CABECERA) continue;
-    img.replace(blob);
+    /* El ancho se ajusta siempre, haya o no una imagen nueva: si el membrete
+       se quedara ancho, taparía la leyenda que va a su derecha. */
+    if (blob) { img.replace(blob); cambiada = true; }
     img.setWidth(ANCHO_MEMBRETE);
     img.setHeight(Math.round(ANCHO_MEMBRETE / RATIO_MEMBRETE));
-    cambiada = true;
   }
   return cambiada;
+}
+
+/*** ================= LA LEYENDA, AL LADO DEL MEMBRETE ================= ***/
+
+/* Devuelve la primera columna que empieza más allá del membrete. */
+function columnaTrasElMembrete_(claves, anchos) {
+  let acumulado = ANCHO_NUMERACION;
+  const limite = ANCHO_MEMBRETE + AIRE_TRAS_MEMBRETE;
+  for (let c = 0; c < claves.length; c++) {
+    if (acumulado >= limite) return c + 2;          // +1 por la numeración, +1 porque las columnas empiezan en 1
+    acumulado += anchos[claves[c]] === undefined ? ANCHO_DESCONOCIDA : anchos[claves[c]];
+  }
+  return claves.length + 1;
+}
+
+/* Escribe la leyenda en el hueco libre de las filas 1 a 6. Devuelve un texto
+   de aviso si no cabe, o cadena vacía si todo va bien. */
+function escribirLeyendaCabecera_(hoja, claves, anchos, ancho) {
+  const primera = columnaTrasElMembrete_(claves, anchos);
+  if (primera > ancho) return 'No queda hueco a la derecha del membrete para la leyenda.';
+
+  let disponible = 0;
+  for (let c = primera - 2; c < claves.length; c++) {
+    disponible += anchos[claves[c]] === undefined ? ANCHO_DESCONOCIDA : anchos[claves[c]];
+  }
+
+  const rango = hoja.getRange(1, primera, FILAS_CABECERA, ancho - primera + 1);
+  try { rango.breakApart(); } catch (e) { /* no estaba unida */ }
+  rango.merge();
+  rango.setValue(LEYENDA.join('\n'))
+       .setFontSize(LETRA_LEYENDA).setFontStyle('italic').setWrap(true)
+       .setVerticalAlignment('top').setHorizontalAlignment('left');
+
+  /* ¿Cabe? Se cuenta cuántas líneas ocupa cada renglón al ancho que hay. */
+  const porLinea = Math.max(1, Math.floor((disponible - 6) / ANCHO_LETRA_LEYENDA));
+  let lineas = 0;
+  for (let i = 0; i < LEYENDA.length; i++) lineas += Math.ceil(LEYENDA[i].length / porLinea);
+  let alto = 0;
+  for (let r = 1; r <= FILAS_CABECERA; r++) alto += hoja.getRowHeight(r);
+  if (lineas * ALTO_LINEA_LEYENDA > alto) {
+    return 'La leyenda necesita ' + Math.round(lineas * ALTO_LINEA_LEYENDA) +
+           ' puntos de alto y el hueco del membrete tiene ' + Math.round(alto) +
+           '. Se verá cortada.';
+  }
+  return '';
 }
 
 /*** ================= EL HUECO DEL MEMBRETE ================= ***/
@@ -543,7 +618,6 @@ function escribirPortada_(libro, A, resumenGrupos) {
        '     Repetidores: ' + nRep + '     PIL: ' + nPil +
        '     En diversificación: ' + nDiv + '     Con materias pendientes: ' + nPen);
   mete('');
-
   banda('ALUMNADO SIN UNIDAD ASIGNADA EN SÉNECA');
   if (!A.sinUnidad.length) {
     mete('Ninguno. Todo el alumnado tiene su grupo.');
@@ -695,6 +769,11 @@ function rellenarInformes() {
     const ancho = claves.length + 1;              // más la columna de numeración
     const W = anchosDeLaPestana_(claves);
 
+    /* Las filas 1 a 6 llevan la leyenda en una celda unida. Hay que soltarla
+       antes de añadir o quitar columnas, o Google no deja. */
+    try { hoja.getRange(1, 1, FILAS_CABECERA, hoja.getMaxColumns()).breakApart(); }
+    catch (e) { /* no había nada unido */ }
+
     // Dejar la pestaña con el número de columnas justo
     if (hoja.getMaxColumns() < ancho) {
       hoja.insertColumnsAfter(hoja.getMaxColumns(), ancho - hoja.getMaxColumns());
@@ -725,9 +804,10 @@ function rellenarInformes() {
     hoja.getRange(FILA_TITULOS, 1, 1, ancho).setValues([rotulos]);
     hoja.getRange(FILA_DATOS, 1, bloque.length, ancho).setValues(bloque);
 
-    // La leyenda y el recuento de la cabecera
-    hoja.getRange(FILA_LEYENDA, 1).setValue(TEXTO_LEYENDA)
-        .setFontSize(8).setFontStyle('italic').setWrap(false);
+    /* La fila 8 llevaba la leyenda. Ahora la leyenda va arriba, al lado del
+       membrete, así que esta fila se vacía y se deja lo más baja posible. */
+    hoja.getRange(FILA_LEYENDA, 1, 1, ancho).clearContent();
+    hoja.setRowHeight(FILA_LEYENDA, ALTO_MINIMO_FILA);
     const textoCabecera = alumnos.length + ' alumnos · ' + hoy;
     const celdaCabecera = hoja.getRange(FILA_GRUPO, ancho);
     celdaCabecera.setValue(textoCabecera)
@@ -752,6 +832,12 @@ function rellenarInformes() {
     hoja.autoResizeRows(FILA_DATOS, bloque.length);
     if (ponerMembrete_(hoja, membrete)) membretesCambiados++;
     ajustarFilasDelLogo_(hoja);
+    try {
+      const problema = escribirLeyendaCabecera_(hoja, claves, W.anchos, ancho);
+      if (problema) avisos.push([grupo, hoja.getName(), 'La leyenda no cabe', problema]);
+    } catch (e) {
+      avisos.push([grupo, hoja.getName(), 'No he podido escribir la leyenda', e.message]);
+    }
     hoja.setFrozenRows(FILA_TITULOS);
 
     if (W.suma > ANCHO_FOLIO + 40) {

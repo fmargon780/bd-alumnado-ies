@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v12';
+const VERSION = 'BD v14';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -70,10 +70,20 @@ const TITULOS_ALUMNADO = ['Alumno/a', 'Unidad', 'Curso', 'Repite el curso actual
   'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu', 'Nº pendientes',
   'Asignaturas pendientes', 'Edad a 31/12', 'MAT NO SUP.', 'Repeticiones en ESO',
   'Rep. Primaria (calculado)', 'Fuente Primaria', 'Rep. Primaria (corregido)',
-  'Motivo de la corrección', 'Repeticiones totales', 'PIL', 'NEAE', 'Observaciones'];
-const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección', 'NEAE', 'Observaciones'];
+  'Motivo de la corrección', 'Repeticiones totales', 'PIL', 'NEAE', 'MEDIDAS Y RECURSOS',
+  'Observaciones'];
+/* Amarillas: las escribe Francisco y el programa nunca las pisa. */
+const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección', 'Observaciones'];
+/* Todas las que hay que leer antes de reconstruir la tabla. NEAE y MEDIDAS Y
+   RECURSOS las rellena ahora el censo de Séneca, pero si el censo no dice nada
+   de un alumno se conserva lo que hubiera escrito a mano. */
+const COLS_CONSERVADAS = ['Rep. Primaria (corregido)', 'Motivo de la corrección',
+  'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones'];
+/* La fecha de nacimiento va al final: la usa el censo NEAE para deshacer
+   empates entre alumnos con las mismas iniciales. */
 const TITULOS_HISTORIAL = ['Alumno/a', 'Nº Id. Escolar', 'Unidad', 'Curso', 'Edad a 31/12',
-  'Repite el curso actual', 'Repeticiones en ESO', 'Rep. Primaria (calculado)', 'Fuente Primaria'];
+  'Repite el curso actual', 'Repeticiones en ESO', 'Rep. Primaria (calculado)', 'Fuente Primaria',
+  'Fecha de nacimiento'];
 
 /*** El menú lo crea Actualizador.gs, no este fichero. ***/
 
@@ -158,6 +168,7 @@ function calcularHistorial(tabla) {
   const iAno = cab.indexOf(normalizar('Año de la matrícula'));
   const iEdad = cab.indexOf(normalizar('Edad a 31/12 del año de matrícula'));
   const iEstado = cab.indexOf(normalizar('Estado Matrícula'));
+  const iFecNac = cab.indexOf(normalizar('Fecha de nacimiento'));
   if (iNombre === -1 || iId === -1 || iCurso === -1 || iAno === -1 || iEdad === -1) {
     throw new Error('Al histórico le faltan columnas necesarias.');
   }
@@ -210,7 +221,8 @@ function calcularHistorial(tabla) {
       repPrim = edad - EDAD_TEORICA[niv] - repESO; fuente = 'EDAD';
     }
     filas.push([String(fila[iNombre]).trim(), id, iUnidad === -1 ? '' : String(fila[iUnidad] || '').trim(),
-                niv, isNaN(edad) ? '' : edad, repite, repESO, repPrim, fuente]);
+                niv, isNaN(edad) ? '' : edad, repite, repESO, repPrim, fuente,
+                iFecNac === -1 ? '' : String(fila[iFecNac] || '').trim()]);
   }
   filas.sort(function (a, b) { return normalizar(a[0]) < normalizar(b[0]) ? -1 : 1; });
   return { filas: filas, ano: ultimo };
@@ -311,12 +323,13 @@ function leerNotas(valores) {
 }
 
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
-function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura) {
+function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae) {
   const hist = {};
   for (let i = 0; i < historial.length; i++) {
     hist[normalizar(historial[i][0])] = historial[i];
   }
   const jef = jefatura || {};
+  const censo = neae || {};
   const filas = [], avisos = [];
   const todos = [];
   for (const curso in alumnosPorCurso) {
@@ -333,7 +346,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const v = a.valores;
     const clave = normalizar(a.nombre);
     const h = hist[clave];
-    const man = (manuales && manuales[clave]) || ['', '', '', ''];
+    const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', pil = '', mns = '';
 
     if (!h) {
@@ -364,7 +377,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       avisos.push({ curso: a.curso, grupo: '', alumno: a.nombre, aviso: 'Sin unidad asignada',
         detalle: 'No aparecerá en ningún informe de grupo' });
     }
-
     /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
        Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
     /* En 4º Séneca lo marca poniendo ÁMB en la columna MAT. En 1º, 2º y 3º
@@ -379,7 +391,12 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
       v['REL/Atedu'] || '', a.pend.length ? a.pend.length : '',
       a.pend.length ? (a.pend.length + ' — ' + a.pend.join(', ')) : '', edad, mns,
-      repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil, man[2] || '', man[3] || '']);
+      repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil,
+      /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
+         dice nada de este alumno, se respeta lo que hubiera escrito a mano. */
+      (censo[clave] && censo[clave].neae) || man[2] || '',
+      (censo[clave] && censo[clave].medidas) || man[3] || '',
+      man[4] || '']);
   }
   return { filas: filas, avisos: avisos };
 }
@@ -497,7 +514,7 @@ function cargarHistorico() {
   try {
     const tabla = textoATablaFiltrada(textoDeArchivo(archivo),
       ['Alumno/a', 'Nº Id. Escolar', 'Curso', 'Unidad', 'Año de la matrícula',
-       'Edad a 31/12 del año de matrícula', 'Estado Matrícula']);
+       'Edad a 31/12 del año de matrícula', 'Estado Matrícula', 'Fecha de nacimiento']);
     res = calcularHistorial(tabla);
   } catch (e) {
     ui.alert('No he podido leer el histórico.\n\n' + e.message);
@@ -529,7 +546,15 @@ function construirAlumnado() {
     ui.alert('Antes tienes que pulsar "1. Leer el histórico de matrículas".');
     return;
   }
-  const historial = hHist.getRange(3, 1, hHist.getLastRow() - 2, TITULOS_HISTORIAL.length).getValues();
+  /* Una pestaña HISTORIAL hecha con una versión anterior tiene menos columnas.
+     Se lee lo que haya y se rellena el resto, en vez de reventar. */
+  const anchoHist = Math.min(TITULOS_HISTORIAL.length, Math.max(1, hHist.getLastColumn()));
+  const historial = hHist.getRange(3, 1, hHist.getLastRow() - 2, anchoHist).getValues();
+  if (anchoHist < TITULOS_HISTORIAL.length) {
+    for (let f = 0; f < historial.length; f++) {
+      while (historial[f].length < TITULOS_HISTORIAL.length) historial[f].push('');
+    }
+  }
 
   const ficheros = buscarCsvsMatricula();
   const cursos = Object.keys(ficheros);
@@ -585,11 +610,28 @@ function construirAlumnado() {
     else avisos.push(a);
   }
 
+  /* Cuarta fuente: el censo NEAE de Séneca. Rellena solas las columnas
+     NEAE y MEDIDAS Y RECURSOS. Ver NEAE.gs. */
+  const N = datosNeae_(historial, 0, 3, TITULOS_HISTORIAL.indexOf('Fecha de nacimiento'));
+  for (let i = 0; i < N.avisos.length; i++) avisos.push(N.avisos[i]);
+
   const manuales = leerManualesAlumnado(libro);
-  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre);
+  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre, N.porNombre);
   R.avisos.forEach(function (a) { avisos.push(a); });
 
   escribirAlumnado(R.filas);
+
+  /* La pestaña NEAE deja ver a quién se ha asignado cada ficha del censo,
+     que en el fichero de Séneca solo viene con las iniciales. */
+  const iNomA = TITULOS_ALUMNADO.indexOf('Alumno/a'), iUniA = TITULOS_ALUMNADO.indexOf('Unidad');
+  const unidadesPorNombre = {};
+  for (let f = 0; f < R.filas.length; f++) {
+    unidadesPorNombre[normalizar(R.filas[f][iNomA])] = R.filas[f][iUniA];
+  }
+  try { escribirNeae_(N.porNombre, unidadesPorNombre, N.nombre); }
+  catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
+    aviso: 'No he podido escribir la pestaña NEAE', detalle: e.message }); }
+
   escribirAvisos(avisos);
 
   escribirJefatura_(J.alumnos, J.nombre);
@@ -614,6 +656,7 @@ function construirAlumnado() {
     '\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +
     '\nEn diversificación: ' + div +
+    '\nCon censo NEAE: ' + N.total +
     '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
     '\nAlumnos leídos de Jefatura: ' + J.alumnos.length +
     '\nDiferencias con Séneca: ' + nDiscrep +
@@ -627,13 +670,15 @@ function leerManualesAlumnado(libro) {
   if (!hoja || hoja.getLastRow() < 3) return manuales;
   const ancho = hoja.getLastColumn();
   const titulos = hoja.getRange(2, 1, 1, ancho).getValues()[0].map(normalizar);
-  const cols = COLS_MANUALES_ALUMNADO.map(function (t) { return titulos.indexOf(normalizar(t)); });
-  if (cols.indexOf(-1) !== -1) return manuales;
+  /* Una columna que todavía no exista (por ejemplo MEDIDAS Y RECURSOS la
+     primera vez) devuelve -1 y se lee como vacía. Antes esto abortaba la
+     lectura entera y se perdía lo escrito a mano en las demás. */
+  const cols = COLS_CONSERVADAS.map(function (t) { return titulos.indexOf(normalizar(t)); });
   const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
   for (let f = 0; f < datos.length; f++) {
     const nombre = normalizar(datos[f][0]);
     if (!nombre) continue;
-    manuales[nombre] = cols.map(function (c) { return datos[f][c]; });
+    manuales[nombre] = cols.map(function (c) { return c === -1 ? '' : datos[f][c]; });
   }
   return manuales;
 }

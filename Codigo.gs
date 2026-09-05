@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v3';
+const VERSION = 'BD v4';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -66,8 +66,8 @@ const ABREVIATURAS = {
   'Nutrición, Salud y Deporte': 'NSD', 'Prácticas Biológicas': 'PB', 'Tecnología': 'TEC'
 };
 
-const TITULOS_ALUMNADO = ['Alumno/a', 'Unidad', 'Curso', 'Repite el curso actual', 'OPT',
-  'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu', 'Nº pendientes',
+const TITULOS_ALUMNADO = ['Alumno/a', 'Unidad', 'Curso', 'Repite el curso actual', 'Diversificación',
+  'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu', 'Nº pendientes',
   'Asignaturas pendientes', 'Edad a 31/12', 'MAT NO SUP.', 'Repeticiones en ESO',
   'Rep. Primaria (calculado)', 'Fuente Primaria', 'Rep. Primaria (corregido)',
   'Motivo de la corrección', 'Repeticiones totales', 'PIL', 'NEAE', 'Observaciones'];
@@ -305,11 +305,12 @@ function leerNotas(valores) {
 }
 
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
-function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales) {
+function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura) {
   const hist = {};
   for (let i = 0; i < historial.length; i++) {
     hist[normalizar(historial[i][0])] = historial[i];
   }
+  const jef = jefatura || {};
   const filas = [], avisos = [];
   const todos = [];
   for (const curso in alumnosPorCurso) {
@@ -356,7 +357,13 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales) {
         detalle: 'No aparecerá en ningún informe de grupo' });
     }
 
-    filas.push([a.nombre, a.unidad, a.curso, repite, v['OPT'] || '', v['FR -> ALCT'] || '',
+    /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
+       Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
+    const divSeneca = (v['MAT'] === 'ÁMB');
+    const divJefatura = !!(jef[clave] && jef[clave].div === 'SÍ');
+    const diver = divSeneca ? 'SÍ' : (divJefatura ? 'SÍ (solo Jefatura)' : 'NO');
+
+    filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
       v['REL/Atedu'] || '', a.pend.length ? a.pend.length : '', a.pend.join(', '), edad, mns,
       repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil, man[2] || '', man[3] || '']);
@@ -554,22 +561,50 @@ function construirAlumnado() {
     }
   }
 
+  /* Tercera fuente: el fichero de agrupamientos de Jefatura de Estudios. */
+  const J = leerJefatura_();
+  const jefPorNombre = {};
+  for (let i = 0; i < J.alumnos.length; i++) jefPorNombre[normalizar(J.alumnos[i].nombre)] = J.alumnos[i];
+  for (let i = 0; i < J.avisos.length; i++) {
+    const a = J.avisos[i];
+    if (typeof a === 'string') avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'Fichero de Jefatura', detalle: a });
+    else avisos.push(a);
+  }
+
   const manuales = leerManualesAlumnado(libro);
-  const R = componerAlumnado(porCurso, historial, notas, manuales);
+  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre);
   R.avisos.forEach(function (a) { avisos.push(a); });
 
   escribirAlumnado(R.filas);
   escribirAvisos(avisos);
 
-  const pil = R.filas.filter(function (f) { return f[22] === 'SÍ'; }).length;
-  const mns = R.filas.filter(function (f) { return f[15] !== ''; }).length;
-  const pen = R.filas.filter(function (f) { return f[12] !== ''; }).length;
+  escribirJefatura_(J.alumnos, J.nombre);
+  const idxAlum = {};
+  for (let c = 0; c < TITULOS_ALUMNADO.length; c++) idxAlum[normalizar(TITULOS_ALUMNADO[c])] = c;
+  const discrepancias = J.alumnos.length ? compararJefatura_(R.filas, idxAlum, J.alumnos) : [];
+  const nDiscrep = escribirDiscrepancias_(discrepancias, J.nombre);
+
+  const iPil = TITULOS_ALUMNADO.indexOf('PIL');
+  const iMns = TITULOS_ALUMNADO.indexOf('MAT NO SUP.');
+  const iPen = TITULOS_ALUMNADO.indexOf('Nº pendientes');
+  const iDiv = TITULOS_ALUMNADO.indexOf('Diversificación');
+  const pil = R.filas.filter(function (f) { return f[iPil] === 'SÍ'; }).length;
+  const mns = R.filas.filter(function (f) { return f[iMns] !== ''; }).length;
+  const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
+  const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
+
   ui.alert('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
     '\n\nTotal de alumnos: ' + R.filas.length +
     '\nPIL (no pueden repetir más): ' + pil +
     '\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +
+    '\nEn diversificación: ' + div +
+    '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
+    '\nAlumnos leídos de Jefatura: ' + J.alumnos.length +
+    '\nDiferencias con Séneca: ' + nDiscrep +
+    (nDiscrep ? '\nMíralas en la pestaña "' + HOJA_DISCREP + '".' : '') +
     '\n\nAvisos anotados: ' + avisos.length, ui.ButtonSet.OK);
 }
 
@@ -611,7 +646,7 @@ function escribirAlumnado(filas) {
       .setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
 
-  const calculadas = ['Repite el curso actual', 'Repeticiones totales', 'PIL'];
+  const calculadas = ['Repite el curso actual', 'Diversificación', 'Repeticiones totales', 'PIL'];
   for (let c = 0; c < ancho; c++) {
     const t = TITULOS_ALUMNADO[c];
     const color = COLS_MANUALES_ALUMNADO.indexOf(t) !== -1 ? '#FFF2CC'

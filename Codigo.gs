@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v5';
+const VERSION = 'BD v6';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -305,9 +305,7 @@ function leerNotas(valores) {
       if (esNumero(v) && aNumero(v) < 5) susp.push(cab[c]);
     }
     const decl = esNumero(fila[iSus]) ? aNumero(fila[iSus]) : susp.length;
-    alumnos[normalizar(nombre)] = {
-      texto: susp.length ? (susp.length + ' — ' + susp.join(', ')) : '',
-      n: susp.length, declarado: decl };
+    alumnos[normalizar(nombre)] = { lista: susp, n: susp.length, declarado: decl };
   }
   return alumnos;
 }
@@ -351,7 +349,9 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       if (repite === 'SÍ') {
         const notas = notasPorCurso[a.curso];
         const n = notas ? notas[clave] : null;
-        if (n) mns = n.texto;
+        /* "5 de 2º — FYQ, GEH, LCL" : cuántas son, de qué curso, y cuáles.
+           Lleva el curso para que no se confunda con las pendientes. */
+        if (n) mns = n.n ? (n.n + ' de ' + a.curso + ' — ' + n.lista.join(', ')) : '';
         else avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
           aviso: 'Repetidor sin notas del curso pasado', detalle: 'No aparece en la pestaña EV de su curso' });
       }
@@ -377,7 +377,8 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
 
     filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
-      v['REL/Atedu'] || '', a.pend.length ? a.pend.length : '', a.pend.join(', '), edad, mns,
+      v['REL/Atedu'] || '', a.pend.length ? a.pend.length : '',
+      a.pend.length ? (a.pend.length + ' — ' + a.pend.join(', ')) : '', edad, mns,
       repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil, man[2] || '', man[3] || '']);
   }
   return { filas: filas, avisos: avisos };

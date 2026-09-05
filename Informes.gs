@@ -37,6 +37,41 @@ const MAPA_INFORMES = {
   'veces repite primaria': { primaria: true }
 };
 
+/*** ================= RÓTULOS DE LAS DOS COLUMNAS QUE SE CONFUNDÍAN =========
+ *
+ * "MAT NO SUP." y "MAT. PEND." parecían lo mismo en el papel. Son cosas
+ * distintas y ahora lo dicen ellas solas. El programa reescribe el rótulo
+ * en la fila 9, así que no hay que tocar el cuaderno a mano.
+ *
+ * Reconoce el rótulo viejo y el nuevo, para que se pueda pulsar el botón
+ * las veces que haga falta sin que se rompa nada.
+ * ======================================================================== ***/
+const ALIAS_COLUMNAS = {
+  'mat no sup.':                        'mat no sup.',
+  'no superadas del curso que repite':   'mat no sup.',
+  'mat. pend.':                         'mat. pend.',
+  'pendientes de cursos anteriores':     'mat. pend.',
+  'mat. pend. 6º':                      'mat. pend. 6º',
+  'pendientes de 6º de primaria':        'mat. pend. 6º'
+};
+const TITULOS_NUEVOS = {
+  'mat no sup.':   'NO SUPERADAS del curso que repite',
+  'mat. pend.':    'PENDIENTES de cursos anteriores',
+  'mat. pend. 6º': 'PENDIENTES de 6º de Primaria'
+};
+
+/* La línea que se imprime encima de los títulos, en la fila 8. */
+const FILA_LEYENDA = 8;
+const TEXTO_LEYENDA =
+  'NO SUPERADAS: las suspendió el curso pasado y las repite. ' +
+  'PENDIENTES: las arrastra de cursos anteriores; detrás va el curso del que vienen.';
+
+/* Devuelve la clave con la que el programa conoce a esa columna. */
+function claveColumna_(titulo) {
+  const n = normalizar(titulo);
+  return ALIAS_COLUMNAS[n] === undefined ? n : ALIAS_COLUMNAS[n];
+}
+
 /*** ================= ANCHOS PARA IMPRIMIR EN VERTICAL =================
  *
  * En píxeles. Un folio A4 en vertical, con márgenes de 0,9 cm, da unos
@@ -61,7 +96,7 @@ const LETRA_INFORME = 9;
 
 /* Ajustes del PDF. Los márgenes van en pulgadas. */
 const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
-  '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false' +
+  '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=true' +
   '&top_margin=0.40&bottom_margin=0.40&left_margin=0.35&right_margin=0.35' +
   '&horizontal_alignment=LEFT&vertical_alignment=TOP';
 
@@ -115,7 +150,7 @@ function construirBloque(titulos, alumnos, idxAlum, previos) {
     for (let c = 0; c < ancho; c++) {
       const t = String(titulos[c] === null || titulos[c] === undefined ? '' : titulos[c]).trim();
       if (c === 0 && !t) { fila.push(f + 1); continue; }          // columna de numeración
-      const regla = t ? MAPA_INFORMES[normalizar(t)] : null;
+      const regla = t ? MAPA_INFORMES[claveColumna_(t)] : null;
       if (regla) fila.push(valorInforme(regla, alumno, idxAlum));
       else fila.push(antes[c] === undefined ? '' : antes[c]);      // columna suya: se respeta
     }
@@ -164,7 +199,7 @@ function darFormatoImpresion_(hoja, titulos, nFilas) {
   let suma = 0;
   for (let c = 0; c < ancho; c++) {
     const t = String(titulos[c] === null || titulos[c] === undefined ? '' : titulos[c]).trim();
-    const clave = t ? normalizar(t) : '';
+    const clave = t ? claveColumna_(t) : '';
     let px = null;
     if (c === 0 && !t) px = ANCHO_NUMERACION;
     else if (ANCHOS_INFORME[clave] !== undefined) px = ANCHOS_INFORME[clave];
@@ -300,6 +335,20 @@ function rellenarInformes() {
       }
     }
 
+    // Rótulos nuevos en la fila 9, si todavía están los viejos
+    let cambiados = false;
+    for (let c = 0; c < ancho; c++) {
+      const t = String(titulos[c] === null || titulos[c] === undefined ? '' : titulos[c]).trim();
+      if (!t) continue;
+      const nuevo = TITULOS_NUEVOS[claveColumna_(t)];
+      if (nuevo && nuevo !== t) { titulos[c] = nuevo; cambiados = true; }
+    }
+    if (cambiados) hoja.getRange(FILA_TITULOS, 1, 1, ancho).setValues([titulos]);
+
+    // La leyenda, encima de los títulos
+    hoja.getRange(FILA_LEYENDA, 1).setValue(TEXTO_LEYENDA)
+        .setFontSize(8).setFontStyle('italic').setWrap(false);
+
     // Borrar el bloque viejo y escribir el nuevo
     if (ultima >= FILA_DATOS) {
       hoja.getRange(FILA_DATOS, 1, ultima - FILA_DATOS + 1, ancho).clearContent();
@@ -314,6 +363,7 @@ function rellenarInformes() {
 
     // Anchos, ajuste de texto y letra, para que quepa en un folio vertical
     const suma = darFormatoImpresion_(hoja, titulos, bloque.length);
+    hoja.setFrozenRows(FILA_TITULOS);   // así el encabezado se repite en el PDF
     if (suma > 726) {
       avisos.push([grupo, hoja.getName(), 'La tabla se sale del folio',
                    'Suma ' + suma + ' puntos y en un A4 vertical caben 726. ' +

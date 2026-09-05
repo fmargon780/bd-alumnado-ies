@@ -1,0 +1,13 @@
+{
+  "version": "BD v13 — arranque desde GitHub",
+  "ficheros": [
+    "Codigo.gs",
+    "Jefatura.gs",
+    "Informes.gs"
+  ],
+  "menu": [
+    { "titulo": "1. Leer el histórico de matrículas", "funcion": "cargarHistorico" },
+    { "titulo": "2. Construir la tabla ALUMNADO", "funcion": "construirAlumnado" },
+    { "titulo": "3. Rellenar los informes por unidad", "funcion": "rellenarInformes" }
+  ]
+}

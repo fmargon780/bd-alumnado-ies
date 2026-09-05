@@ -9,9 +9,15 @@
  *   una opción del menú, así que el cuaderno siempre usa la última
  *   versión sin copiar ni pegar nada.
  *
- *   Qué ficheros hay que traer, y qué opciones tiene el menú, lo dice
- *   el fichero manifiesto.json del repositorio. Por eso se pueden añadir
- *   módulos y opciones nuevas sin tocar este arranque.
+ *   IMPORTANTE — por qué el menú no sale de internet:
+ *   Google no permite salir a internet en el momento exacto de abrir el
+ *   cuaderno (la función onOpen se ejecuta sin permisos). Por eso el menú
+ *   se pinta con la lista de opciones guardada en la pestaña oculta
+ *   "_menu", que se refresca sola cada vez que se ejecuta cualquier
+ *   opción. Si esa pestaña no existe todavía, se usa MENU_POR_DEFECTO.
+ *
+ *   Qué ficheros hay que traer, y qué opciones tiene el menú, lo manda
+ *   el fichero manifiesto.json del repositorio.
  * ===================================================================== ***/
 
 const GH_USUARIO    = 'fmargon780';
@@ -20,36 +26,27 @@ const GH_RAMA       = 'main';
 const GH_MANIFIESTO = 'manifiesto.json';
 
 const PROP_CLAVE = 'GH_CLAVE';   // la contraseña de GitHub, guardada en tu cuenta
-const PROP_MENU  = 'GH_MENU';    // copia del último menú que se pintó bien
+const HOJA_MENU  = '_menu';      // pestaña oculta con las opciones del menú
 
 const MAX_OPCIONES = 12;         // tope de opciones que puede traer el manifiesto
+
+/* Lo que se pinta la primera vez, antes de que exista la pestaña "_menu". */
+const MENU_POR_DEFECTO = [
+  { titulo: '1. Leer el histórico de matrículas', funcion: 'cargarHistorico' },
+  { titulo: '2. Construir la tabla ALUMNADO',      funcion: 'construirAlumnado' },
+  { titulo: '3. Rellenar los informes por unidad', funcion: 'rellenarInformes' }
+];
 
 
 /*** ========================= EL MENÚ ========================= ***/
 
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  const menu = ui.createMenu('Base de datos');
-
-  let opciones = [];
-  let hayConexion = true;
-
-  try {
-    const m = leerManifiesto_();
-    opciones = (m.menu || []).slice(0, MAX_OPCIONES);
-    PropertiesService.getUserProperties().setProperty(PROP_MENU, JSON.stringify(opciones));
-  } catch (e) {
-    hayConexion = false;
-    opciones = menuGuardado_();
-  }
+  const menu = SpreadsheetApp.getUi().createMenu('Base de datos');
+  const opciones = menuGuardado_();
 
   for (let i = 0; i < opciones.length; i++) {
     if (opciones[i] && opciones[i].separador) menu.addSeparator();
     else if (opciones[i] && opciones[i].titulo) menu.addItem(opciones[i].titulo, 'op' + (i + 1));
-  }
-
-  if (!hayConexion && !opciones.length) {
-    menu.addItem('(no he podido conectar con GitHub)', 'comprobarConexion');
   }
 
   menu.addSeparator();
@@ -59,9 +56,36 @@ function onOpen() {
 }
 
 function menuGuardado_() {
-  const guardado = PropertiesService.getUserProperties().getProperty(PROP_MENU);
-  if (!guardado) return [];
-  try { return JSON.parse(guardado); } catch (e) { return []; }
+  try {
+    const h = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_MENU);
+    if (!h) return MENU_POR_DEFECTO;
+    const txt = String(h.getRange(1, 1).getValue() || '').trim();
+    if (!txt) return MENU_POR_DEFECTO;
+    const v = JSON.parse(txt);
+    return (v && v.length) ? v : MENU_POR_DEFECTO;
+  } catch (e) {
+    return MENU_POR_DEFECTO;
+  }
+}
+
+/* Guarda el menú para la próxima vez que se abra el cuaderno.
+   Devuelve true si ha cambiado respecto a lo que había. */
+function guardarMenu_(opciones) {
+  if (!opciones || !opciones.length) return false;
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  let h = libro.getSheetByName(HOJA_MENU);
+  if (!h) {
+    h = libro.insertSheet(HOJA_MENU);
+    h.getRange(3, 1).setValue(
+      'No toques esta pestaña. Guarda las opciones del menú "Base de datos" ' +
+      'para poder pintarlo al abrir el cuaderno, cuando Google todavía no ' +
+      'deja salir a internet.');
+    h.hideSheet();
+  }
+  const ahora = JSON.stringify(opciones);
+  if (String(h.getRange(1, 1).getValue() || '') === ahora) return false;
+  h.getRange(1, 1).setValue(ahora);
+  return true;
 }
 
 /* Apps Script necesita un nombre de función fijo por cada opción del menú.
@@ -86,15 +110,20 @@ function ejecutarOpcion_(n) {
   const ui = SpreadsheetApp.getUi();
   let op = null;
   try {
-    const opciones = menuGuardado_();
-    op = opciones[n - 1];
+    op = menuGuardado_()[n - 1];
     if (!op || !op.funcion) {
       throw new Error('Esa opción del menú ya no existe.\n\n' +
                       'Cierra el cuaderno y vuelve a abrirlo para refrescar el menú.');
     }
-    const fuente = descargarPrograma_();
-    const ejecutar = new Function(fuente + '\n;\nreturn ' + op.funcion + '();');
-    ejecutar();
+    const programa = descargarPrograma_();
+
+    // El manifiesto manda: si la opción ha cambiado de sitio o de nombre,
+    // se usa lo que diga él y se deja el menú al día para la próxima vez.
+    const delManifiesto = (programa.manifiesto.menu || [])[n - 1];
+    const funcion = (delManifiesto && delManifiesto.funcion) ? delManifiesto.funcion : op.funcion;
+    guardarMenu_((programa.manifiesto.menu || []).slice(0, MAX_OPCIONES));
+
+    new Function(programa.fuente + '\n;\nreturn ' + funcion + '();')();
   } catch (e) {
     ui.alert('No he podido ejecutar "' + ((op && op.titulo) || ('opción ' + n)) + '"',
              textoDeError_(e), ui.ButtonSet.OK);
@@ -149,8 +178,7 @@ function peticion_(ruta, clave) {
   };
 }
 
-function textoDeRespuesta_(resp, ruta) {
-  const codigo = resp.getResponseCode();
+function comprobarCodigo_(codigo, ruta) {
   if (codigo === 401 || codigo === 403) {
     throw new Error('GitHub no acepta la contraseña (error ' + codigo + ').\n\n' +
       'Usa "Cambiar la contraseña de GitHub" y pega una nueva ' +
@@ -164,63 +192,52 @@ function textoDeRespuesta_(resp, ruta) {
     throw new Error('GitHub ha respondido con el error ' + codigo +
       ' al pedirle "' + ruta + '".');
   }
+}
+
+function contenidoDeRespuesta_(resp, ruta) {
+  comprobarCodigo_(resp.getResponseCode(), ruta);
   const datos = JSON.parse(resp.getContentText());
   if (!datos || !datos.content) {
     throw new Error('GitHub ha devuelto "' + ruta + '" vacío o en un formato que no entiendo.');
   }
   const bytes = Utilities.base64Decode(String(datos.content).replace(/\n/g, ''));
-  const texto = Utilities.newBlob(bytes).getDataAsString('UTF-8');
+  return Utilities.newBlob(bytes).getDataAsString('UTF-8');
+}
+
+function textoDeRespuesta_(resp, ruta) {
+  const texto = contenidoDeRespuesta_(resp, ruta);
   if (!texto || texto.indexOf('function ') === -1) {
     throw new Error('Lo que he descargado de "' + ruta + '" no parece programa. No he tocado nada.');
   }
   return texto;
 }
 
-function leerManifiesto_() {
-  const clave = claveGitHub_(true);
-  if (!clave) throw new Error('Sin la contraseña de GitHub no puedo traer el programa.');
-
+function leerManifiesto_(clave) {
   const p = peticion_(GH_MANIFIESTO, clave);
-  const resp = UrlFetchApp.fetch(p.url, p);
-  const codigo = resp.getResponseCode();
-  if (codigo === 401 || codigo === 403) {
-    throw new Error('GitHub no acepta la contraseña (error ' + codigo + ').\n\n' +
-      'Usa "Cambiar la contraseña de GitHub" y pega una nueva ' +
-      'con el permiso "repo" marcado.');
-  }
-  if (codigo === 404) {
-    throw new Error('No encuentro "' + GH_MANIFIESTO + '" en ' +
-      GH_USUARIO + '/' + GH_REPO + ', rama ' + GH_RAMA + '.');
-  }
-  if (codigo !== 200) {
-    throw new Error('GitHub ha respondido con el error ' + codigo + '.');
-  }
-
-  const datos = JSON.parse(resp.getContentText());
-  const bytes = Utilities.base64Decode(String(datos.content).replace(/\n/g, ''));
-  const m = JSON.parse(Utilities.newBlob(bytes).getDataAsString('UTF-8'));
-
+  const m = JSON.parse(contenidoDeRespuesta_(UrlFetchApp.fetch(p.url, p), GH_MANIFIESTO));
   if (!m || !m.ficheros || !m.ficheros.length) {
     throw new Error('El manifiesto no dice qué ficheros hay que traer.');
   }
   return m;
 }
 
+/* Devuelve { manifiesto, fuente, tamanos } */
 function descargarPrograma_() {
   const clave = claveGitHub_(true);
   if (!clave) throw new Error('Sin la contraseña de GitHub no puedo traer el programa.');
 
-  const m = leerManifiesto_();
-  const ficheros = m.ficheros;
-  const peticiones = ficheros.map(function (ruta) { return peticion_(ruta, clave); });
+  const m = leerManifiesto_(clave);
+  const peticiones = m.ficheros.map(function (ruta) { return peticion_(ruta, clave); });
   const respuestas = UrlFetchApp.fetchAll(peticiones);
 
   const partes = [];
+  const tamanos = [];
   for (let i = 0; i < respuestas.length; i++) {
-    partes.push('// ===== ' + ficheros[i] + ' =====\n' +
-                textoDeRespuesta_(respuestas[i], ficheros[i]));
+    const texto = textoDeRespuesta_(respuestas[i], m.ficheros[i]);
+    partes.push('// ===== ' + m.ficheros[i] + ' =====\n' + texto);
+    tamanos.push({ fichero: m.ficheros[i], letras: texto.length });
   }
-  return partes.join('\n\n');
+  return { manifiesto: m, fuente: partes.join('\n\n'), tamanos: tamanos };
 }
 
 function textoDeError_(e) {
@@ -239,33 +256,30 @@ function textoDeError_(e) {
 function comprobarConexion() {
   const ui = SpreadsheetApp.getUi();
   try {
-    const m = leerManifiesto_();
-    const clave = claveGitHub_(true);
-    const peticiones = m.ficheros.map(function (ruta) { return peticion_(ruta, clave); });
-    const respuestas = UrlFetchApp.fetchAll(peticiones);
-
-    const lineas = [];
-    const partes = [];
-    for (let i = 0; i < respuestas.length; i++) {
-      const texto = textoDeRespuesta_(respuestas[i], m.ficheros[i]);
-      partes.push(texto);
-      lineas.push('   • ' + m.ficheros[i] + ' — ' + texto.length.toLocaleString('es-ES') + ' caracteres');
-    }
-    const fuente = partes.join('\n\n');
+    const programa = descargarPrograma_();
+    const m = programa.manifiesto;
 
     // Compila el programa sin ejecutarlo: detecta errores de escritura.
-    new Function(fuente);
+    new Function(programa.fuente);
 
     // Comprueba que existe cada función que el menú va a llamar.
     const nombres = (m.menu || []).filter(function (o) { return o && o.funcion; })
                                   .map(function (o) { return o.funcion; });
-    const tipos = new Function(fuente + '\n;\nreturn [' +
-                    nombres.map(function (n) { return 'typeof ' + n; }).join(',') + '];')();
+    const tipos = nombres.length
+      ? new Function(programa.fuente + '\n;\nreturn [' +
+          nombres.map(function (n) { return 'typeof ' + n; }).join(',') + '];')()
+      : [];
 
     const faltan = [];
     for (let j = 0; j < nombres.length; j++) {
       if (tipos[j] !== 'function') faltan.push(nombres[j]);
     }
+
+    const cambio = guardarMenu_((m.menu || []).slice(0, MAX_OPCIONES));
+
+    const lineas = programa.tamanos.map(function (t) {
+      return '   • ' + t.fichero + ' — ' + t.letras + ' caracteres';
+    });
 
     let informe = 'Conexión con GitHub: correcta.\n\n' +
                   'Versión que hay ahora mismo en GitHub:\n   ' + (m.version || '(sin nombre)') +
@@ -276,8 +290,12 @@ function comprobarConexion() {
       informe += '\n\nAVISO: el menú llama a estas opciones y no las encuentro ' +
                  'en el programa:\n   ' + faltan.join(', ');
     } else {
-      informe += '\nTodas las opciones del menú existen.\n\nTodo correcto.';
+      informe += '\nTodas las opciones del menú existen.';
     }
+
+    informe += cambio
+      ? '\n\nHe actualizado el menú. Cierra el cuaderno y vuelve a abrirlo para verlo.'
+      : '\n\nTodo correcto.';
 
     ui.alert('Comprobación', informe, ui.ButtonSet.OK);
   } catch (e) {

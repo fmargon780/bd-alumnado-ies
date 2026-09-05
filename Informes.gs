@@ -73,6 +73,16 @@ const TEXTO_LEYENDA =
 /* La diversificación solo existe en 3º y 4º. En 1º y 2º no se crea la columna. */
 const NIVELES_CON_DIV = ['3º', '4º'];
 
+/* Las seis primeras filas de cada pestaña están vacías, pero encima hay una
+   imagen flotante con el membrete del centro. No se pueden esconder, porque
+   la imagen se iría con ellas. Lo que se hace es medir la imagen y dejar
+   justo el alto que necesita, ni un punto menos. */
+const FILAS_CABECERA  = 6;
+const ALTO_MINIMO_FILA = 8;    // puntos
+const AIRE_BAJO_LOGO   = 6;    // puntos de respiro por debajo de la imagen
+const ANCHO_UTIL_FOLIO = 707;  // puntos que caben con márgenes de 11 mm
+const ANCHO_QUE_AVISA  = 750;  // por encima de esto, el PDF encoge y se nota
+
 /* Devuelve la clave con la que el programa conoce a esa columna. */
 function claveColumna_(titulo) {
   const n = normalizar(titulo);
@@ -83,7 +93,11 @@ function claveColumna_(titulo) {
  *
  * En píxeles. Un folio A4 en vertical, con márgenes de 0,9 cm, da unos
  * 726 píxeles útiles. La suma de cada nivel tiene que caber ahí:
- *   1º = 618 · 1ºA = 663 · 2º = 570 · 2ºB = 660 · 3º = 600 · 4º = 717
+ *   1º = 624 · 1ºA = 669 · 2º = 576 · 2ºB = 666 · 3º = 606 · 4º = 723
+ *
+ * Con márgenes de 11 mm a los lados, en el folio entran 707 puntos. Lo que
+ * se pase de ahí lo encoge el propio PDF, que va en modo "ajustar a la
+ * anchura". Un 2% no se nota; por encima de 750 sí, y entonces avisa.
  *
  * Las columnas largas (nombre, materias no superadas, pendientes, NEAE)
  * llevan ajuste de texto: se parten en varias líneas y la fila crece.
@@ -92,7 +106,7 @@ function claveColumna_(titulo) {
 const ANCHOS_INFORME = {
   'alumno/a:': 145, 'rep': 30, 'mat no sup.': 100, 'pil': 32, 'div': 30,
   'mat. pend.': 95, 'mat. pend. 6º': 95, 'neae': 45,
-  'opt': 45, 'fr -> alct': 48, 'rel/atedu': 52,
+  'opt': 45, 'fr -> alct': 48, 'rel/atedu': 58,
   'mat': 38, 'opc1': 31, 'opc2': 31, 'opc3': 31, 'opc4': 31,
   'veces repite primaria': 45, 'medidas/recursos': 90
 };
@@ -104,7 +118,7 @@ const LETRA_INFORME = 9;
 /* Ajustes del PDF. Los márgenes van en pulgadas. */
 const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
   '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=true' +
-  '&top_margin=0.40&bottom_margin=0.40&left_margin=0.35&right_margin=0.35' +
+  '&top_margin=0.25&bottom_margin=0.25&left_margin=0.45&right_margin=0.45' +
   '&horizontal_alignment=LEFT&vertical_alignment=TOP';
 
 /*** ================= LÓGICA PURA ================= ***/
@@ -229,6 +243,37 @@ function leerAlumnado_() {
     });
   }
   return { porUnidad: porUnidad, idx: idx };
+}
+
+/*** ================= EL HUECO DEL MEMBRETE ================= ***/
+/* Recorta el hueco en blanco que queda debajo del membrete, sin tocar la
+   imagen. Mide lo que ocupa y deja ese alto más un poco de aire. Si ya está
+   ajustado, no hace nada. Devuelve los puntos de alto que ha ganado. */
+function ajustarFilasDelLogo_(hoja) {
+  let imagenes;
+  try { imagenes = hoja.getImages(); } catch (e) { return 0; }
+  if (!imagenes || !imagenes.length) return 0;
+
+  let necesita = 0;
+  for (let i = 0; i < imagenes.length; i++) {
+    const img = imagenes[i];
+    let fila;
+    try { fila = img.getAnchorCell().getRow(); } catch (e) { continue; }
+    if (fila > FILAS_CABECERA) continue;      // esa imagen no está en la cabecera
+    const abajo = img.getAnchorCellYOffset() + img.getHeight();
+    if (abajo > necesita) necesita = abajo;
+  }
+  if (!necesita) return 0;
+
+  const total = necesita + AIRE_BAJO_LOGO;
+  let actual = 0;
+  for (let r = 1; r <= FILAS_CABECERA; r++) actual += hoja.getRowHeight(r);
+  if (actual <= total) return 0;              // ya está ajustado
+
+  const arriba = ALTO_MINIMO_FILA * (FILAS_CABECERA - 1);
+  hoja.setRowHeights(1, FILAS_CABECERA - 1, ALTO_MINIMO_FILA);
+  hoja.setRowHeight(FILAS_CABECERA, Math.max(ALTO_MINIMO_FILA, total - arriba));
+  return actual - total;
 }
 
 /*** ================= FORMATO PARA IMPRIMIR ================= ***/
@@ -409,10 +454,12 @@ function rellenarInformes() {
 
     // Anchos, ajuste de texto y letra, para que quepa en un folio vertical
     const suma = darFormatoImpresion_(hoja, titulos, bloque.length);
+    ajustarFilasDelLogo_(hoja);
     hoja.setFrozenRows(FILA_TITULOS);   // así el encabezado se repite en el PDF
-    if (suma > 726) {
-      avisos.push([grupo, hoja.getName(), 'La tabla se sale del folio',
-                   'Suma ' + suma + ' puntos y en un A4 vertical caben 726. ' +
+    if (suma > ANCHO_QUE_AVISA) {
+      avisos.push([grupo, hoja.getName(), 'La tabla es demasiado ancha',
+                   'Suma ' + suma + ' puntos y en el folio caben ' + ANCHO_UTIL_FOLIO + '. ' +
+                   'El PDF la encogerá y la letra saldrá pequeña. ' +
                    'Suele ser por una columna añadida a mano que yo no conozco.']);
     }
 

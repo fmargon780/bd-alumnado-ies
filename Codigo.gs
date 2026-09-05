@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v4';
+const VERSION = 'BD v5';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -271,7 +271,8 @@ function leerMatricula(tabla, curso) {
         pend.push(abreviar(pc.asig) + ' ' + pc.niv + 'º');
       }
     }
-    alumnos.push({ nombre: nombre, unidad: unidad, curso: curso, valores: valores, pend: pend });
+    alumnos.push({ nombre: nombre, unidad: unidad, curso: curso, valores: valores,
+                   pend: pend, diver: esAmb });
   }
   return { alumnos: alumnos, sinUnidad: sinUnidad, dobles: dobles, faltan: faltan };
 }
@@ -284,6 +285,11 @@ function leerNotas(valores) {
     if (normalizar(cab[c]).indexOf('suspensos') === 0) { iSus = c; break; }
   }
   if (iSus === -1) return null;
+
+  /* MAT NO SUP. son solo las materias del curso que el alumno repite.
+     Las columnas cuyo título acaba en " 1º", " 2º"... son pendientes de
+     cursos anteriores y son otra cosa: no entran aquí. Se corta en la primera.
+     La columna "Suspensos" de la hoja tampoco sirve: suma las dos cosas. */
   let fin = iSus;
   for (let c = 2; c < iSus; c++) {
     if (/\s[1-4]º$/.test(cab[c])) { fin = c; break; }
@@ -294,12 +300,14 @@ function leerNotas(valores) {
     const nombre = String(fila[0] === null || fila[0] === undefined ? '' : fila[0]).trim();
     if (!nombre) continue;
     const susp = [];
-    for (let c = 2; c < iSus; c++) {
+    for (let c = 2; c < fin; c++) {
       const v = fila[c];
       if (esNumero(v) && aNumero(v) < 5) susp.push(cab[c]);
     }
     const decl = esNumero(fila[iSus]) ? aNumero(fila[iSus]) : susp.length;
-    alumnos[normalizar(nombre)] = { texto: decl + ' — ' + susp.join(', '), n: susp.length, declarado: decl };
+    alumnos[normalizar(nombre)] = {
+      texto: susp.length ? (susp.length + ' — ' + susp.join(', ')) : '',
+      n: susp.length, declarado: decl };
   }
   return alumnos;
 }
@@ -359,7 +367,11 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
 
     /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
        Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
-    const divSeneca = (v['MAT'] === 'ÁMB');
+    /* En 4º Séneca lo marca poniendo ÁMB en la columna MAT. En 1º, 2º y 3º
+       no hay columna MAT, así que se mira directamente la matrícula en el
+       Ámbito Científico-Tecnológico. En cuanto el centro matricule en Séneca
+       a los de 3º en los ámbitos, saldrán solos por aquí. */
+    const divSeneca = (v['MAT'] === 'ÁMB') || a.diver === true;
     const divJefatura = !!(jef[clave] && jef[clave].div === 'SÍ');
     const diver = divSeneca ? 'SÍ' : (divJefatura ? 'SÍ (solo Jefatura)' : 'NO');
 

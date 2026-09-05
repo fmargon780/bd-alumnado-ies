@@ -7,6 +7,8 @@
  * así que da igual que unas pestañas tengan columnas de más.
  * Cualquier columna cuyo título no conozca se respeta tal cual.
  *
+ * Al final deja también un PDF listo para imprimir en la carpeta de Drive.
+ *
  * ======================================================== ***/
 
 const ID_INFORMES   = '1zJXNix6nc_cq5yOAmbyuLIvlYv508gOa5h0X5vfmxkA';
@@ -34,6 +36,34 @@ const MAPA_INFORMES = {
   'opc4':                  { col: 'OPC4' },
   'veces repite primaria': { primaria: true }
 };
+
+/*** ================= ANCHOS PARA IMPRIMIR EN VERTICAL =================
+ *
+ * En píxeles. Un folio A4 en vertical, con márgenes de 0,9 cm, da unos
+ * 726 píxeles útiles. La suma de cada nivel tiene que caber ahí:
+ *   1º = 638   2º y 3º = 590   4º = 719   (1ºA = 683, 2ºB = 680)
+ *
+ * Las columnas largas (nombre, materias no superadas, pendientes, NEAE)
+ * llevan ajuste de texto: se parten en varias líneas y la fila crece.
+ * Las columnas que no conozco no se tocan.
+ * ==================================================================== ***/
+const ANCHOS_INFORME = {
+  'alumno/a:': 150, 'rep': 30, 'mat no sup.': 105, 'pil': 32,
+  'mat. pend.': 100, 'mat. pend. 6º': 100, 'neae': 50,
+  'opt': 45, 'fr -> alct': 48, 'rel/atedu': 52,
+  'mat': 38, 'opc1': 34, 'opc2': 34, 'opc3': 34, 'opc4': 34,
+  'veces repite primaria': 45, 'medidas/recursos': 90
+};
+const ANCHO_NUMERACION = 26;
+const CON_AJUSTE = ['alumno/a:', 'mat no sup.', 'mat. pend.', 'mat. pend. 6º',
+                    'neae', 'medidas/recursos'];
+const LETRA_INFORME = 9;
+
+/* Ajustes del PDF. Los márgenes van en pulgadas. */
+const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
+  '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false' +
+  '&top_margin=0.40&bottom_margin=0.40&left_margin=0.35&right_margin=0.35' +
+  '&horizontal_alignment=LEFT&vertical_alignment=TOP';
 
 /*** ================= LÓGICA PURA ================= ***/
 
@@ -128,6 +158,71 @@ function leerAlumnado_() {
   return { porUnidad: porUnidad, idx: idx };
 }
 
+/*** ================= FORMATO PARA IMPRIMIR ================= ***/
+function darFormatoImpresion_(hoja, titulos, nFilas) {
+  const ancho = titulos.length;
+  let suma = 0;
+  for (let c = 0; c < ancho; c++) {
+    const t = String(titulos[c] === null || titulos[c] === undefined ? '' : titulos[c]).trim();
+    const clave = t ? normalizar(t) : '';
+    let px = null;
+    if (c === 0 && !t) px = ANCHO_NUMERACION;
+    else if (ANCHOS_INFORME[clave] !== undefined) px = ANCHOS_INFORME[clave];
+    if (px === null) { suma += hoja.getColumnWidth(c + 1); continue; }
+    hoja.setColumnWidth(c + 1, px);
+    suma += px;
+    const rango = hoja.getRange(FILA_TITULOS, c + 1, nFilas + 1, 1);
+    if (CON_AJUSTE.indexOf(clave) !== -1) rango.setWrap(true);
+    else rango.setWrap(false).setHorizontalAlignment('center');
+  }
+  const todo = hoja.getRange(FILA_TITULOS, 1, nFilas + 1, ancho);
+  todo.setFontSize(LETRA_INFORME).setVerticalAlignment('middle');
+  hoja.getRange(FILA_TITULOS, 1, 1, ancho).setWrap(true);
+  hoja.autoResizeRows(FILA_DATOS, nFilas);
+  return suma;
+}
+
+/*** ================= PDF PARA IMPRIMIR ================= ***/
+/* Exporta el cuaderno de informes a un solo PDF, un grupo por página.
+   Las pestañas que no son de grupo (AVISOS y demás) se esconden un momento
+   para que no salgan en el PDF, y se vuelven a mostrar al terminar. */
+function generarPdfInformes_(libro, nombresDeGrupo) {
+  const esGrupo = {};
+  for (let i = 0; i < nombresDeGrupo.length; i++) esGrupo[nombresDeGrupo[i]] = true;
+
+  const escondidas = [];
+  try {
+    const hojas = libro.getSheets();
+    for (let h = 0; h < hojas.length; h++) {
+      if (esGrupo[hojas[h].getName()]) continue;
+      if (hojas[h].isSheetHidden()) continue;
+      hojas[h].hideSheet();
+      escondidas.push(hojas[h]);
+    }
+    SpreadsheetApp.flush();
+
+    const url = 'https://docs.google.com/spreadsheets/d/' + libro.getId() + '/export?' + PDF_OPCIONES;
+    const resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() }
+    });
+    if (resp.getResponseCode() !== 200) {
+      throw new Error('Google ha respondido con el error ' + resp.getResponseCode() + ' al hacer el PDF.');
+    }
+    const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const nombre = 'Informes por unidad ' + hoy + '.pdf';
+    const carpeta = DriveApp.getFolderById(CARPETA_ID);
+    const viejos = carpeta.getFilesByName(nombre);
+    while (viejos.hasNext()) viejos.next().setTrashed(true);
+    const archivo = carpeta.createFile(resp.getBlob().setName(nombre));
+    return { nombre: nombre, url: archivo.getUrl() };
+  } finally {
+    for (let i = 0; i < escondidas.length; i++) {
+      try { escondidas[i].showSheet(); } catch (e) { /* que no se quede escondida */ }
+    }
+  }
+}
+
 /*** ================= OPCIÓN: RELLENAR LOS INFORMES ================= ***/
 function rellenarInformes() {
   const ui = SpreadsheetApp.getUi();
@@ -150,6 +245,7 @@ function rellenarInformes() {
   const avisos = [];
   const resumen = [];
   const usadas = {};
+  const pestanasDeGrupo = [];
   let totalEscritos = 0;
 
   const hojas = libro.getSheets();
@@ -188,6 +284,7 @@ function rellenarInformes() {
       continue;
     }
     usadas[normalizar(grupo)] = true;
+    pestanasDeGrupo.push(hoja.getName());
 
     const bloque = construirBloque(titulos, alumnos, A.idx, previos);
 
@@ -214,8 +311,13 @@ function rellenarInformes() {
     hoja.getRange(FILA_TITULOS, 1, bloque.length + 1, ancho)
         .setBorder(true, true, true, true, true, true, '#999999', SpreadsheetApp.BorderStyle.SOLID);
     hoja.getRange(FILA_DATOS, 1, bloque.length, 1).setHorizontalAlignment('center');
-    if (ancho > 2) {
-      hoja.getRange(FILA_DATOS, 3, bloque.length, ancho - 2).setVerticalAlignment('middle');
+
+    // Anchos, ajuste de texto y letra, para que quepa en un folio vertical
+    const suma = darFormatoImpresion_(hoja, titulos, bloque.length);
+    if (suma > 726) {
+      avisos.push([grupo, hoja.getName(), 'La tabla se sale del folio',
+                   'Suma ' + suma + ' puntos y en un A4 vertical caben 726. ' +
+                   'Suele ser por una columna añadida a mano que yo no conozco.']);
     }
 
     resumen.push(hoja.getName() + ' (' + grupo + '): ' + bloque.length + ' alumnos');
@@ -230,12 +332,24 @@ function rellenarInformes() {
     }
   }
 
+  // El PDF para imprimir
+  let pdf = null, fallo = '';
+  try {
+    pdf = generarPdfInformes_(libro, pestanasDeGrupo);
+  } catch (e) {
+    fallo = e.message;
+    avisos.push(['', '', 'No he podido hacer el PDF', e.message]);
+  }
+
   escribirAvisosInformes_(avisos);
 
   ui.alert('Informes rellenados (' + VERSION + ')',
     resumen.join('\n') +
     '\n\nGrupos actualizados: ' + resumen.length +
     '\nAlumnos escritos: ' + totalEscritos +
+    (pdf ? '\n\nPDF listo para imprimir: ' + pdf.nombre +
+           '\nEstá en la carpeta "Datos de matrícula".'
+         : '\n\nNo he podido hacer el PDF: ' + fallo) +
     '\n\nAvisos anotados: ' + avisos.length +
     (avisos.length ? '\nMíralos en la pestaña "' + HOJA_AV_INF + '".' : ''),
     ui.ButtonSet.OK);

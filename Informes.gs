@@ -153,11 +153,15 @@ const ALTO_LINEA = 12;
 /* La leyenda ya no ocupa una fila propia: se escribe en el hueco que queda a
    la derecha del membrete, en las filas 1 a 6, que antes estaban desperdiciadas.
    Así no empuja ni una fila hacia abajo y se imprime en todas las páginas,
-   porque esas filas van congeladas. */
+   porque esas filas van congeladas.
+
+   CUIDADO CON EL NÚMERO DE LÍNEAS. El hueco da unos 102 caracteres por línea y
+   unos 62 puntos de alto, y cada línea ocupa 7,2. Es decir: caben OCHO líneas,
+   y la novena se vería cortada. Si hay que explicar algo más, se alarga una
+   línea existente (hasta 102 caracteres) en vez de añadir otra. */
 const LEYENDA = [
   'NO SUPERADAS: las suspendió el curso que repite.   DIV: diversificación.',
-  'PENDIENTES: las arrastra de cursos anteriores, con su curso detrás.',
-  'Casilla vacía: no hay nada.   ?: ese dato todavía no lo tenemos.',
+  'PENDIENTES: las arrastra de cursos anteriores.   ?: aún no tenemos ese dato.',
   'NEAE — NEE: n. educativas especiales.   DIA: dificultades de aprendizaje.',
   'AACC: altas capacidades.   COM: compensación educativa.',
   'MEDIDAS — ACS: adaptación significativa.   ACI: adaptación individualizada.',

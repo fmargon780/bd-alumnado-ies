@@ -1,15 +1,15 @@
 {
-  "version": "BD v19 — la interrogante solo donde falta el dato de verdad",
+  "version": "BD v20 — dos botones y pantalla de estado",
   "ficheros": [
     "Codigo.gs",
     "NEAE.gs",
     "Primaria.gs",
     "Jefatura.gs",
-    "Informes.gs"
+    "Informes.gs",
+    "Panel.gs"
   ],
   "menu": [
-    { "titulo": "1. Leer el histórico de matrículas", "funcion": "cargarHistorico" },
-    { "titulo": "2. Construir la tabla ALUMNADO", "funcion": "construirAlumnado" },
-    { "titulo": "3. Rellenar los informes por unidad", "funcion": "rellenarInformes" }
+    { "titulo": "1. Actualizar los datos", "funcion": "actualizarDatos" },
+    { "titulo": "2. Generar los PDF", "funcion": "generarPdfs" }
   ]
 }

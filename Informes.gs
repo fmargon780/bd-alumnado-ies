@@ -10,6 +10,10 @@
  * Las columnas se localizan por su TÍTULO, nunca por su letra. Cualquier
  * columna que el programa no conozca se conserva, con su contenido, al final.
  *
+ * Convenio de todo el sistema: una casilla vacía quiere decir que se ha
+ * comprobado y no hay nada; una casilla con "?" quiere decir que ese dato
+ * todavía no lo tenemos. Ver SIN_DATO en Codigo.gs.
+ *
  * ======================================================== ***/
 
 const ID_INFORMES   = '1zJXNix6nc_cq5yOAmbyuLIvlYv508gOa5h0X5vfmxkA';
@@ -96,13 +100,13 @@ const COLUMNAS_RETIRADAS = ['mat', 'opc1', 'opc2', 'opc3', 'opc4'];
 const MAPA_INFORMES = {
   'alumno/a:':  { col: 'Alumno/a' },
   'rep':        { col: 'Repite el curso actual', si: 'SÍ' },
-  'mat no sup.':{ col: 'MAT NO SUP.' },
+  'mat no sup.':{ col: 'MAT NO SUP.', conservaSiVacio: true },
   'mat. pend.': { col: 'Asignaturas pendientes' },
   /* En 1º de ESO las pendientes son las materias suspensas en 6º de Primaria.
      Salen de la misma columna de ALUMNADO, que para los alumnos de 1º la
      rellena el expediente de Primaria (ver Primaria.gs). Mientras Francisco
-     no haya descargado el expediente de un alumno, se respeta lo que hubiera
-     escrito a mano en el informe: para eso está 'conservaSiVacio'. */
+     no haya descargado el expediente de un alumno, ahí va un "?", y se
+     respeta lo que él hubiera escrito a mano: para eso está 'conservaSiVacio'. */
   'mat. pend. 6º': { col: 'Asignaturas pendientes', conservaSiVacio: true },
   'pil':        { col: 'PIL', si: 'SÍ' },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
@@ -153,6 +157,7 @@ const ALTO_LINEA = 12;
 const LEYENDA = [
   'NO SUPERADAS: las suspendió el curso que repite.   DIV: diversificación.',
   'PENDIENTES: las arrastra de cursos anteriores, con su curso detrás.',
+  'Casilla vacía: no hay nada.   ?: ese dato todavía no lo tenemos.',
   'NEAE — NEE: n. educativas especiales.   DIA: dificultades de aprendizaje.',
   'AACC: altas capacidades.   COM: compensación educativa.',
   'MEDIDAS — ACS: adaptación significativa.   ACI: adaptación individualizada.',
@@ -292,8 +297,16 @@ function construirBloque(claves, alumnos, idxAlum, previos) {
       const regla = MAPA_INFORMES[claves[c]];
       if (regla) {
         let v = valorInforme(regla, alumno, idxAlum);
-        if (String(v).trim() === '' && regla.conservaSiVacio && antes[claves[c]] !== undefined) {
-          v = antes[claves[c]];
+        /* Ni una casilla vacía ni un "?" deben borrar lo que Francisco hubiera
+           escrito a mano en esa columna. El "?" precisamente quiere decir que
+           el programa no tiene el dato, así que si él lo sabía, manda lo suyo. */
+        const falta = String(v).trim() === '' || String(v).trim() === SIN_DATO;
+        if (falta && regla.conservaSiVacio) {
+          const antesV = antes[claves[c]];
+          if (antesV !== undefined && String(antesV).trim() !== '' &&
+              String(antesV).trim() !== SIN_DATO) {
+            v = antesV;
+          }
         }
         fila.push(v);
       } else fila.push(antes[claves[c]] === undefined ? '' : antes[claves[c]]);
@@ -590,7 +603,7 @@ function escribirPortada_(libro, A, resumenGrupos) {
     const i = A.idx[normalizar(t)];
     return i === undefined ? '' : String(fila[i] === null || fila[i] === undefined ? '' : fila[i]).trim();
   };
-  let nPil = 0, nRep = 0, nDiv = 0, nPen = 0, nTot = 0;
+  let nPil = 0, nRep = 0, nDiv = 0, nPen = 0, nTot = 0, nSinDato = 0;
   for (let f = 0; f < A.filas.length; f++) {
     const fila = A.filas[f];
     if (!dame(fila, 'Alumno/a')) continue;
@@ -599,11 +612,22 @@ function escribirPortada_(libro, A, resumenGrupos) {
     if (dame(fila, 'Repite el curso actual') === 'SÍ') nRep++;
     if (normalizar(dame(fila, 'Diversificación')).indexOf('si') === 0) nDiv++;
     if (dame(fila, 'Nº pendientes') !== '') nPen++;
+    if (dame(fila, 'Asignaturas pendientes') === SIN_DATO ||
+        dame(fila, 'MAT NO SUP.') === SIN_DATO) nSinDato++;
   }
   banda('EL CENTRO EN CIFRAS');
   mete('Alumnado de ESO: ' + nTot + '     Grupos con informe: ' + resumenGrupos.length +
        '     Repetidores: ' + nRep + '     PIL: ' + nPil +
        '     En diversificación: ' + nDiv + '     Con materias pendientes: ' + nPen);
+  mete('');
+
+  banda('ALUMNADO CON ALGÚN DATO TODAVÍA SIN CONFIRMAR (' + nSinDato + ')');
+  if (!nSinDato) {
+    mete('Ninguno. No queda ninguna casilla con "' + SIN_DATO + '" en los informes.');
+  } else {
+    mete('Son los que salen con "' + SIN_DATO + '" en alguna columna del informe. ' +
+         'Casi siempre, alumnado de 1º cuyo expediente de Primaria falta por descargar.');
+  }
   mete('');
 
   banda('ALUMNADO SIN UNIDAD ASIGNADA EN SÉNECA');

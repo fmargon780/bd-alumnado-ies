@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v16';
+const VERSION = 'BD v17';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -323,13 +323,14 @@ function leerNotas(valores) {
 }
 
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
-function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae) {
+function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae, primaria) {
   const hist = {};
   for (let i = 0; i < historial.length; i++) {
     hist[normalizar(historial[i][0])] = historial[i];
   }
   const jef = jefatura || {};
   const censo = neae || {};
+  const prim = primaria || {};
   const filas = [], avisos = [];
   const todos = [];
   for (const curso in alumnosPorCurso) {
@@ -347,6 +348,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const clave = normalizar(a.nombre);
     const h = hist[clave];
     const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
+    const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', pil = '', mns = '';
 
     if (!h) {
@@ -355,9 +357,15 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         aviso: 'No está en el histórico de matrículas', detalle: 'No se pueden calcular sus repeticiones' });
     } else {
       edad = h[4]; repite = h[5]; repESO = h[6]; repPrim = h[7]; fuente = h[8];
+      /* El expediente de Primaria lo dice negro sobre blanco, así que manda
+         sobre la estimación por edad. Ver Primaria.gs. */
+      if (exp && exp.repeticiones !== '' && exp.repeticiones !== undefined) {
+        repPrim = exp.repeticiones;
+        fuente = 'EXPEDIENTE';
+      }
       const corregido = String(man[0] || '').trim();
-      const primaria = corregido !== '' && !isNaN(Number(corregido)) ? Number(corregido) : repPrim;
-      total = (primaria === '' ? '' : primaria + repESO);
+      const primaria2 = corregido !== '' && !isNaN(Number(corregido)) ? Number(corregido) : repPrim;
+      total = (primaria2 === '' ? '' : primaria2 + repESO);
       pil = ((total !== '' && total >= 2) || repite === 'SÍ') ? 'SÍ' : 'NO';
       if (repite === 'SÍ') {
         const notas = notasPorCurso[a.curso];
@@ -380,20 +388,23 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         detalle: 'No aparecerá en ningún informe de grupo' });
     }
 
+    /* Las pendientes. En 2º, 3º y 4º salen de las columnas PEND del CSV de
+       Séneca. En 1º, Séneca no trae nada: las materias que el alumno suspendió
+       en 6º de Primaria salen del expediente que Francisco descarga alumno a
+       alumno. Si un alumno tuviera las dos cosas, se ponen las dos. */
+    let pend = a.pend;
+    if (exp && exp.pendientes && exp.pendientes.length) pend = a.pend.concat(exp.pendientes);
+
     /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
        Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
-    /* En 4º Séneca lo marca poniendo ÁMB en la columna MAT. En 1º, 2º y 3º
-       no hay columna MAT, así que se mira directamente la matrícula en el
-       Ámbito Científico-Tecnológico. En cuanto el centro matricule en Séneca
-       a los de 3º en los ámbitos, saldrán solos por aquí. */
     const divSeneca = (v['MAT'] === 'ÁMB') || a.diver === true;
     const divJefatura = !!(jef[clave] && jef[clave].div === 'SÍ');
     const diver = divSeneca ? 'SÍ' : (divJefatura ? 'SÍ (solo Jefatura)' : 'NO');
 
     filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
-      v['REL/Atedu'] || '', a.pend.length ? a.pend.length : '',
-      a.pend.length ? (a.pend.length + ': ' + a.pend.join(', ')) : '', edad, mns,
+      v['REL/Atedu'] || '', pend.length ? pend.length : '',
+      pend.length ? (pend.length + ': ' + pend.join(', ')) : '', edad, mns,
       repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
          dice nada de este alumno, se respeta lo que hubiera escrito a mano. */
@@ -652,8 +663,13 @@ function construirAlumnado() {
   const N = datosNeae_(historial, 0, 3, TITULOS_HISTORIAL.indexOf('Fecha de nacimiento'));
   for (let i = 0; i < N.avisos.length; i++) avisos.push(N.avisos[i]);
 
+  /* Quinta fuente: los expedientes de Primaria, uno por alumno de 1º.
+     Rellenan las pendientes de 6º y las repeticiones. Ver Primaria.gs. */
+  const P = datosPrimaria_();
+  for (let i = 0; i < P.avisos.length; i++) avisos.push(P.avisos[i]);
+
   const manuales = leerManualesAlumnado(libro);
-  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre, N.porNombre);
+  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre, N.porNombre, P.porNombre);
   R.avisos.forEach(function (a) { avisos.push(a); });
 
   escribirAlumnado(R.filas);
@@ -661,13 +677,31 @@ function construirAlumnado() {
   /* La pestaña NEAE deja ver a quién se ha asignado cada ficha del censo,
      que en el fichero de Séneca solo viene con las iniciales. */
   const iNomA = TITULOS_ALUMNADO.indexOf('Alumno/a'), iUniA = TITULOS_ALUMNADO.indexOf('Unidad');
-  const unidadesPorNombre = {};
+  const unidadesPorNombre = {}, enAlumnado = {};
   for (let f = 0; f < R.filas.length; f++) {
-    unidadesPorNombre[normalizar(R.filas[f][iNomA])] = R.filas[f][iUniA];
+    const k = normalizar(R.filas[f][iNomA]);
+    unidadesPorNombre[k] = R.filas[f][iUniA];
+    enAlumnado[k] = true;
   }
   try { escribirNeae_(N.porNombre, unidadesPorNombre, N.nombre); }
   catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
     aviso: 'No he podido escribir la pestaña NEAE', detalle: e.message }); }
+
+  /* Un expediente de Primaria cuyo nombre de fichero no case con ningún alumno
+     de la tabla no sirve de nada, y hay que verlo. Casi siempre es una errata
+     en el nombre del fichero. */
+  let expSinAlumno = 0;
+  for (const k in P.porNombre) {
+    if (enAlumnado[k]) continue;
+    expSinAlumno++;
+    avisos.push({ curso: '1º', grupo: '', alumno: P.porNombre[k].nombre,
+      aviso: 'Expediente de Primaria sin alumno',
+      detalle: 'El fichero "' + P.porNombre[k].fichero + '" no corresponde a ningún alumno de la tabla. ' +
+               'Comprueba que el nombre del fichero está escrito igual que en Séneca.' });
+  }
+  try { escribirPrimaria_(P.porNombre, unidadesPorNombre, enAlumnado); }
+  catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
+    aviso: 'No he podido escribir la pestaña PRIMARIA', detalle: e.message }); }
 
   escribirAvisos(avisos);
 
@@ -681,10 +715,12 @@ function construirAlumnado() {
   const iMns = TITULOS_ALUMNADO.indexOf('MAT NO SUP.');
   const iPen = TITULOS_ALUMNADO.indexOf('Nº pendientes');
   const iDiv = TITULOS_ALUMNADO.indexOf('Diversificación');
+  const iFue = TITULOS_ALUMNADO.indexOf('Fuente Primaria');
   const pil = R.filas.filter(function (f) { return f[iPil] === 'SÍ'; }).length;
   const mns = R.filas.filter(function (f) { return f[iMns] !== ''; }).length;
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
+  const porEdad = R.filas.filter(function (f) { return f[iFue] === 'EDAD'; }).length;
 
   avisar_('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
@@ -694,6 +730,9 @@ function construirAlumnado() {
     '\nCon asignaturas pendientes: ' + pen +
     '\nEn diversificación: ' + div +
     '\nCon censo NEAE: ' + N.total +
+    '\n\nExpedientes de Primaria leídos: ' + P.total + ' de ' + P.ficheros + ' ficheros' +
+    (expSinAlumno ? ' (' + expSinAlumno + ' sin alumno en la tabla)' : '') +
+    '\nRepeticiones de Primaria todavía estimadas por edad: ' + porEdad +
     '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
     '\nAlumnos leídos de Jefatura: ' + J.alumnos.length +
     '\nDiferencias con Séneca: ' + nDiscrep +

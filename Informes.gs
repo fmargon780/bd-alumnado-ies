@@ -98,6 +98,12 @@ const MAPA_INFORMES = {
   'rep':        { col: 'Repite el curso actual', si: 'SÍ' },
   'mat no sup.':{ col: 'MAT NO SUP.' },
   'mat. pend.': { col: 'Asignaturas pendientes' },
+  /* En 1º de ESO las pendientes son las materias suspensas en 6º de Primaria.
+     Salen de la misma columna de ALUMNADO, que para los alumnos de 1º la
+     rellena el expediente de Primaria (ver Primaria.gs). Mientras Francisco
+     no haya descargado el expediente de un alumno, se respeta lo que hubiera
+     escrito a mano en el informe: para eso está 'conservaSiVacio'. */
+  'mat. pend. 6º': { col: 'Asignaturas pendientes', conservaSiVacio: true },
   'pil':        { col: 'PIL', si: 'SÍ' },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },

@@ -1,6 +1,7 @@
 {
-  "version": "BD v20 — dos botones y pantalla de estado",
+  "version": "BD v21 — formato y filtros de las pestañas",
   "ficheros": [
+    "Formato.gs",
     "Codigo.gs",
     "NEAE.gs",
     "Primaria.gs",

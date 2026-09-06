@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v14';
+const VERSION = 'BD v15';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -503,12 +503,46 @@ function libroDeNotas() {
   return null;
 }
 
+/*** ================= CÓMO SE AVISA AL TERMINAR =================
+ *
+ * Antes se usaba un cuadro de diálogo que había que aceptar. El 6-sep-2026 ese
+ * cuadro dejó de poder mostrarse: Google respondía "El motor de JavaScript ha
+ * notificado un error inesperado. Código de error: INTERNAL", y como el script
+ * se queda esperando a que alguien pulse Aceptar, la ejecución quedaba
+ * "En pausa" para siempre aunque el trabajo ya estuviera hecho.
+ *
+ * Desde BD v15 no se usa ningún cuadro que haya que aceptar. El resumen se
+ * escribe en la pestaña RESUMEN y se anuncia con un aviso flotante, que no
+ * detiene nada. Un clic menos por operación.
+ * ======================================================== ***/
+const HOJA_RESUMEN = 'RESUMEN';
+
+function avisar_(titulo, texto) {
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  const lineas = String(texto === null || texto === undefined ? '' : texto).split('\n');
+  try {
+    let hoja = libro.getSheetByName(HOJA_RESUMEN);
+    if (!hoja) hoja = libro.insertSheet(HOJA_RESUMEN, 0);
+    hoja.clear();
+    hoja.getRange(1, 1).setValue(titulo).setFontWeight('bold').setFontSize(13);
+    hoja.getRange(2, 1).setValue('Terminado el ' + new Date().toLocaleString('es-ES'))
+        .setFontStyle('italic');
+    const filas = [];
+    for (let i = 0; i < lineas.length; i++) filas.push([lineas[i]]);
+    if (filas.length) hoja.getRange(4, 1, filas.length, 1).setValues(filas);
+    hoja.setColumnWidth(1, 620);
+    libro.setActiveSheet(hoja);
+  } catch (e) { /* si no se puede escribir la pestaña, al menos sale el aviso */ }
+  try { libro.toast(titulo, 'Terminado. Míralo en la pestaña ' + HOJA_RESUMEN, 20); }
+  catch (e) { /* sin interfaz, tampoco pasa nada */ }
+}
+
 /*** ================= BOTÓN 1: HISTÓRICO ================= ***/
 function cargarHistorico() {
-  const ui = SpreadsheetApp.getUi();
   const archivo = buscarCsv('RegAlum');
   if (!archivo) {
-    ui.alert('No he encontrado ningún fichero que empiece por "RegAlum" ni en la carpeta de datos ni en la de arriba.');
+    avisar_('No he encontrado el histórico',
+      'No hay ningún fichero que empiece por "RegAlum" ni en la carpeta de datos ni en la de arriba.');
     return;
   }
   let res;
@@ -518,7 +552,7 @@ function cargarHistorico() {
        'Edad a 31/12 del año de matrícula', 'Estado Matrícula', 'Fecha de nacimiento']);
     res = calcularHistorial(tabla);
   } catch (e) {
-    ui.alert('No he podido leer el histórico.\n\n' + e.message);
+    avisar_('No he podido leer el histórico', e.message);
     return;
   }
 
@@ -531,20 +565,19 @@ function cargarHistorico() {
   hoja.setFrozenRows(2);
   for (let c = 1; c <= TITULOS_HISTORIAL.length; c++) hoja.autoResizeColumn(c);
 
-  ui.alert('Histórico cargado (' + VERSION + ')',
+  avisar_('Histórico cargado (' + VERSION + ')',
     'Fichero: ' + archivo.getName() + '\nAño más reciente: ' + res.ano +
     '\nAlumnos de ESO matriculados ese año: ' + res.filas.length +
-    '\n\nAhora pulsa "2. Construir la tabla ALUMNADO".', ui.ButtonSet.OK);
+    '\n\nAhora pulsa "2. Construir la tabla ALUMNADO".');
 }
 
 /*** ================= BOTÓN 2: ALUMNADO ================= ***/
 function construirAlumnado() {
-  const ui = SpreadsheetApp.getUi();
   const libro = SpreadsheetApp.getActiveSpreadsheet();
 
   const hHist = libro.getSheetByName(HOJA_HISTORIAL);
   if (!hHist || hHist.getLastRow() < 3) {
-    ui.alert('Antes tienes que pulsar "1. Leer el histórico de matrículas".');
+    avisar_('Falta el histórico', 'Antes tienes que pulsar "1. Leer el histórico de matrículas".');
     return;
   }
   /* Una pestaña HISTORIAL hecha con una versión anterior tiene menos columnas.
@@ -560,8 +593,9 @@ function construirAlumnado() {
   const ficheros = buscarCsvsMatricula();
   const cursos = Object.keys(ficheros);
   if (!cursos.length) {
-    ui.alert('No he encontrado ningún fichero de matrícula del curso ' + CURSO_ACTUAL +
-             '.\n\nDeben llamarse MatOMCMatr...' + CURSO_ACTUAL + '.csv');
+    avisar_('No hay ficheros de matrícula',
+      'No he encontrado ninguno del curso ' + CURSO_ACTUAL +
+      '.\nDeben llamarse MatOMCMatr...' + CURSO_ACTUAL + '.csv');
     return;
   }
 
@@ -650,7 +684,7 @@ function construirAlumnado() {
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
 
-  ui.alert('Tabla ALUMNADO construida (' + VERSION + ')',
+  avisar_('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
     '\n\nTotal de alumnos: ' + R.filas.length +
     '\nPIL (no pueden repetir más): ' + pil +
@@ -662,7 +696,7 @@ function construirAlumnado() {
     '\nAlumnos leídos de Jefatura: ' + J.alumnos.length +
     '\nDiferencias con Séneca: ' + nDiscrep +
     (nDiscrep ? '\nMíralas en la pestaña "' + HOJA_DISCREP + '".' : '') +
-    '\n\nAvisos anotados: ' + avisos.length, ui.ButtonSet.OK);
+    '\n\nAvisos anotados: ' + avisos.length);
 }
 
 function leerManualesAlumnado(libro) {

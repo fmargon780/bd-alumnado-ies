@@ -695,12 +695,11 @@ function discrepanciasPendientes_() {
 
 /*** ================= OPCIÓN: RELLENAR LOS INFORMES ================= ***/
 function rellenarInformes() {
-  const ui = SpreadsheetApp.getUi();
   let A;
   try {
     A = leerAlumnado_();
   } catch (e) {
-    ui.alert('No he podido empezar', e.message, ui.ButtonSet.OK);
+    avisar_('No he podido empezar', e.message);
     return;
   }
 
@@ -708,7 +707,7 @@ function rellenarInformes() {
   try {
     libro = SpreadsheetApp.openById(ID_INFORMES);
   } catch (e) {
-    ui.alert('No he podido abrir el cuaderno de informes.\n\n' + e.message);
+    avisar_('No he podido abrir el cuaderno de informes', e.message);
     return;
   }
 
@@ -896,7 +895,7 @@ function rellenarInformes() {
 
   escribirAvisosInformes_(avisos);
 
-  ui.alert('Informes rellenados (' + VERSION + ')',
+  avisar_('Informes rellenados (' + VERSION + ')',
     'Grupos actualizados: ' + resumen.length +
     (membrete ? '\nMembretes actualizados: ' + membretesCambiados : '') +
     '\nAlumnos escritos: ' + totalEscritos +
@@ -909,8 +908,7 @@ function rellenarInformes() {
                (sueltos.fallidos.length ? '\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +
                 '. Vuelve a pulsar la opción 3 dentro de un rato.' : '') : '') +
     '\n\nAvisos anotados: ' + avisos.length +
-    (avisos.length ? '\nMíralos en la pestaña "' + HOJA_AV_INF + '".' : ''),
-    ui.ButtonSet.OK);
+    (avisos.length ? '\nMíralos en la pestaña "' + HOJA_AV_INF + '".' : ''));
 }
 
 function escribirAvisosInformes_(avisos) {

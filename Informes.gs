@@ -1088,13 +1088,36 @@ function rellenarInformes() {
   generarPdfs();
 }
 
+/* La pestaña AVISOS INFORMES, desde la BD v24, tiene dos columnas de
+   Francisco: "Estado" y "Observaciones".
+
+   CUIDADO: esta pestaña se reconstruye entera en cada ejecución, así que hay
+   que leer esas dos columnas ANTES de limpiarla y volver a colocarlas al
+   escribir cada fila. Si no, se pierde lo anotado, que es justo el fallo que
+   tenía la pestaña AVISOS hasta la BD v21.
+
+   Cada incidencia se reconoce por sus cuatro columnas: grupo, pestaña, aviso
+   y detalle. Las dos funciones que hacen esto están en Formato.gs.
+
+   El formato (anchos, ajuste de texto, filtro, desplegable de Estado) lo pone
+   formatearHoja_, también en Formato.gs. Se llama aquí, y no solo desde el
+   botón de actualizar, porque generarPdfs() reescribe esta misma pestaña y
+   esa opción no pasa por el formateo general. */
 function escribirAvisosInformes_(avisos) {
-  const titulos = ['Grupo', 'Pestaña', 'Aviso', 'Detalle'];
+  const titulos = ['Grupo', 'Pestaña', 'Aviso', 'Detalle', 'Estado', 'Observaciones'];
+  const previos = notasDeAvisosInformes_();
   const hoja = hojaLimpia(HOJA_AV_INF, titulos.length);
-  hoja.getRange(1, 1).setValue('Incidencias al rellenar los informes por unidad. Actualizado: ' +
+  hoja.getRange(1, 1).setValue('Incidencias al rellenar los informes por unidad. ' +
+    'Las dos últimas columnas las rellenas tú y no se pierden. Actualizado: ' +
     new Date().toLocaleString('es-ES')).setFontStyle('italic');
   hoja.getRange(2, 1, 1, titulos.length).setValues([titulos]).setFontWeight('bold');
-  if (avisos.length) hoja.getRange(3, 1, avisos.length, titulos.length).setValues(avisos);
+  if (avisos.length) {
+    const filas = avisos.map(function (a) {
+      const man = previos[claveAvisoInforme_(a)] || ['', ''];
+      return [a[0], a[1], a[2], a[3], man[0], man[1]];
+    });
+    hoja.getRange(3, 1, filas.length, titulos.length).setValues(filas);
+  }
   hoja.setFrozenRows(2);
-  for (let c = 1; c <= titulos.length; c++) hoja.autoResizeColumn(c);
+  try { formatearHoja_(HOJA_AV_INF); } catch (e) { /* el formato no es crítico */ }
 }

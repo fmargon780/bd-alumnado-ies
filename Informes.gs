@@ -2,7 +2,17 @@
  *
  * Copia lo que hay en la pestaña ALUMNADO a cada pestaña de grupo del
  * cuaderno "INFORME-RESUMEN POR GRUPOS 26-27", deja las columnas en el orden
- * acordado, y saca un PDF por grupo, listo para imprimir y dar a su tutor.
+ * acordado, y saca un PDF por grupo para su tutor.
+ *
+ * SON DOS TRABAJOS DISTINTOS, y desde el 6-sep-2026 van por separado:
+ *
+ *   rellenarPestanasInformes_()  escribe las 23 pestañas y la portada.
+ *                                Lo llama el botón "Actualizar los datos".
+ *   generarPdfs()                exporta los PDF de lo que ya está escrito.
+ *                                Es el botón "2. Generar los PDF".
+ *
+ * Se separan porque los PDF son la única parte que Google rechaza a veces, y
+ * Francisco muchas veces solo quiere revisar avisos con los datos al día.
  *
  * El informe se lee de izquierda a derecha como una frase:
  *   quién es -> cómo va -> qué apoyos tiene -> qué cursa
@@ -159,10 +169,9 @@ const ALTO_LINEA = 12;
  * antes estaban desperdiciadas. Así no empuja ni una fila hacia abajo y se
  * imprime en todas las páginas, porque esas filas van congeladas.
  *
- * EL PROBLEMA QUE RESUELVE ESTA VERSIÓN (BD v20). Antes la leyenda era una
- * lista fija de ocho líneas, escrita a mano, y no cabían todas las siglas que
- * el censo NEAE puede escribir. Francisco encontró un "ATE" sin explicar.
- * Añadir más líneas no era posible: en el hueco solo caben ocho.
+ * EL PROBLEMA QUE RESUELVE. Antes la leyenda era una lista fija de ocho
+ * líneas, escrita a mano, y no cabían todas las siglas que el censo NEAE
+ * puede escribir. Francisco encontró un "ATE" sin explicar.
  *
  * LA SOLUCIÓN. La leyenda ya no es fija. Cada grupo explica SOLO las siglas
  * que salen de verdad en sus alumnos, ordenadas de más a menos frecuente.
@@ -171,10 +180,9 @@ const ALTO_LINEA = 12;
  * LAS CUENTAS, medidas el 6-sep-2026. El hueco da unos 102 caracteres por
  * renglón y ocho renglones. La parte fija ocupa uno, así que quedan siete
  * para las siglas, y en cada renglón entran tres explicaciones. Con eso caben
- * dieciséis siglas distintas en un mismo grupo, que es más de lo que se ve en
- * la realidad. Si aun así sobrara alguna, o si apareciera una sigla que no
- * está en el diccionario, se anota en AVISOS INFORMES: el programa no se lo
- * calla nunca.
+ * dieciséis siglas distintas en un mismo grupo, más de lo que se ve en la
+ * realidad. Si aun así sobrara alguna, o si apareciera una sigla que no está
+ * en el diccionario, se anota en AVISOS INFORMES.
  * ============================================================== ***/
 
 /* Esta línea va siempre, en todos los grupos. Debe caber en un solo renglón:
@@ -385,7 +393,7 @@ function leerAlumnado_() {
   const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_ALUMNADO);
   if (!hoja || hoja.getLastRow() < 3) {
     throw new Error('No encuentro la pestaña ALUMNADO con datos.\n\n' +
-                    'Pulsa antes "2. Construir la tabla ALUMNADO".');
+                    'Pulsa antes "1. Actualizar los datos".');
   }
   const ancho = hoja.getLastColumn();
   const titulos = hoja.getRange(2, 1, 1, ancho).getValues()[0];
@@ -661,9 +669,33 @@ function pdfsPorInforme_(libro, entradas) {
   return { carpeta: nombreCarpeta, hechos: hechos, dobles: dobles, fallidos: fallidos };
 }
 
+/* Qué hojas hay que exportar, mirando el cuaderno tal como está ahora.
+   No hace falta haber rellenado nada en esta misma ejecución. */
+function entradasParaPdf_(libro) {
+  const entradas = [];
+  const portada = libro.getSheetByName(HOJA_PORTADA);
+  if (portada) entradas.push({ hoja: portada, nombre: 'RESUMEN para el equipo directivo' });
+
+  const hojas = libro.getSheets();
+  for (let h = 0; h < hojas.length; h++) {
+    const hoja = hojas[h];
+    if (hoja.getLastRow() < FILA_TITULOS) continue;
+    const anchoFila7 = Math.max(hoja.getLastColumn(), 15);
+    const fila7 = hoja.getRange(FILA_GRUPO, 1, 1, anchoFila7).getValues()[0];
+    const grupo = grupoDeFila7(fila7);
+    if (!grupo) continue;
+    const celda = hoja.getRange(FILA_GRUPO, hoja.getLastColumn());
+    /* La cabecera puede llevar ya un " · 2 hojas" de la vez anterior.
+       Se le quita para no acumularlo. */
+    const texto = String(celda.getValue() || '').replace(/\s*·\s*\d+\s*hojas\s*$/i, '');
+    entradas.push({ hoja: hoja, nombre: grupo, celda: celda, texto: texto });
+  }
+  return entradas;
+}
+
 /*** ================= LA PORTADA ================= ***/
-/* Primera hoja del PDF. Es para Francisco, no para los tutores: dice qué
-   falta por cuadrar en Séneca antes de que los informes sean del todo fiables. */
+/* Primera hoja del cuaderno de informes. Es para Francisco, no para los
+   tutores: dice qué falta por cuadrar en Séneca. */
 function escribirPortada_(libro, A, resumenGrupos) {
   let hoja = libro.getSheetByName(HOJA_PORTADA);
   if (!hoja) hoja = libro.insertSheet(HOJA_PORTADA);
@@ -787,23 +819,14 @@ function discrepanciasPendientes_() {
   return salida;
 }
 
-/*** ================= OPCIÓN: RELLENAR LOS INFORMES ================= ***/
-function rellenarInformes() {
-  let A;
-  try {
-    A = leerAlumnado_();
-  } catch (e) {
-    avisar_('No he podido empezar', e.message);
-    return;
-  }
-
-  let libro;
-  try {
-    libro = SpreadsheetApp.openById(ID_INFORMES);
-  } catch (e) {
-    avisar_('No he podido abrir el cuaderno de informes', e.message);
-    return;
-  }
+/*** ================= RELLENAR LAS PESTAÑAS (SIN PDF) =================
+ *
+ * Lo llama el botón "1. Actualizar los datos", en Panel.gs.
+ * Devuelve un resumen de lo hecho, para que el panel lo cuente.
+ * ======================================================== ***/
+function rellenarPestanasInformes_() {
+  const A = leerAlumnado_();
+  const libro = SpreadsheetApp.openById(ID_INFORMES);
 
   const avisos = [], resumen = [], usadas = {}, informes = [];
   let totalEscritos = 0, membretesCambiados = 0;
@@ -979,42 +1002,90 @@ function rellenarInformes() {
   try { nPend = escribirPortada_(libro, A, resumen); }
   catch (e) { avisos.push(['', '', 'No he podido hacer la portada', e.message]); }
 
-  /* Un PDF por informe, cada uno con su propia numeración de páginas. */
+  escribirAvisosInformes_(avisos);
+
+  return { grupos: resumen.length, alumnos: totalEscritos, avisos: avisos.length,
+           membretes: membretesCambiados, sinUnidad: A.sinUnidad.length,
+           siglasSinExplicar: listaSinExplicar, pendientesSeneca: nPend };
+}
+
+/*** ================= BOTÓN 2: GENERAR LOS PDF =================
+ *
+ * No escribe ni un dato: exporta lo que ya está en las pestañas. Por eso se
+ * puede pulsar cuando se quiera, y por eso no pasa nada si Google corta a
+ * medias: se vuelve a pulsar más tarde y completa lo que falte.
+ * ======================================================== ***/
+function generarPdfs() {
+  let libro;
+  try {
+    libro = SpreadsheetApp.openById(ID_INFORMES);
+  } catch (e) {
+    avisar_('No he podido abrir el cuaderno de informes', e.message);
+    return;
+  }
+
+  let entradas;
+  try {
+    entradas = entradasParaPdf_(libro);
+  } catch (e) {
+    avisar_('No he podido mirar las pestañas', e.message);
+    return;
+  }
+
+  if (!entradas.length) {
+    avisar_('No hay nada que exportar',
+      'No he encontrado ninguna pestaña de grupo en el cuaderno de informes.\n\n' +
+      'Pulsa antes "1. Actualizar los datos".');
+    return;
+  }
+
+  const avisos = [];
   let sueltos = null;
   try {
-    const hojaPortada = libro.getSheetByName(HOJA_PORTADA);
-    const entradas = [];
-    if (hojaPortada) entradas.push({ hoja: hojaPortada, nombre: 'RESUMEN para el equipo directivo' });
-    for (let i = 0; i < informes.length; i++) entradas.push(informes[i]);
     sueltos = pdfsPorInforme_(libro, entradas);
     for (let i = 0; i < sueltos.dobles.length; i++) {
       avisos.push(['', '', 'Informe de más de una hoja', sueltos.dobles[i] +
                    '. Lo pone en su cabecera, para que el tutor lo sepa.']);
     }
     for (let i = 0; i < sueltos.fallidos.length; i++) {
-      avisos.push(['', '', 'PDF suelto que no ha salido', sueltos.fallidos[i] +
-                   '. Vuelve a pulsar la opción 3 dentro de un rato.']);
+      avisos.push(['', '', 'PDF que no ha salido', sueltos.fallidos[i] +
+                   '. Vuelve a pulsar "2. Generar los PDF" dentro de un rato.']);
     }
   } catch (e) {
-    avisos.push(['', '', 'No he podido hacer los PDF sueltos', e.message]);
+    avisos.push(['', '', 'No he podido hacer los PDF', e.message]);
   }
 
   escribirAvisosInformes_(avisos);
 
-  avisar_('Informes rellenados (' + VERSION + ')',
-    'Grupos actualizados: ' + resumen.length +
-    (membrete ? '\nMembretes actualizados: ' + membretesCambiados : '') +
-    '\nAlumnos escritos: ' + totalEscritos +
-    '\nAlumnos sin unidad (salen solo en la portada): ' + A.sinUnidad.length +
-    '\nPendiente de ajustar en Séneca: ' + nPend +
-    (listaSinExplicar.length ? '\n\nSiglas sin explicar en la leyenda: ' +
-                               listaSinExplicar.join(', ') : '') +
-    (sueltos ? '\n\nUn PDF por informe en la carpeta "' + sueltos.carpeta + '": ' +
-               sueltos.hechos + ' de ' + (sueltos.hechos + sueltos.fallidos.length) + ' ficheros.' +
-               (sueltos.fallidos.length ? '\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +
-                '. Vuelve a pulsar la opción 3 dentro de un rato.' : '') : '') +
+  const total = sueltos ? sueltos.hechos + sueltos.fallidos.length : entradas.length;
+  avisar_('PDF generados (' + VERSION + ')',
+    (sueltos
+      ? 'Carpeta "' + sueltos.carpeta + '": ' + sueltos.hechos + ' de ' + total + ' ficheros.' +
+        (sueltos.fallidos.length
+          ? '\n\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +
+            '. No pasa nada: los que ya estaban siguen ahí.' +
+            '\nVuelve a pulsar "2. Generar los PDF" dentro de un rato y completará lo que falte.'
+          : '\n\nHan salido todos.')
+      : 'No se ha podido exportar nada.') +
     '\n\nAvisos anotados: ' + avisos.length +
     (avisos.length ? '\nMíralos en la pestaña "' + HOJA_AV_INF + '".' : ''));
+}
+
+/*** ================= LA OPCIÓN ANTIGUA =================
+ *
+ * Rellenaba las pestañas y sacaba los PDF de una vez. Ya no está en el menú,
+ * pero se deja: si Francisco abre el cuaderno antes de que el menú se
+ * refresque, todavía vería la opción vieja y tiene que seguir funcionando.
+ * ======================================================== ***/
+function rellenarInformes() {
+  let R;
+  try {
+    R = rellenarPestanasInformes_();
+  } catch (e) {
+    avisar_('No he podido rellenar los informes', e.message);
+    return;
+  }
+  generarPdfs();
 }
 
 function escribirAvisosInformes_(avisos) {

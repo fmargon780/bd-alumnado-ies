@@ -166,19 +166,23 @@ const ALTO_LINEA = 12;
  *
  * LA SOLUCIÓN. La leyenda ya no es fija. Cada grupo explica SOLO las siglas
  * que salen de verdad en sus alumnos, ordenadas de más a menos frecuente.
- * Un grupo suele usar seis o siete siglas distintas, así que caben de sobra,
- * y ninguna se queda sin explicar. Lo que significa cada sigla está en el
- * diccionario EXPLICACION_SIGLAS de NEAE.gs.
+ * Lo que significa cada sigla está en EXPLICACION_SIGLAS, en NEAE.gs.
  *
- * Si aparece una sigla que no está en ese diccionario, o si de verdad no cabe
- * todo, se anota en AVISOS INFORMES. El programa no se lo calla.
+ * LAS CUENTAS, medidas el 6-sep-2026. El hueco da unos 102 caracteres por
+ * renglón y ocho renglones. La parte fija ocupa uno, así que quedan siete
+ * para las siglas, y en cada renglón entran tres explicaciones. Con eso caben
+ * dieciséis siglas distintas en un mismo grupo, que es más de lo que se ve en
+ * la realidad. Si aun así sobrara alguna, o si apareciera una sigla que no
+ * está en el diccionario, se anota en AVISOS INFORMES: el programa no se lo
+ * calla nunca.
  * ============================================================== ***/
 
-/* Estas dos líneas van siempre, en todos los grupos. */
+/* Esta línea va siempre, en todos los grupos. Debe caber en un solo renglón:
+   como mucho, unos 100 caracteres. */
 const LEYENDA_FIJA = [
-  'NO SUPERADAS: las suspendió el curso que repite.   PENDIENTES: las arrastra de antes.',
-  'DIV: diversificación.   Casilla con "?": ese dato todavía no lo tenemos.'
+  'NO SUPERADAS: del curso que repite.  PENDIENTES: de antes.  DIV: diversificación.  ?: aún sin dato.'
 ];
+const SEPARADOR_LEYENDA = '  ';   // entre dos explicaciones del mismo renglón
 const LETRA_LEYENDA = 6;
 const ALTO_LINEA_LEYENDA = 7.2;   // puntos que ocupa una línea a esa letra
 const ANCHO_LETRA_LEYENDA = 3.0;  // ancho medio de un carácter, en puntos
@@ -468,7 +472,7 @@ function columnaTrasElMembrete_(claves, anchos) {
 
 /* Escribe la leyenda en el hueco libre de las filas 1 a 6.
    'trozos' son las explicaciones de las siglas de este grupo, ya en texto,
-   ordenadas de más a menos importante.
+   ordenadas de más a menos frecuente.
    Devuelve { aviso, fuera }: 'fuera' son los trozos que no han cabido. */
 function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   const primera = columnaTrasElMembrete_(claves, anchos);
@@ -483,7 +487,7 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   const porLinea = Math.max(20, Math.floor((disponible - 6) / ANCHO_LETRA_LEYENDA));
 
   /* El alto de las filas 1 a 6 ya está ajustado al membrete cuando se llama
-     a esta función, así que se puede saber cuántas líneas caben de verdad. */
+     a esta función, así que se puede saber cuántos renglones caben de verdad. */
   let alto = 0;
   for (let r = 1; r <= FILAS_CABECERA; r++) alto += hoja.getRowHeight(r);
   const cabenLineas = Math.max(2, Math.floor(alto / ALTO_LINEA_LEYENDA));
@@ -499,7 +503,7 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   const paquetes = [];
   let actual = '';
   for (let i = 0; i < trozos.length; i++) {
-    const cand = actual ? actual + '   ' + trozos[i] : trozos[i];
+    const cand = actual ? actual + SEPARADOR_LEYENDA + trozos[i] : trozos[i];
     if (cand.length <= porLinea) { actual = cand; continue; }
     if (actual) paquetes.push(actual);
     actual = trozos[i];

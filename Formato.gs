@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya, más
    antigua; mientras esta exista, manda esta. */
-const VERSION_BD = 'BD v22';
+const VERSION_BD = 'BD v23';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -146,16 +146,28 @@ const FORMATO_HOJAS = {
       'Aviso': [200, 'W'], 'Detalle': [380, 'W'],
       'Estado': [130, 'C'], 'Observaciones': [220, 'W']
     }
+  },
+
+  /* Las incidencias al rellenar los informes por unidad. La escribe
+     Informes.gs, pero vive en este mismo cuaderno, no en el de informes.
+     Todavía no tiene columnas para marcar: solo se lee. */
+  'AVISOS INFORMES': {
+    cabecera: 2, congelar: 2, manuales: [], noProteger: [],
+    cols: {
+      'Grupo': [70, 'C'], 'Pestaña': [80, 'C'],
+      'Aviso': [220, 'W'], 'Detalle': [420, 'W']
+    }
   }
 };
 
 /* El orden de las pestañas: primero las de trabajo, después las de consulta.
    Y el color de cada solapa, para distinguir los dos grupos de un vistazo. */
-const FMT_ORDEN = ['RESUMEN', 'ALUMNADO', 'AVISOS', 'DISCREPANCIAS',
+const FMT_ORDEN = ['RESUMEN', 'ALUMNADO', 'AVISOS', 'AVISOS INFORMES', 'DISCREPANCIAS',
                    'PRIMARIA', 'NEAE', 'JEFATURA', 'HISTORIAL'];
 const FMT_COLOR_SOLAPA = {
   'RESUMEN': '#1F4E79',                                            // el panel, azul oscuro
-  'ALUMNADO': '#2E7D32', 'AVISOS': '#2E7D32', 'DISCREPANCIAS': '#2E7D32',   // trabajo, verde
+  'ALUMNADO': '#2E7D32', 'AVISOS': '#2E7D32',                      // trabajo, verde
+  'AVISOS INFORMES': '#2E7D32', 'DISCREPANCIAS': '#2E7D32',
   'PRIMARIA': '#9E9E9E', 'NEAE': '#9E9E9E',
   'JEFATURA': '#9E9E9E', 'HISTORIAL': '#9E9E9E'                    // consulta, gris
 };
@@ -452,7 +464,7 @@ function formatearHoja_(nombre) {
    debe tumbar una actualización que ya ha salido bien. */
 function arreglarFormatoDeTodo_() {
   const orden = ['HISTORIAL', 'ALUMNADO', 'JEFATURA', 'DISCREPANCIAS',
-                 'NEAE', 'PRIMARIA', 'AVISOS'];
+                 'NEAE', 'PRIMARIA', 'AVISOS', 'AVISOS INFORMES'];
   let hojas = 0;
   const fallos = [];
   for (let i = 0; i < orden.length; i++) {

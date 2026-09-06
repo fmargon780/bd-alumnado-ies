@@ -49,6 +49,7 @@ const ALIAS_COLUMNAS = {
   'fr -> alct': 'fr -> alct',
   'exento frances': 'fr -> alct',
   'exento': 'fr -> alct',
+  'exento fr': 'fr -> alct',
   'rel/at.': 'rel/atedu',
   'exento de frances': 'fr -> alct',
   'rel/atedu': 'rel/atedu',
@@ -69,7 +70,7 @@ const ROTULOS = {
   'medidas/recursos': 'MEDIDAS Y RECURSOS',
   'itinerario': 'ITINERARIO',
   'opt': 'OPT',
-  'fr -> alct': 'EXENTO',
+  'fr -> alct': 'EXENTO FR',
   'rel/atedu': 'REL/At.'
 };
 
@@ -124,7 +125,7 @@ const ANCHO_NUMERACION = 26;
 const ANCHOS_MINIMOS = {
   'alumno/a:': 130, 'rep': 26, 'mat no sup.': 90, 'mat. pend.': 85,
   'mat. pend. 6º': 85, 'pil': 26, 'div': 26, 'neae': 55,
-  'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 42,
+  'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 46,
   'rel/atedu': 46, 'veces repite primaria': 45
 };
 const ANCHO_DESCONOCIDA = 80;

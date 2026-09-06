@@ -10,9 +10,9 @@
  * Las columnas se localizan por su TÍTULO, nunca por su letra. Cualquier
  * columna que el programa no conozca se conserva, con su contenido, al final.
  *
- * Convenio de todo el sistema: una casilla vacía quiere decir que se ha
- * comprobado y no hay nada; una casilla con "?" quiere decir que ese dato
- * todavía no lo tenemos. Ver SIN_DATO en Codigo.gs.
+ * Convenio de todo el sistema: una casilla vacía quiere decir que no hay nada
+ * que poner; una casilla con "?" quiere decir que ese dato todavía no lo
+ * tenemos. Ver SIN_DATO en Codigo.gs.
  *
  * ======================================================== ***/
 
@@ -121,6 +121,9 @@ const MAPA_INFORMES = {
   'rel/atedu':  { col: 'REL/Atedu' }
 };
 
+/* Las columnas cuyas siglas hay que explicar en la leyenda. */
+const COLUMNAS_CON_SIGLAS = ['neae', 'medidas/recursos'];
+
 /*** ================= ANCHOS =================
  *
  * En puntos. Un A4 vertical con márgenes de 11 mm deja 707 puntos.
@@ -150,24 +153,31 @@ const CON_AJUSTE = ['alumno/a:', 'mat no sup.', 'mat. pend.', 'mat. pend. 6º',
 const LETRA_INFORME = 8;
 const ALTO_LINEA = 12;
 
-/* La leyenda ya no ocupa una fila propia: se escribe en el hueco que queda a
-   la derecha del membrete, en las filas 1 a 6, que antes estaban desperdiciadas.
-   Así no empuja ni una fila hacia abajo y se imprime en todas las páginas,
-   porque esas filas van congeladas.
+/*** ================= LA LEYENDA =================
+ *
+ * Va en el hueco que queda a la derecha del membrete, en las filas 1 a 6, que
+ * antes estaban desperdiciadas. Así no empuja ni una fila hacia abajo y se
+ * imprime en todas las páginas, porque esas filas van congeladas.
+ *
+ * EL PROBLEMA QUE RESUELVE ESTA VERSIÓN (BD v20). Antes la leyenda era una
+ * lista fija de ocho líneas, escrita a mano, y no cabían todas las siglas que
+ * el censo NEAE puede escribir. Francisco encontró un "ATE" sin explicar.
+ * Añadir más líneas no era posible: en el hueco solo caben ocho.
+ *
+ * LA SOLUCIÓN. La leyenda ya no es fija. Cada grupo explica SOLO las siglas
+ * que salen de verdad en sus alumnos, ordenadas de más a menos frecuente.
+ * Un grupo suele usar seis o siete siglas distintas, así que caben de sobra,
+ * y ninguna se queda sin explicar. Lo que significa cada sigla está en el
+ * diccionario EXPLICACION_SIGLAS de NEAE.gs.
+ *
+ * Si aparece una sigla que no está en ese diccionario, o si de verdad no cabe
+ * todo, se anota en AVISOS INFORMES. El programa no se lo calla.
+ * ============================================================== ***/
 
-   CUIDADO CON EL NÚMERO DE LÍNEAS. El hueco da unos 102 caracteres por línea y
-   unos 62 puntos de alto, y cada línea ocupa 7,2. Es decir: caben OCHO líneas,
-   y la novena se vería cortada. Si hay que explicar algo más, se alarga una
-   línea existente (hasta 102 caracteres) en vez de añadir otra. */
-const LEYENDA = [
-  'NO SUPERADAS: las suspendió el curso que repite.   DIV: diversificación.',
-  'PENDIENTES: las arrastra de cursos anteriores.   ?: aún no tenemos ese dato.',
-  'NEAE — NEE: n. educativas especiales.   DIA: dificultades de aprendizaje.',
-  'AACC: altas capacidades.   COM: compensación educativa.',
-  'MEDIDAS — ACS: adaptación significativa.   ACI: adaptación individualizada.',
-  'ACAI: adaptación para altas capacidades.   AAC: adaptación de acceso.',
-  'PE: programa específico.   PRA: refuerzo del aprendizaje.   PP: profundización.',
-  'Detrás de la barra, el apoyo: PT, AL, ATAL, COMP, PTIS, ONCE.'
+/* Estas dos líneas van siempre, en todos los grupos. */
+const LEYENDA_FIJA = [
+  'NO SUPERADAS: las suspendió el curso que repite.   PENDIENTES: las arrastra de antes.',
+  'DIV: diversificación.   Casilla con "?": ese dato todavía no lo tenemos.'
 ];
 const LETRA_LEYENDA = 6;
 const ALTO_LINEA_LEYENDA = 7.2;   // puntos que ocupa una línea a esa letra
@@ -332,6 +342,40 @@ function altoDeLosRotulos_(claves, anchos) {
   return lineas * ALTO_LINEA + 8;
 }
 
+/*** ================= LAS SIGLAS DE ESTE GRUPO ================= ***/
+
+/* Recorre las columnas NEAE y MEDIDAS Y RECURSOS de este grupo y devuelve las
+   siglas que aparecen, de más a menos frecuente. Una sigla es una palabra de
+   2 a 5 letras escrita entera en mayúsculas: así "DIA dislexia" da "DIA", y
+   "PRA, ATE / ATAL" da "PRA", "ATE" y "ATAL". Lo que va en minúsculas
+   (dislexia, vigilancia, aseo...) se entiende solo y no se toca. */
+function siglasDelBloque_(bloque, claves) {
+  const cols = [];
+  for (let c = 0; c < claves.length; c++) {
+    if (COLUMNAS_CON_SIGLAS.indexOf(claves[c]) !== -1) cols.push(c + 1);  // +1 por la numeración
+  }
+  const cuenta = {};
+  for (let f = 0; f < bloque.length; f++) {
+    for (let k = 0; k < cols.length; k++) {
+      const celda = bloque[f][cols[k]];
+      const texto = String(celda === null || celda === undefined ? '' : celda);
+      const trozos = texto.split(/[^A-ZÁÉÍÓÚÑÜ]+/);
+      for (let t = 0; t < trozos.length; t++) {
+        const s = trozos[t];
+        if (s.length < 2 || s.length > 5) continue;
+        cuenta[s] = (cuenta[s] || 0) + 1;
+      }
+    }
+  }
+  const lista = [];
+  for (const s in cuenta) lista.push(s);
+  lista.sort(function (a, b) {
+    if (cuenta[b] !== cuenta[a]) return cuenta[b] - cuenta[a];
+    return a < b ? -1 : 1;
+  });
+  return lista;
+}
+
 /*** ================= LECTURA DE ALUMNADO ================= ***/
 function leerAlumnado_() {
   const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_ALUMNADO);
@@ -422,36 +466,67 @@ function columnaTrasElMembrete_(claves, anchos) {
   return claves.length + 1;
 }
 
-/* Escribe la leyenda en el hueco libre de las filas 1 a 6. Devuelve un texto
-   de aviso si no cabe, o cadena vacía si todo va bien. */
-function escribirLeyendaCabecera_(hoja, claves, anchos, ancho) {
+/* Escribe la leyenda en el hueco libre de las filas 1 a 6.
+   'trozos' son las explicaciones de las siglas de este grupo, ya en texto,
+   ordenadas de más a menos importante.
+   Devuelve { aviso, fuera }: 'fuera' son los trozos que no han cabido. */
+function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   const primera = columnaTrasElMembrete_(claves, anchos);
-  if (primera > ancho) return 'No queda hueco a la derecha del membrete para la leyenda.';
+  if (primera > ancho) {
+    return { aviso: 'No queda hueco a la derecha del membrete para la leyenda.', fuera: trozos };
+  }
 
   let disponible = 0;
   for (let c = primera - 2; c < claves.length; c++) {
     disponible += anchos[claves[c]] === undefined ? ANCHO_DESCONOCIDA : anchos[claves[c]];
   }
+  const porLinea = Math.max(20, Math.floor((disponible - 6) / ANCHO_LETRA_LEYENDA));
+
+  /* El alto de las filas 1 a 6 ya está ajustado al membrete cuando se llama
+     a esta función, así que se puede saber cuántas líneas caben de verdad. */
+  let alto = 0;
+  for (let r = 1; r <= FILAS_CABECERA; r++) alto += hoja.getRowHeight(r);
+  const cabenLineas = Math.max(2, Math.floor(alto / ALTO_LINEA_LEYENDA));
+
+  const lineas = [];
+  let usadas = 0;
+  for (let i = 0; i < LEYENDA_FIJA.length; i++) {
+    lineas.push(LEYENDA_FIJA[i]);
+    usadas += Math.ceil(LEYENDA_FIJA[i].length / porLinea);
+  }
+
+  /* Las explicaciones se van juntando en renglones de lo ancho que haya. */
+  const paquetes = [];
+  let actual = '';
+  for (let i = 0; i < trozos.length; i++) {
+    const cand = actual ? actual + '   ' + trozos[i] : trozos[i];
+    if (cand.length <= porLinea) { actual = cand; continue; }
+    if (actual) paquetes.push(actual);
+    actual = trozos[i];
+  }
+  if (actual) paquetes.push(actual);
+
+  const fuera = [];
+  for (let i = 0; i < paquetes.length; i++) {
+    const ocupa = Math.ceil(paquetes[i].length / porLinea);
+    if (usadas + ocupa > cabenLineas) { fuera.push(paquetes[i]); continue; }
+    lineas.push(paquetes[i]);
+    usadas += ocupa;
+  }
 
   const rango = hoja.getRange(1, primera, FILAS_CABECERA, ancho - primera + 1);
   try { rango.breakApart(); } catch (e) { /* no estaba unida */ }
   rango.merge();
-  rango.setValue(LEYENDA.join('\n'))
+  rango.setValue(lineas.join('\n'))
        .setFontSize(LETRA_LEYENDA).setFontStyle('italic').setWrap(true)
        .setVerticalAlignment('top').setHorizontalAlignment('left');
 
-  /* ¿Cabe? Se cuenta cuántas líneas ocupa cada renglón al ancho que hay. */
-  const porLinea = Math.max(1, Math.floor((disponible - 6) / ANCHO_LETRA_LEYENDA));
-  let lineas = 0;
-  for (let i = 0; i < LEYENDA.length; i++) lineas += Math.ceil(LEYENDA[i].length / porLinea);
-  let alto = 0;
-  for (let r = 1; r <= FILAS_CABECERA; r++) alto += hoja.getRowHeight(r);
-  if (lineas * ALTO_LINEA_LEYENDA > alto) {
-    return 'La leyenda necesita ' + Math.round(lineas * ALTO_LINEA_LEYENDA) +
-           ' puntos de alto y el hueco del membrete tiene ' + Math.round(alto) +
-           '. Se verá cortada.';
+  if (fuera.length) {
+    return { aviso: 'En el hueco del membrete caben ' + cabenLineas +
+             ' renglones y no ha entrado todo. Se ha quedado fuera: ' + fuera.join(' ') +
+             ' Lo más frecuente del grupo sí sale.', fuera: fuera };
   }
-  return '';
+  return { aviso: '', fuera: [] };
 }
 
 /*** ================= EL HUECO DEL MEMBRETE ================= ***/
@@ -731,6 +806,7 @@ function rellenarInformes() {
   let membrete = null;
   try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  const siglasSinExplicar = {};
 
   const hojas = libro.getSheets();
   for (let h = 0; h < hojas.length; h++) {
@@ -846,9 +922,18 @@ function rellenarInformes() {
     hoja.autoResizeRows(FILA_DATOS, bloque.length);
     if (ponerMembrete_(hoja, membrete)) membretesCambiados++;
     ajustarFilasDelLogo_(hoja);
+
+    /* La leyenda, a medida de este grupo: solo las siglas que salen aquí. */
+    const siglas = siglasDelBloque_(bloque, claves);
+    const trozos = [];
+    for (let s = 0; s < siglas.length; s++) {
+      const e = explicacionDeSigla_(siglas[s]);
+      if (e) trozos.push(siglas[s] + ': ' + e + '.');
+      else siglasSinExplicar[siglas[s]] = true;
+    }
     try {
-      const problema = escribirLeyendaCabecera_(hoja, claves, W.anchos, ancho);
-      if (problema) avisos.push([grupo, hoja.getName(), 'La leyenda no cabe', problema]);
+      const L = escribirLeyendaCabecera_(hoja, claves, W.anchos, ancho, trozos);
+      if (L.aviso) avisos.push([grupo, hoja.getName(), 'La leyenda no cabe entera', L.aviso]);
     } catch (e) {
       avisos.push([grupo, hoja.getName(), 'No he podido escribir la leyenda', e.message]);
     }
@@ -862,6 +947,17 @@ function rellenarInformes() {
 
     resumen.push(hoja.getName() + ' (' + grupo + '): ' + bloque.length + ' alumnos');
     totalEscritos += bloque.length;
+  }
+
+  /* Una sigla que sale en el informe y no está en el diccionario deja al tutor
+     sin saber qué es. Se avisa una sola vez, con todas juntas. */
+  const listaSinExplicar = [];
+  for (const s in siglasSinExplicar) listaSinExplicar.push(s);
+  if (listaSinExplicar.length) {
+    listaSinExplicar.sort();
+    avisos.push(['', '', 'Siglas sin explicar en la leyenda',
+                 'Salen en los informes pero no están en EXPLICACION_SIGLAS (NEAE.gs): ' +
+                 listaSinExplicar.join(', ') + '. Hay que añadirlas.']);
   }
 
   for (const u in A.porUnidad) {
@@ -907,6 +1003,8 @@ function rellenarInformes() {
     '\nAlumnos escritos: ' + totalEscritos +
     '\nAlumnos sin unidad (salen solo en la portada): ' + A.sinUnidad.length +
     '\nPendiente de ajustar en Séneca: ' + nPend +
+    (listaSinExplicar.length ? '\n\nSiglas sin explicar en la leyenda: ' +
+                               listaSinExplicar.join(', ') : '') +
     (sueltos ? '\n\nUn PDF por informe en la carpeta "' + sueltos.carpeta + '": ' +
                sueltos.hechos + ' de ' + (sueltos.hechos + sueltos.fallidos.length) + ' ficheros.' +
                (sueltos.fallidos.length ? '\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +

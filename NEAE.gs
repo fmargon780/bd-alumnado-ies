@@ -68,7 +68,8 @@ const DETALLES_NEAE = {
 };
 
 /* Medidas y recursos. tipo M = medida, R = recurso o personal de apoyo.
-   En el informe salen así:  ACS, PE, PRA — PT, AL   */
+   En el informe salen así:  ACS, PE, PRA / PT, AL
+   La barra separa las medidas del apoyo, y ocupa menos que la raya larga. */
 const MEDIDAS_NEAE = {
   'programa especifico (pe).': { sigla: 'PE', tipo: 'M' },
   'programa de refuerzo del aprendizaje para aneae': { sigla: 'PRA', tipo: 'M' },
@@ -209,7 +210,7 @@ function resumirMedidas_(texto, sinDiccionario) {
   if (!medidas.length && !recursos.length) return '';
   if (!recursos.length) return medidas.join(', ');
   if (!medidas.length) return recursos.join(', ');
-  return medidas.join(', ') + ' — ' + recursos.join(', ');
+  return medidas.join(', ') + ' / ' + recursos.join(', ');
 }
 
 /*** ================= LECTURA DEL FICHERO ================= ***/

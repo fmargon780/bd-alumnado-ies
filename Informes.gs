@@ -48,6 +48,8 @@ const ALIAS_COLUMNAS = {
   'opt': 'opt',
   'fr -> alct': 'fr -> alct',
   'exento frances': 'fr -> alct',
+  'exento': 'fr -> alct',
+  'rel/at.': 'rel/atedu',
   'exento de frances': 'fr -> alct',
   'rel/atedu': 'rel/atedu',
   'mat': 'mat', 'opc1': 'opc1', 'opc2': 'opc2', 'opc3': 'opc3', 'opc4': 'opc4',
@@ -67,8 +69,8 @@ const ROTULOS = {
   'medidas/recursos': 'MEDIDAS Y RECURSOS',
   'itinerario': 'ITINERARIO',
   'opt': 'OPT',
-  'fr -> alct': 'EXENTO FRANCÉS',
-  'rel/atedu': 'REL/Atedu'
+  'fr -> alct': 'EXENTO',
+  'rel/atedu': 'REL/At.'
 };
 
 /* Qué columnas lleva cada nivel, y en qué orden.
@@ -122,8 +124,8 @@ const ANCHO_NUMERACION = 26;
 const ANCHOS_MINIMOS = {
   'alumno/a:': 130, 'rep': 26, 'mat no sup.': 90, 'mat. pend.': 85,
   'mat. pend. 6º': 85, 'pil': 26, 'div': 26, 'neae': 55,
-  'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 45,
-  'rel/atedu': 52, 'veces repite primaria': 45
+  'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 42,
+  'rel/atedu': 46, 'veces repite primaria': 45
 };
 const ANCHO_DESCONOCIDA = 80;
 const COLUMNAS_ELASTICAS = ['mat no sup.', 'mat. pend.', 'mat. pend. 6º', 'alumno/a:',
@@ -146,9 +148,10 @@ const LEYENDA = [
   'PENDIENTES: las arrastra de cursos anteriores, con su curso detrás.',
   'NEAE — NEE: n. educativas especiales.   DIA: dificultades de aprendizaje.',
   'AACC: altas capacidades.   COM: compensación educativa.',
-  'MEDIDAS — ACS, ACI, ACAI y AAC: adaptaciones curriculares.',
+  'MEDIDAS — ACS: adaptación significativa.   ACI: adaptación individualizada.',
+  'ACAI: adaptación para altas capacidades.   AAC: adaptación de acceso.',
   'PE: programa específico.   PRA: refuerzo del aprendizaje.   PP: profundización.',
-  'RECURSOS (detrás de la raya) — PT, AL, ATAL, COMP, PTIS, ONCE.'
+  'Detrás de la barra, el apoyo: PT, AL, ATAL, COMP, PTIS, ONCE.'
 ];
 const LETRA_LEYENDA = 6;
 const ALTO_LINEA_LEYENDA = 7.2;   // puntos que ocupa una línea a esa letra
@@ -166,7 +169,7 @@ const NOMBRE_MEMBRETE  = 'membrete';
 const RATIO_MEMBRETE   = 6.667;   // ancho dividido por alto de esa imagen
 const ANCHO_MEMBRETE   = 312;     // puntos = 110 mm. Deja sitio a su derecha para la leyenda
 const ALTO_MINIMO_FILA = 8;
-const AIRE_BAJO_LOGO   = 10;   // sitio para que respire la leyenda de al lado
+const AIRE_BAJO_LOGO   = 15;   // sitio para que respire la leyenda de al lado
 
 const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
   '&sheetnames=false&printtitle=false&pagenumbers=true&pagenum=CENTER' +
@@ -456,6 +459,17 @@ function ajustarFilasDelLogo_(hoja) {
 }
 
 /*** ================= PDF ================= ***/
+
+/* Todos los PDF van siempre a la misma carpeta, con los mismos nombres.
+   Antes se creaba una carpeta nueva cada día y se acumulaban. */
+const CARPETA_INFORMES = 'Informes por unidad';
+const PDF_COMPLETO = 'Informes de todas las unidades.pdf';
+
+function carpetaDeInformes_() {
+  const raiz = DriveApp.getFolderById(CARPETA_ID);
+  const encontradas = raiz.getFoldersByName(CARPETA_INFORMES);
+  return encontradas.hasNext() ? encontradas.next() : raiz.createFolder(CARPETA_INFORMES);
+}
 function generarPdfInformes_(libro, visibles) {
   const dejar = {};
   for (let i = 0; i < visibles.length; i++) dejar[visibles[i]] = true;
@@ -479,9 +493,8 @@ function generarPdfInformes_(libro, visibles) {
     if (resp.getResponseCode() !== 200) {
       throw new Error('Google ha respondido con el error ' + resp.getResponseCode() + ' al hacer el PDF.');
     }
-    const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const nombre = 'Informes por unidad ' + hoy + '.pdf';
-    const carpeta = DriveApp.getFolderById(CARPETA_ID);
+    const nombre = PDF_COMPLETO;
+    const carpeta = carpetaDeInformes_();
     const viejos = carpeta.getFilesByName(nombre);
     while (viejos.hasNext()) viejos.next().setTrashed(true);
     const archivo = carpeta.createFile(resp.getBlob().setName(nombre));
@@ -531,14 +544,11 @@ function exportarHoja_(libro, hoja, token, aviso) {
 }
 
 function pdfsPorInforme_(libro, entradas) {
-  const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  const raiz = DriveApp.getFolderById(CARPETA_ID);
-  const nombreCarpeta = 'Informes ' + hoy;
-  /* La carpeta se reaprovecha. Cada fichero se sustituye cuando se consigue
+  /* Siempre la misma carpeta. Cada fichero se sustituye cuando se consigue
      sacar, así que si un día Google corta a medias, lo que ya estaba sigue
      ahí y basta con volver a pulsar para completar lo que falte. */
-  const encontradas = raiz.getFoldersByName(nombreCarpeta);
-  const carpeta = encontradas.hasNext() ? encontradas.next() : raiz.createFolder(nombreCarpeta);
+  const nombreCarpeta = CARPETA_INFORMES;
+  const carpeta = carpetaDeInformes_();
 
   const token = ScriptApp.getOAuthToken();
   let hechos = 0, dobles = [], fallidos = [], seguidos = 0;

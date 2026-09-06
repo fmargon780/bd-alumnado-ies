@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v15';
+const VERSION = 'BD v16';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -362,9 +362,11 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       if (repite === 'SÍ') {
         const notas = notasPorCurso[a.curso];
         const n = notas ? notas[clave] : null;
-        /* "5 de 2º — FYQ, GEH, LCL" : cuántas son, de qué curso, y cuáles.
-           Lleva el curso para que no se confunda con las pendientes. */
-        if (n) mns = n.n ? (n.n + ' de ' + a.curso + ' — ' + n.lista.join(', ')) : '';
+        /* "5 de 2º: FYQ, GEH, LCL" : cuántas son, de qué curso, y cuáles.
+           Lleva el curso para que no se confunda con las pendientes.
+           Los dos puntos ocupan menos que la raya larga, y en estas columnas
+           cada punto de ancho se nota. */
+        if (n) mns = n.n ? (n.n + ' de ' + a.curso + ': ' + n.lista.join(', ')) : '';
         else avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
           aviso: 'Repetidor sin notas del curso pasado', detalle: 'No aparece en la pestaña EV de su curso' });
       }
@@ -391,7 +393,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
       v['REL/Atedu'] || '', a.pend.length ? a.pend.length : '',
-      a.pend.length ? (a.pend.length + ' — ' + a.pend.join(', ')) : '', edad, mns,
+      a.pend.length ? (a.pend.length + ': ' + a.pend.join(', ')) : '', edad, mns,
       repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
          dice nada de este alumno, se respeta lo que hubiera escrito a mano. */

@@ -16,7 +16,8 @@
  *   b) Enseña un cuadro con eso y espera un Continuar o un Cancelar.
  *   c) Si continúa: relee el histórico SOLO si ha cambiado, reconstruye la
  *      tabla ALUMNADO y rellena las 23 pestañas del cuaderno de informes.
- *   d) Deja escrito el panel: qué ha hecho, cómo están las fuentes y qué
+ *   d) Deja el formato de todas las pestañas en condiciones (ver Formato.gs).
+ *   e) Deja escrito el panel: qué ha hecho, cómo están las fuentes y qué
  *      queda por cuadrar.
  *
  * LA PROTECCIÓN DEL CUADRO. El 6-sep-2026 un cuadro de diálogo dejó una
@@ -306,7 +307,8 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
   const banda = function (t) { bandas.push(filas.length); mete(t); };
 
   mete(TITULO_PANEL);
-  mete(titulo + ' · ' + new Date().toLocaleString('es-ES') + ' · ' + VERSION);
+  mete(titulo + ' · ' + new Date().toLocaleString('es-ES') + ' · ' +
+       (typeof VERSION_BD !== 'undefined' ? VERSION_BD : VERSION));
   mete('');
 
   banda('LOS DOS BOTONES DEL MENÚ');
@@ -429,11 +431,26 @@ function actualizarDatos() {
     hecho.push('Histórico de matrículas: no ha cambiado, no se ha tocado.');
   }
 
+  /* Lo que Francisco haya escrito en las columnas Estado y Observaciones de
+     la pestaña AVISOS se guarda AHORA, porque construirAlumnado la reescribe
+     entera y hasta la BD v21 esas anotaciones se perdían en cada
+     actualización. Se vuelven a poner justo después. Las dos funciones están
+     en Formato.gs. */
+  let notasAvisos = {};
+  try { notasAvisos = notasDeAvisos_(); } catch (e) { notasAvisos = {}; }
+
   try {
     construirAlumnado();                     // ALUMNADO, JEFATURA, DISCREPANCIAS, NEAE, PRIMARIA, AVISOS
     hecho.push('Tabla ALUMNADO reconstruida con todas las fuentes.');
+    try {
+      const rec = restaurarNotasAvisos_(notasAvisos);
+      if (rec) hecho.push('Avisos: recuperadas tus anotaciones en ' + rec + ' filas.');
+    } catch (e) {
+      hecho.push('Avisos: no he podido recuperar tus anotaciones (' + e.message + ').');
+    }
   } catch (e) {
     hecho.push('Tabla ALUMNADO: NO se ha podido construir (' + e.message + ').');
+    try { restaurarNotasAvisos_(notasAvisos); } catch (e2) { /* la pestaña puede no existir */ }
     escribirPanel_('Algo ha fallado al actualizar', hecho, E.filas, pendientesDelSistema_());
     return;
   }
@@ -451,6 +468,17 @@ function actualizarDatos() {
     }
   } catch (e) {
     hecho.push('Informes por unidad: NO se han podido rellenar (' + e.message + ').');
+  }
+
+  /* El formato de las pestañas se deja bien al final, de una vez: anchos
+     fijos, ajuste de texto en las columnas largas, cabecera y primeras
+     columnas congeladas, y filtro en todas. Ver Formato.gs. */
+  try {
+    const F = arreglarFormatoDeTodo_();
+    hecho.push('Formato revisado en ' + F.hojas + ' pestañas.' +
+               (F.fallos.length ? ' No he podido con: ' + F.fallos.join('; ') : ''));
+  } catch (e) {
+    hecho.push('No he podido dejar el formato de las pestañas (' + e.message + ').');
   }
 
   hecho.push('');

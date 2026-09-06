@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v18';
+const VERSION = 'BD v19';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -16,7 +16,7 @@ const COL_AMBITOS = 'Ámbito Científico-Tecnológico';
  *
  * Convenio de todo el sistema, decidido por Francisco el 6-sep-2026.
  *
- *   Casilla VACÍA         = se ha comprobado y no hay nada.
+ *   Casilla VACÍA         = no hay nada que poner ahí.
  *   Casilla con "?"       = ese dato todavía no lo tenemos.
  *
  * Antes las dos cosas salían igual, en blanco, y no había forma de saber si un
@@ -424,14 +424,21 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
        En 1º es distinto. Séneca no trae nada, y las materias que el alumno
        suspendió en 6º de Primaria salen de su expediente, que Francisco va
        descargando uno a uno. Mientras no esté descargado el de un alumno, no
-       sabemos si debe algo o no: ahí va la interrogante. */
+       sabemos si debe algo o no: ahí va la interrogante.
+
+       EXCEPCIÓN, decidida por Francisco el 6-sep-2026: un alumno que REPITE 1º
+       no arrastra nada de Primaria. Está volviendo a cursar el año entero, y lo
+       que le quedó sale en NO SUPERADAS. Su expediente de Primaria ya se miró
+       el curso pasado, cuando llegó al centro. Así que su casilla se queda
+       vacía y no pide un expediente que no hace falta descargar. Si aun así el
+       expediente está descargado, se muestra lo que diga. */
     let pend = a.pend;
     let pendTexto = pend.length ? (pend.length + ': ' + pend.join(', ')) : '';
     if (a.curso === '1º') {
       if (exp && exp.anoSexto) {
         pend = a.pend.concat(exp.pendientes);
         pendTexto = pend.length ? (pend.length + ': ' + pend.join(', ')) : '';
-      } else if (!pend.length) {
+      } else if (!pend.length && repite !== 'SÍ') {
         pendTexto = SIN_DATO;
       }
     }
@@ -756,6 +763,7 @@ function construirAlumnado() {
   const iPen = TITULOS_ALUMNADO.indexOf('Nº pendientes');
   const iAsi = TITULOS_ALUMNADO.indexOf('Asignaturas pendientes');
   const iCur = TITULOS_ALUMNADO.indexOf('Curso');
+  const iRep = TITULOS_ALUMNADO.indexOf('Repite el curso actual');
   const iDiv = TITULOS_ALUMNADO.indexOf('Diversificación');
   const iFue = TITULOS_ALUMNADO.indexOf('Fuente Primaria');
   const pil = R.filas.filter(function (f) { return f[iPil] === 'SÍ'; }).length;
@@ -763,7 +771,14 @@ function construirAlumnado() {
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
   const porEdad = R.filas.filter(function (f) { return f[iFue] === 'EDAD'; }).length;
-  const enPrimero = R.filas.filter(function (f) { return f[iCur] === '1º'; }).length;
+  /* Los repetidores de 1º no necesitan expediente de Primaria, así que no
+     cuentan ni como pendientes de descargar ni como interrogantes. */
+  const enPrimero = R.filas.filter(function (f) {
+    return f[iCur] === '1º' && f[iRep] !== 'SÍ';
+  }).length;
+  const repetidores1 = R.filas.filter(function (f) {
+    return f[iCur] === '1º' && f[iRep] === 'SÍ';
+  }).length;
   const sinExpediente = R.filas.filter(function (f) {
     return f[iCur] === '1º' && f[iAsi] === SIN_DATO;
   }).length;
@@ -780,8 +795,10 @@ function construirAlumnado() {
     '\n\nEXPEDIENTES DE PRIMARIA' +
     '\nFicheros leídos: ' + P.total + ' de ' + P.ficheros +
     (expSinAlumno ? ' (' + expSinAlumno + ' sin alumno en la tabla)' : '') +
-    '\nAlumnos de 1º con su expediente: ' + (enPrimero - sinExpediente) + ' de ' + enPrimero +
-    '\nAlumnos de 1º que salen con "' + SIN_DATO + '" porque falta su expediente: ' + sinExpediente +
+    '\nAlumnos de 1º que necesitan expediente: ' + enPrimero +
+    ' (los ' + repetidores1 + ' repetidores de 1º no lo necesitan)' +
+    '\nDe esos, ya tienen el suyo: ' + (enPrimero - sinExpediente) +
+    '\nTodavía salen con "' + SIN_DATO + '" porque falta su expediente: ' + sinExpediente +
     '\nRepeticiones de Primaria todavía estimadas por edad: ' + porEdad +
     (sinNotas ? '\nRepetidores que salen con "' + SIN_DATO +
                 '" porque no aparecen en las notas: ' + sinNotas : '') +
@@ -827,7 +844,7 @@ function escribirAlumnado(filas) {
   const hoja = hojaLimpia(HOJA_ALUMNADO, ancho);
   hoja.getRange(1, 1).setValue('Alumnado de ESO del curso ' + CURSO_ACTUAL +
     '. Gris: viene de Séneca. Azul: calculado. Amarillo: lo rellenas tú y no se toca. ' +
-    'Una casilla vacía quiere decir que no hay nada; una "' + SIN_DATO +
+    'Una casilla vacía quiere decir que no hay nada que poner; una "' + SIN_DATO +
     '" quiere decir que ese dato todavía no lo tenemos. Actualizado: ' +
     new Date().toLocaleString('es-ES')).setFontStyle('italic');
   hoja.getRange(2, 1, 1, ancho).setValues([TITULOS_ALUMNADO]).setFontWeight('bold')

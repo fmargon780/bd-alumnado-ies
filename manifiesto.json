@@ -1,8 +1,9 @@
 {
-  "version": "BD v16 — censo NEAE",
+  "version": "BD v17 — expedientes de Primaria",
   "ficheros": [
     "Codigo.gs",
     "NEAE.gs",
+    "Primaria.gs",
     "Jefatura.gs",
     "Informes.gs"
   ],

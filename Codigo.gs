@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v17';
+const VERSION = 'BD v18';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -11,6 +11,28 @@ const HOJA_AVISOS = 'AVISOS';
 const EDAD_TEORICA = { '1º': 12, '2º': 13, '3º': 14, '4º': 15 };
 const ESTADOS_QUE_NO_CUENTAN = ['anulada', 'trasladada'];
 const COL_AMBITOS = 'Ámbito Científico-Tecnológico';
+
+/*** ================= LA INTERROGANTE =================
+ *
+ * Convenio de todo el sistema, decidido por Francisco el 6-sep-2026.
+ *
+ *   Casilla VACÍA         = se ha comprobado y no hay nada.
+ *   Casilla con "?"       = ese dato todavía no lo tenemos.
+ *
+ * Antes las dos cosas salían igual, en blanco, y no había forma de saber si un
+ * alumno no debía nada o si sencillamente no se había mirado.
+ *
+ * Dónde se usa:
+ *   - PENDIENTES (6º Primaria), en 1º: mientras no esté descargado el
+ *     expediente de Primaria de ese alumno.
+ *   - NO SUPERADAS (repite): cuando el alumno repite pero no aparece en la
+ *     hoja de notas del curso pasado.
+ *
+ * Dónde NO hace falta: el censo NEAE es completo, así que una casilla vacía
+ * quiere decir que el alumno no tiene NEAE. Y las repeticiones de Primaria ya
+ * llevan su propia columna "Fuente Primaria", que dice de dónde sale el dato.
+ * ======================================================== ***/
+const SIN_DATO = '?';
 
 const REGLAS = {
   '1º': [
@@ -375,8 +397,15 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
            Los dos puntos ocupan menos que la raya larga, y en estas columnas
            cada punto de ancho se nota. */
         if (n) mns = n.n ? (n.n + ' de ' + a.curso + ': ' + n.lista.join(', ')) : '';
-        else avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
-          aviso: 'Repetidor sin notas del curso pasado', detalle: 'No aparece en la pestaña EV de su curso' });
+        else {
+          /* Repite, pero no sabemos qué suspendió: eso no es lo mismo que no
+             deber nada, así que va la interrogante. */
+          mns = SIN_DATO;
+          avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+            aviso: 'Repetidor sin notas del curso pasado',
+            detalle: 'No aparece en la pestaña EV de su curso. En el informe sale "' +
+                     SIN_DATO + '" en vez de quedarse en blanco.' });
+        }
       }
       if (h[2] && a.unidad && normalizar(h[2]) !== normalizar(a.unidad)) {
         avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre, aviso: 'Unidad distinta en el histórico',
@@ -389,11 +418,23 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     }
 
     /* Las pendientes. En 2º, 3º y 4º salen de las columnas PEND del CSV de
-       Séneca. En 1º, Séneca no trae nada: las materias que el alumno suspendió
-       en 6º de Primaria salen del expediente que Francisco descarga alumno a
-       alumno. Si un alumno tuviera las dos cosas, se ponen las dos. */
+       Séneca, que están siempre: una casilla vacía ahí quiere decir que el
+       alumno no debe nada.
+
+       En 1º es distinto. Séneca no trae nada, y las materias que el alumno
+       suspendió en 6º de Primaria salen de su expediente, que Francisco va
+       descargando uno a uno. Mientras no esté descargado el de un alumno, no
+       sabemos si debe algo o no: ahí va la interrogante. */
     let pend = a.pend;
-    if (exp && exp.pendientes && exp.pendientes.length) pend = a.pend.concat(exp.pendientes);
+    let pendTexto = pend.length ? (pend.length + ': ' + pend.join(', ')) : '';
+    if (a.curso === '1º') {
+      if (exp && exp.anoSexto) {
+        pend = a.pend.concat(exp.pendientes);
+        pendTexto = pend.length ? (pend.length + ': ' + pend.join(', ')) : '';
+      } else if (!pend.length) {
+        pendTexto = SIN_DATO;
+      }
+    }
 
     /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
        Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
@@ -403,8 +444,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
 
     filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
-      v['REL/Atedu'] || '', pend.length ? pend.length : '',
-      pend.length ? (pend.length + ': ' + pend.join(', ')) : '', edad, mns,
+      v['REL/Atedu'] || '', pend.length ? pend.length : '', pendTexto, edad, mns,
       repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
          dice nada de este alumno, se respeta lo que hubiera escrito a mano. */
@@ -714,13 +754,20 @@ function construirAlumnado() {
   const iPil = TITULOS_ALUMNADO.indexOf('PIL');
   const iMns = TITULOS_ALUMNADO.indexOf('MAT NO SUP.');
   const iPen = TITULOS_ALUMNADO.indexOf('Nº pendientes');
+  const iAsi = TITULOS_ALUMNADO.indexOf('Asignaturas pendientes');
+  const iCur = TITULOS_ALUMNADO.indexOf('Curso');
   const iDiv = TITULOS_ALUMNADO.indexOf('Diversificación');
   const iFue = TITULOS_ALUMNADO.indexOf('Fuente Primaria');
   const pil = R.filas.filter(function (f) { return f[iPil] === 'SÍ'; }).length;
-  const mns = R.filas.filter(function (f) { return f[iMns] !== ''; }).length;
+  const mns = R.filas.filter(function (f) { return f[iMns] !== '' && f[iMns] !== SIN_DATO; }).length;
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
   const porEdad = R.filas.filter(function (f) { return f[iFue] === 'EDAD'; }).length;
+  const enPrimero = R.filas.filter(function (f) { return f[iCur] === '1º'; }).length;
+  const sinExpediente = R.filas.filter(function (f) {
+    return f[iCur] === '1º' && f[iAsi] === SIN_DATO;
+  }).length;
+  const sinNotas = R.filas.filter(function (f) { return f[iMns] === SIN_DATO; }).length;
 
   avisar_('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
@@ -730,9 +777,14 @@ function construirAlumnado() {
     '\nCon asignaturas pendientes: ' + pen +
     '\nEn diversificación: ' + div +
     '\nCon censo NEAE: ' + N.total +
-    '\n\nExpedientes de Primaria leídos: ' + P.total + ' de ' + P.ficheros + ' ficheros' +
+    '\n\nEXPEDIENTES DE PRIMARIA' +
+    '\nFicheros leídos: ' + P.total + ' de ' + P.ficheros +
     (expSinAlumno ? ' (' + expSinAlumno + ' sin alumno en la tabla)' : '') +
+    '\nAlumnos de 1º con su expediente: ' + (enPrimero - sinExpediente) + ' de ' + enPrimero +
+    '\nAlumnos de 1º que salen con "' + SIN_DATO + '" porque falta su expediente: ' + sinExpediente +
     '\nRepeticiones de Primaria todavía estimadas por edad: ' + porEdad +
+    (sinNotas ? '\nRepetidores que salen con "' + SIN_DATO +
+                '" porque no aparecen en las notas: ' + sinNotas : '') +
     '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
     '\nAlumnos leídos de Jefatura: ' + J.alumnos.length +
     '\nDiferencias con Séneca: ' + nDiscrep +
@@ -774,7 +826,9 @@ function escribirAlumnado(filas) {
   const ancho = TITULOS_ALUMNADO.length;
   const hoja = hojaLimpia(HOJA_ALUMNADO, ancho);
   hoja.getRange(1, 1).setValue('Alumnado de ESO del curso ' + CURSO_ACTUAL +
-    '. Gris: viene de Séneca. Azul: calculado. Amarillo: lo rellenas tú y no se toca. Actualizado: ' +
+    '. Gris: viene de Séneca. Azul: calculado. Amarillo: lo rellenas tú y no se toca. ' +
+    'Una casilla vacía quiere decir que no hay nada; una "' + SIN_DATO +
+    '" quiere decir que ese dato todavía no lo tenemos. Actualizado: ' +
     new Date().toLocaleString('es-ES')).setFontStyle('italic');
   hoja.getRange(2, 1, 1, ancho).setValues([TITULOS_ALUMNADO]).setFontWeight('bold')
       .setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);

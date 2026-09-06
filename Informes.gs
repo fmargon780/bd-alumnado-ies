@@ -464,48 +464,18 @@ function ajustarFilasDelLogo_(hoja) {
 /* Todos los PDF van siempre a la misma carpeta, con los mismos nombres.
    Antes se creaba una carpeta nueva cada día y se acumulaban. */
 const CARPETA_INFORMES = 'Informes por unidad';
-const PDF_COMPLETO = 'Informes de todas las unidades.pdf';
 
 function carpetaDeInformes_() {
   const raiz = DriveApp.getFolderById(CARPETA_ID);
   const encontradas = raiz.getFoldersByName(CARPETA_INFORMES);
   return encontradas.hasNext() ? encontradas.next() : raiz.createFolder(CARPETA_INFORMES);
 }
-function generarPdfInformes_(libro, visibles) {
-  const dejar = {};
-  for (let i = 0; i < visibles.length; i++) dejar[visibles[i]] = true;
-
-  const escondidas = [];
-  try {
-    const hojas = libro.getSheets();
-    for (let h = 0; h < hojas.length; h++) {
-      if (dejar[hojas[h].getName()]) continue;
-      if (hojas[h].isSheetHidden()) continue;
-      hojas[h].hideSheet();
-      escondidas.push(hojas[h]);
-    }
-    SpreadsheetApp.flush();
-
-    const url = 'https://docs.google.com/spreadsheets/d/' + libro.getId() + '/export?' + PDF_OPCIONES;
-    const resp = UrlFetchApp.fetch(url, {
-      muteHttpExceptions: true,
-      headers: { 'Authorization': 'Bearer ' + ScriptApp.getOAuthToken() }
-    });
-    if (resp.getResponseCode() !== 200) {
-      throw new Error('Google ha respondido con el error ' + resp.getResponseCode() + ' al hacer el PDF.');
-    }
-    const nombre = PDF_COMPLETO;
-    const carpeta = carpetaDeInformes_();
-    const viejos = carpeta.getFilesByName(nombre);
-    while (viejos.hasNext()) viejos.next().setTrashed(true);
-    const archivo = carpeta.createFile(resp.getBlob().setName(nombre));
-    return { nombre: nombre, url: archivo.getUrl() };
-  } finally {
-    for (let i = 0; i < escondidas.length; i++) {
-      try { escondidas[i].showSheet(); } catch (e) { /* que no se quede escondida */ }
-    }
-  }
-}
+/* Ya no se hace un PDF con todos los grupos juntos. Se hacía, pero su
+   numeración iba corrida de la primera página a la última, y la de cada informe
+   suelto empieza por 1. Como no se pueden tener las dos numeraciones en el mismo
+   fichero, Francisco prefiere unir los sueltos con su propia herramienta de PDF.
+   Quitarlo ahorra además una exportación pesada, que es justo lo que hace que
+   Google se ponga a rechazar peticiones. */
 
 /*** ================= UN PDF POR INFORME ================= ***/
 /* Además del PDF con todo junto, se deja una carpeta con un PDF por informe:
@@ -722,7 +692,7 @@ function rellenarInformes() {
     return;
   }
 
-  const avisos = [], resumen = [], usadas = {}, pestanasDeGrupo = [], informes = [];
+  const avisos = [], resumen = [], usadas = {}, informes = [];
   let totalEscritos = 0, membretesCambiados = 0;
   let membrete = null;
   try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
@@ -774,7 +744,6 @@ function rellenarInformes() {
       continue;
     }
     usadas[normalizar(grupo)] = true;
-    pestanasDeGrupo.push(hoja.getName());
 
     const claves = columnasDeLaPestana_(nivel, titulosViejos);
     const ancho = claves.length + 1;              // más la columna de numeración
@@ -876,15 +845,7 @@ function rellenarInformes() {
   try { nPend = escribirPortada_(libro, A, resumen); }
   catch (e) { avisos.push(['', '', 'No he podido hacer la portada', e.message]); }
 
-  let pdf = null, fallo = '';
-  try {
-    pdf = generarPdfInformes_(libro, [HOJA_PORTADA].concat(pestanasDeGrupo));
-  } catch (e) {
-    fallo = e.message;
-    avisos.push(['', '', 'No he podido hacer el PDF', e.message]);
-  }
-
-  /* Y ahora uno por informe, cada uno con su propia numeración de páginas. */
+  /* Un PDF por informe, cada uno con su propia numeración de páginas. */
   let sueltos = null;
   try {
     const hojaPortada = libro.getSheetByName(HOJA_PORTADA);
@@ -912,9 +873,7 @@ function rellenarInformes() {
     '\nAlumnos escritos: ' + totalEscritos +
     '\nAlumnos sin unidad (salen solo en la portada): ' + A.sinUnidad.length +
     '\nPendiente de ajustar en Séneca: ' + nPend +
-    (pdf ? '\n\nPDF con todo junto: ' + pdf.nombre
-         : '\n\nNo he podido hacer el PDF: ' + fallo) +
-    (sueltos ? '\nY un PDF por informe en la carpeta "' + sueltos.carpeta + '": ' +
+    (sueltos ? '\n\nUn PDF por informe en la carpeta "' + sueltos.carpeta + '": ' +
                sueltos.hechos + ' de ' + (sueltos.hechos + sueltos.fallidos.length) + ' ficheros.' +
                (sueltos.fallidos.length ? '\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +
                 '. Vuelve a pulsar la opción 3 dentro de un rato.' : '') : '') +

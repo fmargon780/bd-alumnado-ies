@@ -104,40 +104,45 @@ const MEDIDAS_NEAE = {
  * una sigla sin explicar, y la leyenda no se llena de cosas que en su grupo
  * no salen.
  *
- * REGLA: si se añade una sigla nueva arriba, hay que añadirla también aquí.
+ * REGLA 1: si se añade una sigla nueva arriba, hay que añadirla también aquí.
  * Si no, el programa la encuentra en los datos, no sabe qué es, y lo anota
  * en AVISOS INFORMES. Así no se queda callado.
+ *
+ * REGLA 2: las explicaciones son CORTAS, de unos 25 caracteres. En la leyenda
+ * caben tres por renglón y hay ocho renglones. Medido el 6-sep-2026: con
+ * textos largos, un grupo con dieciséis siglas dejaba tres sin explicar; con
+ * estos, las dieciséis caben en siete renglones.
  *
  * Las medidas y recursos que ya se escriben con palabras (vigilancia, aseo,
  * ayudas ópticas...) no necesitan explicación: se entienden solas.
  * ======================================================== ***/
 const EXPLICACION_SIGLAS = {
   /* Categorías de la columna NEAE */
-  'NEE': 'necesidades educativas especiales',
+  'NEE': 'n. educativas especiales',
   'DIA': 'dificultades de aprendizaje',
   'AACC': 'altas capacidades',
   'COM': 'compensación educativa',
   /* Detalles que se escriben en siglas */
-  'TDAH': 'déficit de atención e hiperactividad',
-  'TEL': 'trastorno del desarrollo del lenguaje',
+  'TDAH': 'déficit de atención',
+  'TEL': 'trastorno del lenguaje',
   /* Medidas */
-  'ACS': 'adaptación curricular significativa',
-  'ACI': 'adaptación curricular individualizada',
-  'ACAI': 'adaptación para altas capacidades',
+  'ACS': 'adaptación significativa',
+  'ACI': 'adaptación individualizada',
+  'ACAI': 'adapt. altas capacidades',
   'AAC': 'adaptación de acceso',
   'PE': 'programa específico',
-  'PRA': 'programa de refuerzo del aprendizaje',
-  'PP': 'programa de profundización',
-  'ATE': 'atención específica por incorporación tardía',
-  'RLC': 'refuerzo de Lengua en lugar de francés',
+  'PRA': 'refuerzo del aprendizaje',
+  'PP': 'profundización',
+  'ATE': 'atención por incorporación tardía',
+  'RLC': 'refuerzo de Lengua',
   /* Recursos y personal de apoyo */
-  'PT': 'profesorado de pedagogía terapéutica',
-  'AL': 'profesorado de audición y lenguaje',
-  'ATAL': 'aula temporal de adaptación lingüística',
-  'COMP': 'profesorado de compensación educativa',
-  'PTIS': 'monitor de educación especial',
-  'ONCE': 'equipo de apoyo a ciegos (ONCE)',
-  'ILSE': 'intérprete de lengua de signos'
+  'PT': 'pedagogía terapéutica',
+  'AL': 'audición y lenguaje',
+  'ATAL': 'adaptación lingüística',
+  'COMP': 'profesorado de compensación',
+  'PTIS': 'monitor de ed. especial',
+  'ONCE': 'apoyo a ciegos',
+  'ILSE': 'intérprete de signos'
 };
 
 /* Devuelve la explicación de una sigla, o cadena vacía si no la conoce. */

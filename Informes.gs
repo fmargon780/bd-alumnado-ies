@@ -2,7 +2,7 @@
  *
  * Copia lo que hay en la pestaña ALUMNADO a cada pestaña de grupo del
  * cuaderno "INFORME-RESUMEN POR GRUPOS 26-27", deja las columnas en el orden
- * acordado, y saca un PDF listo para imprimir con una portada delante.
+ * acordado, y saca un PDF por grupo, listo para imprimir y dar a su tutor.
  *
  * El informe se lee de izquierda a derecha como una frase:
  *   quién es -> cómo va -> qué apoyos tiene -> qué cursa
@@ -478,9 +478,9 @@ function carpetaDeInformes_() {
    Google se ponga a rechazar peticiones. */
 
 /*** ================= UN PDF POR INFORME ================= ***/
-/* Además del PDF con todo junto, se deja una carpeta con un PDF por informe:
-   uno para el equipo directivo (el resumen) y uno para cada tutor.
-   Así cada uno numera sus páginas desde 1, y el tutor sabe cuántas hojas son. */
+/* En la carpeta queda un PDF por informe: uno para el equipo directivo (el
+   resumen) y uno para cada tutor. Así cada uno numera sus páginas desde 1, y
+   el tutor sabe cuántas hojas son. */
 
 /* Cuenta las páginas de un PDF sin abrirlo: mira cuántos objetos de página tiene. */
 function contarPaginas_(blob) {

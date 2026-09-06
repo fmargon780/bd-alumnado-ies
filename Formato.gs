@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya, más
    antigua; mientras esta exista, manda esta. */
-const VERSION_BD = 'BD v23';
+const VERSION_BD = 'BD v24';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -150,12 +150,15 @@ const FORMATO_HOJAS = {
 
   /* Las incidencias al rellenar los informes por unidad. La escribe
      Informes.gs, pero vive en este mismo cuaderno, no en el de informes.
-     Todavía no tiene columnas para marcar: solo se lee. */
+     Desde la BD v24 tiene Estado y Observaciones, igual que las otras dos
+     pestañas de revisión, y se conservan entre actualizaciones. */
   'AVISOS INFORMES': {
-    cabecera: 2, congelar: 2, manuales: [], noProteger: [],
+    cabecera: 2, congelar: 2, manuales: ['Estado', 'Observaciones'], noProteger: [],
+    estado: { columna: 'Estado', opciones: ['Revisado', 'Corregido', 'No procede'] },
     cols: {
       'Grupo': [70, 'C'], 'Pestaña': [80, 'C'],
-      'Aviso': [220, 'W'], 'Detalle': [420, 'W']
+      'Aviso': [220, 'W'], 'Detalle': [340, 'W'],
+      'Estado': [130, 'C'], 'Observaciones': [220, 'W']
     }
   }
 };
@@ -285,7 +288,8 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
   } else if (nombre === 'PRIMARIA') {
     siDice('Rep. Primaria (expediente)', 'expediente incompleto', FMT_AMBAR);
     siDice('Unidad', 'NO ESTÁ EN ALUMNADO', FMT_ROJO);
-  } else if (nombre === 'DISCREPANCIAS' || nombre === 'AVISOS') {
+  } else if (nombre === 'DISCREPANCIAS' || nombre === 'AVISOS' ||
+             nombre === 'AVISOS INFORMES') {
     /* En verde lo que ya has marcado. Lo que queda en blanco es lo que falta,
        y es justo lo que cuenta el panel. */
     filaSiMarcada('Estado', FMT_VERDE);
@@ -550,4 +554,44 @@ function restaurarNotasAvisos_(previos) {
   }
   hoja.getRange(2, COL_AV_ESTADO, n, 2).setValues(salida);
   return recuperados;
+}
+
+
+/*** ================= LAS ANOTACIONES DE AVISOS INFORMES =================
+ *
+ * La pestaña AVISOS INFORMES tiene desde la BD v24 sus columnas "Estado" y
+ * "Observaciones". La escribe Informes.gs, que también la reconstruye entera
+ * cada vez, así que hace falta el mismo cuidado que con AVISOS.
+ *
+ * Aquí no hay dos pasos como allí. Informes.gs llama a esta función ANTES de
+ * limpiar la pestaña, se guarda el mapa, y al escribir cada fila busca en él
+ * lo que hubiera anotado Francisco.
+ *
+ * Cada incidencia se reconoce por sus cuatro columnas: grupo, pestaña, aviso
+ * y detalle. Estas incidencias no llevan nombres de fichero ni fechas, así
+ * que el texto se repite igual de una vez a otra y no hace falta una segunda
+ * clave más corta.
+ * ======================================================== ***/
+
+function claveAvisoInforme_(fila) {
+  return normalizar(fila[0]) + '|' + normalizar(fila[1]) + '|' +
+         normalizar(fila[2]) + '|' + normalizar(fila[3]);
+}
+
+/* Devuelve un mapa: clave de la incidencia -> [Estado, Observaciones].
+   Si la pestaña todavía no tiene esas dos columnas, devuelve un mapa vacío y
+   no pasa nada: la primera vez sale en blanco. */
+function notasDeAvisosInformes_() {
+  const previos = {};
+  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_AV_INF);
+  if (!hoja || hoja.getLastRow() < 3 || hoja.getLastColumn() < 6) return previos;
+
+  const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, 6).getValues();
+  for (let f = 0; f < datos.length; f++) {
+    const estado = String(datos[f][4] || '').trim();
+    const obs = String(datos[f][5] || '').trim();
+    if (!estado && !obs) continue;
+    previos[claveAvisoInforme_(datos[f])] = [datos[f][4], datos[f][5]];
+  }
+  return previos;
 }

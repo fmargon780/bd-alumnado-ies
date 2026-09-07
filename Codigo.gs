@@ -38,7 +38,12 @@ const REGLAS = {
   '1º': [
     { titulo: 'OPT', codigos: { 'Oratoria y Debate': 'OyD', 'Computación y Robótica': 'CyR',
         'Music, theatre and games for English': 'MTGE' } },
-    { titulo: 'FR -> ALCT', codigos: { 'Área Lingüística de carácter transversal': 'ALCT' } },
+    /* En 1º todo el alumnado cursa una de las dos: o Francés (Segundo Idioma),
+       o el Área Lingüística de carácter transversal, que es la alternativa de
+       quien está exento de francés. Se leen las dos columnas del CSV, así que
+       la casilla deja de poder quedarse vacía: si se queda, es un aviso. */
+    { titulo: 'FR -> ALCT', codigos: { 'Francés (Segundo Idioma)': 'FR',
+        'Área Lingüística de carácter transversal': 'ALCT' } },
     { titulo: 'REL/Atedu', codigos: { 'Religión Católica': 'CAT', 'Religión Evangélica': 'EVA',
         'Atención Educativa': 'ATEDU' } }
   ],
@@ -364,6 +369,18 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     return ka < kb ? -1 : (ka > kb ? 1 : 0);
   });
 
+  /* En 1º nadie puede quedarse sin idioma: o Francés o el Área Lingüística.
+     Si esa columna faltara en el CSV, todos saldrían vacíos y AVISOS se
+     llenaría de ruido. Por eso solo se avisa cuando al menos un alumno de 1º
+     sí lo tiene puesto, que es la señal de que la columna se ha leído bien. */
+  let hayIdiomaEn1 = false;
+  for (let i = 0; i < todos.length; i++) {
+    if (todos[i].curso === '1º' && (todos[i].valores['FR -> ALCT'] || '') !== '') {
+      hayIdiomaEn1 = true;
+      break;
+    }
+  }
+
   for (let i = 0; i < todos.length; i++) {
     const a = todos[i];
     const v = a.valores;
@@ -415,6 +432,12 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     if (!a.unidad) {
       avisos.push({ curso: a.curso, grupo: '', alumno: a.nombre, aviso: 'Sin unidad asignada',
         detalle: 'No aparecerá en ningún informe de grupo' });
+    }
+    if (a.curso === '1º' && hayIdiomaEn1 && !(v['FR -> ALCT'] || '')) {
+      avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+        aviso: 'Sin Francés ni Área Lingüística',
+        detalle: 'En 1º todo el alumnado tiene que estar matriculado en Francés (Segundo Idioma) ' +
+                 'o en Área Lingüística de carácter transversal. En Séneca no tiene ninguna de las dos.' });
     }
 
     /* Las pendientes. En 2º, 3º y 4º salen de las columnas PEND del CSV de

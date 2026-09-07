@@ -40,9 +40,9 @@
  *
  * ======================================================== ***/
 
-/* La versión que se enseña en el panel. Codigo.gs tiene la suya, más
-   antigua; mientras esta exista, manda esta. */
-const VERSION_BD = 'BD v26';
+/* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
+   esta exista, manda esta. */
+const VERSION_BD = 'BD v27';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -71,7 +71,8 @@ const FORMATO_HOJAS = {
       'Alumno/a': [210, 'I'], 'Nº Id. Escolar': [85, 'C'], 'Unidad': [65, 'C'],
       'Curso': [50, 'C'], 'Edad a 31/12': [60, 'C'], 'Repite el curso actual': [65, 'C'],
       'Repeticiones en ESO': [65, 'C'], 'Rep. Primaria (calculado)': [65, 'C'],
-      'Fuente Primaria': [90, 'C'], 'Fecha de nacimiento': [95, 'C']
+      'Fuente Primaria': [90, 'C'], 'Fecha de nacimiento': [95, 'C'],
+      'Cursos repetidos en ESO': [140, 'W']
     }
   },
 
@@ -87,9 +88,11 @@ const FORMATO_HOJAS = {
       'REL/Atedu': [65, 'C'], 'Nº pendientes': [55, 'C'],
       'Asignaturas pendientes': [230, 'W'], 'Edad a 31/12': [60, 'C'],
       'MAT NO SUP.': [200, 'W'], 'Repeticiones en ESO': [65, 'C'],
-      'Rep. Primaria (calculado)': [65, 'C'], 'Fuente Primaria': [90, 'C'],
+      'Cursos repetidos en ESO': [140, 'W'],
+      'Rep. Primaria (calculado)': [65, 'C'],
+      'Cursos repetidos en Primaria': [105, 'C'], 'Fuente Primaria': [90, 'C'],
       'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
-      'Repeticiones totales': [65, 'C'], 'PIL': [45, 'C'],
+      'Repeticiones totales': [65, 'C'], 'PIL': [45, 'C'], 'PIL (etapa)': [60, 'C'],
       'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'], 'Observaciones': [200, 'W']
     }
   },
@@ -220,7 +223,7 @@ function fmtColumnaDe_(titulos, titulo) {
 
 /*** ================= 5. FILAS ALTERNAS Y COLORES ================= ***/
 
-/* Filas alternas suaves. Con 668 filas y 27 columnas, seguir una fila con la
+/* Filas alternas suaves. Con 668 filas y 30 columnas, seguir una fila con la
    vista cansa. Hay que quitar las bandas de la vez anterior: Google no deja
    dos bandas encima del mismo sitio. */
 function fmtFilasAlternas_(hoja, filaCab, ultimaFila, ancho) {
@@ -277,12 +280,18 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     /* Lo que todavía no sabemos. */
     siDice('Asignaturas pendientes', SIN_DATO, FMT_AMBAR);
     siDice('MAT NO SUP.', SIN_DATO, FMT_AMBAR);
+    /* Sabemos que repitió, pero no de qué curso. En Primaria solo lo dice el
+       expediente; en ESO, un HISTORIAL de una versión anterior. */
+    siDice('Cursos repetidos en Primaria', SIN_DATO, FMT_AMBAR);
+    siDice('Cursos repetidos en ESO', SIN_DATO, FMT_AMBAR);
     /* Repeticiones de Primaria estimadas por edad: hay que revisarlas a mano. */
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
     /* Sin unidad en Séneca: este alumno no sale en ningún informe. */
     siVacia('Unidad', FMT_ROJO);
-    /* Los PIL, para localizarlos de un vistazo. No es un problema: es un dato. */
+    /* Los PIL, para localizarlos de un vistazo. No es un problema: es un dato.
+       Son dos columnas: la de este curso, que va al papel, y la de la etapa. */
     siDice('PIL', 'SÍ', FMT_AZUL);
+    siDice('PIL (etapa)', 'SÍ', FMT_AZUL);
   } else if (nombre === 'HISTORIAL') {
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
   } else if (nombre === 'PRIMARIA') {
@@ -425,10 +434,11 @@ function formatearHoja_(nombre) {
     rango.setVerticalAlignment('top');
   }
 
-  /* 3. La cabecera: centrada, con ajuste de texto y sitio para dos líneas. */
+  /* 3. La cabecera: centrada, con ajuste de texto y sitio para tres líneas.
+        Hay títulos largos, como "Cursos repetidos en Primaria". */
   hoja.getRange(filaCab, 1, 1, ancho)
       .setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  hoja.setRowHeight(filaCab, 40);
+  hoja.setRowHeight(filaCab, 48);
 
   /* 4. Filas alternas. Va antes del amarillo, aunque daría igual: un color
         puesto a mano siempre gana a las bandas. */

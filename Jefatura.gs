@@ -123,7 +123,10 @@ function leerPestanaJefatura_(grupo, valores) {
       opc2: dame('opc2'),
       opc3: dame('opc3'),
       opc4: dame('opc4'),
-      alct: marcas.alct ? 'ALCT' : '',
+      /* En 1º la columna FR -> ALCT de ALUMNADO ya no se queda vacía: pone FR
+         o ALCT. Aquí se hace lo mismo para poder compararlas: en 1º, quien no
+         está marcado como exento es que cursa francés. */
+      alct: marcas.alct ? 'ALCT' : (nivel === '1º' ? 'FR' : ''),
       repite: marcas.repite ? 'SÍ' : '',
       pil: marcas.pil ? 'SÍ' : '',
       conf: marcas.conflictivo ? 'SÍ' : '',
@@ -221,9 +224,11 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     }
   }
 
+  /* Ordenadas por curso y por alumno, para que todo lo que no cuadra de una
+     misma persona salga junto y se pueda arreglar de una sentada en Séneca. */
   salida.sort(function (a, b) {
-    const ka = a.tipo + a.curso + a.grupo + normalizar(a.alumno);
-    const kb = b.tipo + b.curso + b.grupo + normalizar(b.alumno);
+    const ka = a.curso + '|' + normalizar(a.alumno) + '|' + a.tipo;
+    const kb = b.curso + '|' + normalizar(b.alumno) + '|' + b.tipo;
     return ka < kb ? -1 : (ka > kb ? 1 : 0);
   });
   return salida;

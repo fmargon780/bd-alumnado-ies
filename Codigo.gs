@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v19';
+const VERSION = 'BD v27';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -11,6 +11,7 @@ const HOJA_AVISOS = 'AVISOS';
 const EDAD_TEORICA = { '1º': 12, '2º': 13, '3º': 14, '4º': 15 };
 const ESTADOS_QUE_NO_CUENTAN = ['anulada', 'trasladada'];
 const COL_AMBITOS = 'Ámbito Científico-Tecnológico';
+const NIVELES_ESO = ['1º', '2º', '3º', '4º'];
 
 /*** ================= LA INTERROGANTE =================
  *
@@ -27,10 +28,13 @@ const COL_AMBITOS = 'Ámbito Científico-Tecnológico';
  *     expediente de Primaria de ese alumno.
  *   - NO SUPERADAS (repite): cuando el alumno repite pero no aparece en la
  *     hoja de notas del curso pasado.
+ *   - Cursos repetidos en Primaria: cuando sabemos que repitió pero no
+ *     tenemos su expediente, que es lo único que dice QUÉ curso repitió.
  *
  * Dónde NO hace falta: el censo NEAE es completo, así que una casilla vacía
- * quiere decir que el alumno no tiene NEAE. Y las repeticiones de Primaria ya
- * llevan su propia columna "Fuente Primaria", que dice de dónde sale el dato.
+ * quiere decir que el alumno no tiene NEAE. Y el NÚMERO de repeticiones de
+ * Primaria ya lleva su propia columna "Fuente Primaria", que dice de dónde
+ * sale el dato.
  * ======================================================== ***/
 const SIN_DATO = '?';
 
@@ -93,12 +97,39 @@ const ABREVIATURAS = {
   'Nutrición, Salud y Deporte': 'NSD', 'Prácticas Biológicas': 'PB', 'Tecnología': 'TEC'
 };
 
+/*** ================= LAS DOS LECTURAS DE "PIL" =================
+ *
+ * Añadido en la BD v27, a partir de un desencuentro con el director: los PIL
+ * de los informes no le cuadraban.
+ *
+ * La norma (artículo 16 del Real Decreto 217/2022) dice dos cosas distintas:
+ *   - Un curso se puede repetir UNA SOLA VEZ.
+ *   - En toda la enseñanza obligatoria (Primaria y ESO juntas) se puede
+ *     repetir DOS VECES COMO MÁXIMO.
+ *
+ * De ahí salen dos lecturas de "ya no puede repetir", y las dos son ciertas:
+ *
+ *   PIL          -> no puede repetir ESTE curso otra vez. Si suspende, pasa
+ *                   al siguiente por imperativo legal. Es la de siempre, la
+ *                   que va al informe en papel y la que necesita el tutor.
+ *   PIL (etapa)  -> ha agotado sus dos permanencias. No puede repetir ningún
+ *                   curso más, ni este ni los siguientes.
+ *
+ * La diferencia entre las dos son los alumnos que están repitiendo el curso
+ * actual y es su PRIMERA repetición: salen PIL, pero todavía les queda una
+ * permanencia para un curso posterior.
+ *
+ * NO SE CAMBIA EL NOMBRE DE LA COLUMNA "PIL": Informes.gs la busca por ese
+ * título para llevarla al papel, y el papel no cambia.
+ * ======================================================== ***/
+
 const TITULOS_ALUMNADO = ['Alumno/a', 'Unidad', 'Curso', 'Repite el curso actual', 'Diversificación',
   'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu', 'Nº pendientes',
-  'Asignaturas pendientes', 'Edad a 31/12', 'MAT NO SUP.', 'Repeticiones en ESO',
-  'Rep. Primaria (calculado)', 'Fuente Primaria', 'Rep. Primaria (corregido)',
-  'Motivo de la corrección', 'Repeticiones totales', 'PIL', 'NEAE', 'MEDIDAS Y RECURSOS',
-  'Observaciones'];
+  'Asignaturas pendientes', 'Edad a 31/12', 'MAT NO SUP.',
+  'Repeticiones en ESO', 'Cursos repetidos en ESO',
+  'Rep. Primaria (calculado)', 'Cursos repetidos en Primaria', 'Fuente Primaria',
+  'Rep. Primaria (corregido)', 'Motivo de la corrección', 'Repeticiones totales',
+  'PIL', 'PIL (etapa)', 'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */
 const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección', 'Observaciones'];
 /* Todas las que hay que leer antes de reconstruir la tabla. NEAE y MEDIDAS Y
@@ -106,11 +137,12 @@ const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corre
    de un alumno se conserva lo que hubiera escrito a mano. */
 const COLS_CONSERVADAS = ['Rep. Primaria (corregido)', 'Motivo de la corrección',
   'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones'];
-/* La fecha de nacimiento va al final: la usa el censo NEAE para deshacer
-   empates entre alumnos con las mismas iniciales. */
+/* La fecha de nacimiento la usa el censo NEAE para deshacer empates entre
+   alumnos con las mismas iniciales. "Cursos repetidos en ESO" va la última
+   para no mover de sitio nada de lo que ya leía componerAlumnado. */
 const TITULOS_HISTORIAL = ['Alumno/a', 'Nº Id. Escolar', 'Unidad', 'Curso', 'Edad a 31/12',
   'Repite el curso actual', 'Repeticiones en ESO', 'Rep. Primaria (calculado)', 'Fuente Primaria',
-  'Fecha de nacimiento'];
+  'Fecha de nacimiento', 'Cursos repetidos en ESO'];
 
 /*** El menú lo crea Actualizador.gs, no este fichero. ***/
 
@@ -237,6 +269,26 @@ function calcularHistorial(tabla) {
     let repESO = 0;
     for (const n in porNivel) repESO += Object.keys(porNivel[n]).length - 1;
     const repite = Object.keys(porNivel[niv] || {}).length > 1 ? 'SÍ' : 'NO';
+
+    /* QUÉ cursos de ESO ha repetido, y en qué años.
+       RegAlum.csv trae una línea por alumno y por año de matrícula, así que
+       esto ya estaba calculado aquí arriba: un curso que aparece en dos años
+       distintos es un curso repetido. Hasta la BD v27 el programa se quedaba
+       solo con el NÚMERO y tiraba el curso y los años.
+
+       OJO: RegAlum es el registro de matrículas DE NUESTRO CENTRO. Si un
+       alumno repitió en otro instituto y llegó aquí después, esa repetición
+       no aparece: se le cuela en la estimación por edad de Primaria. */
+    const repetidos = [];
+    for (let k = 0; k < NIVELES_ESO.length; k++) {
+      const anosNivel = porNivel[NIVELES_ESO[k]];
+      if (!anosNivel) continue;
+      const lista = Object.keys(anosNivel).sort();
+      if (lista.length < 2) continue;
+      repetidos.push(NIVELES_ESO[k] + ' (' + lista.join(', ') + ')');
+    }
+    const cursosESO = repetidos.join('; ');
+
     const edad = parseInt(fila[iEdad], 10);
     let repPrim = '', fuente = '';
     const primero = porNivel['1º'];
@@ -249,7 +301,7 @@ function calcularHistorial(tabla) {
     }
     filas.push([String(fila[iNombre]).trim(), id, iUnidad === -1 ? '' : String(fila[iUnidad] || '').trim(),
                 niv, isNaN(edad) ? '' : edad, repite, repESO, repPrim, fuente,
-                iFecNac === -1 ? '' : String(fila[iFecNac] || '').trim()]);
+                iFecNac === -1 ? '' : String(fila[iFecNac] || '').trim(), cursosESO]);
   }
   filas.sort(function (a, b) { return normalizar(a[0]) < normalizar(b[0]) ? -1 : 1; });
   return { filas: filas, ano: ultimo };
@@ -410,6 +462,8 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', pil = '', mns = '';
+    /* Las dos columnas nuevas de la BD v27 y la segunda lectura del PIL. */
+    let cursosESO = SIN_DATO, cursosPrim = SIN_DATO, pilEtapa = '';
 
     if (!h) {
       fuente = 'No consta en el histórico';
@@ -417,6 +471,14 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         aviso: 'No está en el histórico de matrículas', detalle: 'No se pueden calcular sus repeticiones' });
     } else {
       edad = h[4]; repite = h[5]; repESO = h[6]; repPrim = h[7]; fuente = h[8];
+
+      /* Qué cursos de ESO ha repetido. Lo trae el histórico desde la BD v27.
+         Si la pestaña HISTORIAL es de una versión anterior, esa columna no
+         existe: entonces, si el alumno tiene repeticiones, va la interrogante,
+         y si no tiene ninguna la casilla se queda vacía. */
+      cursosESO = String(h[10] === null || h[10] === undefined ? '' : h[10]).trim();
+      if (!cursosESO) cursosESO = (esNumero(repESO) && aNumero(repESO) > 0) ? SIN_DATO : '';
+
       /* El expediente de Primaria lo dice negro sobre blanco, así que manda
          sobre la estimación por edad. Ver Primaria.gs. */
       if (exp && exp.repeticiones !== '' && exp.repeticiones !== undefined) {
@@ -426,7 +488,25 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       const corregido = String(man[0] || '').trim();
       const primaria2 = corregido !== '' && !isNaN(Number(corregido)) ? Number(corregido) : repPrim;
       total = (primaria2 === '' ? '' : primaria2 + repESO);
-      pil = ((total !== '' && total >= 2) || repite === 'SÍ') ? 'SÍ' : 'NO';
+
+      /* Las dos lecturas del PIL. Ver el comentario grande de arriba.
+           PIL         -> no puede repetir ESTE curso otra vez (la de siempre).
+           PIL (etapa) -> ha agotado las dos permanencias de la etapa. */
+      pilEtapa = (total !== '' && total >= 2) ? 'SÍ' : 'NO';
+      pil = (pilEtapa === 'SÍ' || repite === 'SÍ') ? 'SÍ' : 'NO';
+
+      /* QUÉ cursos de Primaria repitió. Solo lo dice el expediente, y solo
+         hay expedientes de alumnado de 1º. Si el alumno no repitió ninguno,
+         no hay nada que poner y la casilla va vacía; si repitió pero no
+         sabemos cuál, va la interrogante. */
+      if (exp && exp.repeticiones !== '' && exp.repeticiones !== undefined) {
+        cursosPrim = (exp.cursosRepetidos || []).join(', ');
+      } else if (primaria2 === 0) {
+        cursosPrim = '';
+      } else {
+        cursosPrim = SIN_DATO;
+      }
+
       if (repite === 'SÍ') {
         const notas = notasPorCurso[a.curso];
         /* Las notas ya vienen separadas por curso (notasPorCurso), así que aquí
@@ -498,7 +578,8 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
       v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
       v['REL/Atedu'] || '', pend.length ? pend.length : '', pendTexto, edad, mns,
-      repESO, repPrim, fuente, man[0] || '', man[1] || '', total, pil,
+      repESO, cursosESO, repPrim, cursosPrim, fuente, man[0] || '', man[1] || '',
+      total, pil, pilEtapa,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
          dice nada de este alumno, se respeta lo que hubiera escrito a mano. */
       (censo[clave] && censo[clave].neae) || man[2] || '',
@@ -688,13 +769,28 @@ function cargarHistorico() {
 function construirAlumnado() {
   const libro = SpreadsheetApp.getActiveSpreadsheet();
 
-  const hHist = libro.getSheetByName(HOJA_HISTORIAL);
+  let hHist = libro.getSheetByName(HOJA_HISTORIAL);
   if (!hHist || hHist.getLastRow() < 3) {
     avisar_('Falta el histórico', 'Antes tienes que pulsar "1. Leer el histórico de matrículas".');
     return;
   }
-  /* Una pestaña HISTORIAL hecha con una versión anterior tiene menos columnas.
-     Se lee lo que haya y se rellena el resto, en vez de reventar. */
+
+  /* Una pestaña HISTORIAL hecha con una versión anterior no trae la columna
+     "Cursos repetidos en ESO", y ese dato solo está en RegAlum.csv. Se relee
+     el histórico una vez y ya queda. */
+  try {
+    const titulosH = hHist.getRange(2, 1, 1, hHist.getLastColumn()).getValues()[0].map(normalizar);
+    if (titulosH.indexOf(normalizar('Cursos repetidos en ESO')) === -1) {
+      cargarHistorico();
+      hHist = libro.getSheetByName(HOJA_HISTORIAL);
+      if (!hHist || hHist.getLastRow() < 3) {
+        avisar_('Falta el histórico', 'No he podido releer RegAlum.csv.');
+        return;
+      }
+    }
+  } catch (e) { /* si no se puede mirar, se sigue con lo que haya */ }
+
+  /* Se lee lo que haya y se rellena el resto, en vez de reventar. */
   const anchoHist = Math.min(TITULOS_HISTORIAL.length, Math.max(1, hHist.getLastColumn()));
   const historial = hHist.getRange(3, 1, hHist.getLastRow() - 2, anchoHist).getValues();
   if (anchoHist < TITULOS_HISTORIAL.length) {
@@ -838,6 +934,7 @@ function construirAlumnado() {
   const nDiscrep = escribirDiscrepancias_(discrepancias, J.nombre);
 
   const iPil = TITULOS_ALUMNADO.indexOf('PIL');
+  const iPilE = TITULOS_ALUMNADO.indexOf('PIL (etapa)');
   const iMns = TITULOS_ALUMNADO.indexOf('MAT NO SUP.');
   const iPen = TITULOS_ALUMNADO.indexOf('Nº pendientes');
   const iAsi = TITULOS_ALUMNADO.indexOf('Asignaturas pendientes');
@@ -845,11 +942,21 @@ function construirAlumnado() {
   const iRep = TITULOS_ALUMNADO.indexOf('Repite el curso actual');
   const iDiv = TITULOS_ALUMNADO.indexOf('Diversificación');
   const iFue = TITULOS_ALUMNADO.indexOf('Fuente Primaria');
+  const iCPr = TITULOS_ALUMNADO.indexOf('Cursos repetidos en Primaria');
   const pil = R.filas.filter(function (f) { return f[iPil] === 'SÍ'; }).length;
+  const pilEtapa = R.filas.filter(function (f) { return f[iPilE] === 'SÍ'; }).length;
   const mns = R.filas.filter(function (f) { return f[iMns] !== '' && f[iMns] !== SIN_DATO; }).length;
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
   const porEdad = R.filas.filter(function (f) { return f[iFue] === 'EDAD'; }).length;
+  /* Los que están repitiendo ahora y es su PRIMERA repetición: son PIL de este
+     curso, pero todavía les queda una permanencia para un curso posterior.
+     Es justo el grupo en el que se separan las dos lecturas del PIL. */
+  const soloEsteCurso = R.filas.filter(function (f) {
+    return f[iPil] === 'SÍ' && f[iPilE] !== 'SÍ';
+  }).length;
+  /* Alumnado del que sabemos que repitió en Primaria pero no de qué curso. */
+  const primariaSinCurso = R.filas.filter(function (f) { return f[iCPr] === SIN_DATO; }).length;
   /* Los repetidores de 1º no necesitan expediente de Primaria, así que no
      cuentan ni como pendientes de descargar ni como interrogantes. */
   const enPrimero = R.filas.filter(function (f) {
@@ -866,8 +973,11 @@ function construirAlumnado() {
   avisar_('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
     '\n\nTotal de alumnos: ' + R.filas.length +
-    '\nPIL (no pueden repetir más): ' + pil +
-    '\nCon materias no superadas (repetidores): ' + mns +
+    '\n\nLAS DOS LECTURAS DEL PIL' +
+    '\nPIL de este curso (no lo pueden repetir otra vez): ' + pil +
+    '\nPIL de etapa (han agotado las dos permanencias): ' + pilEtapa +
+    '\nSolo de este curso (repiten ahora y es su primera vez): ' + soloEsteCurso +
+    '\n\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +
     '\nEn diversificación: ' + div +
     '\nCon censo NEAE: ' + N.total +
@@ -879,6 +989,7 @@ function construirAlumnado() {
     '\nDe esos, ya tienen el suyo: ' + (enPrimero - sinExpediente) +
     '\nTodavía salen con "' + SIN_DATO + '" porque falta su expediente: ' + sinExpediente +
     '\nRepeticiones de Primaria todavía estimadas por edad: ' + porEdad +
+    '\nRepitieron en Primaria pero no sabemos qué curso: ' + primariaSinCurso +
     (sinNotas ? '\nRepetidores que salen con "' + SIN_DATO +
                 '" porque no aparecen en las notas: ' + sinNotas : '') +
     '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
@@ -929,13 +1040,19 @@ function escribirAlumnado(filas) {
   hoja.getRange(1, 1).setValue('Alumnado de ESO del curso ' + CURSO_ACTUAL +
     '. Gris: viene de Séneca. Azul: calculado. Amarillo: lo rellenas tú y no se toca. ' +
     'Una casilla vacía quiere decir que no hay nada que poner; una "' + SIN_DATO +
-    '" quiere decir que ese dato todavía no lo tenemos. Actualizado: ' +
-    new Date().toLocaleString('es-ES')).setFontStyle('italic');
+    '" quiere decir que ese dato todavía no lo tenemos. ' +
+    'LAS DOS COLUMNAS DE PIL: "PIL" quiere decir que no puede repetir ESTE curso otra vez ' +
+    '(o ya lo está repitiendo, o ha agotado las dos permanencias); es la que sale en el ' +
+    'informe en papel. "PIL (etapa)" quiere decir que ha agotado las DOS permanencias de ' +
+    'toda la enseñanza obligatoria, Primaria y ESO juntas, y no puede repetir ningún curso ' +
+    'más. La diferencia entre las dos son los que repiten ahora por primera vez. ' +
+    'Actualizado: ' + new Date().toLocaleString('es-ES')).setFontStyle('italic');
   hoja.getRange(2, 1, 1, ancho).setValues([TITULOS_ALUMNADO]).setFontWeight('bold')
       .setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
 
-  const calculadas = ['Repite el curso actual', 'Diversificación', 'Repeticiones totales', 'PIL'];
+  const calculadas = ['Repite el curso actual', 'Diversificación', 'Cursos repetidos en ESO',
+    'Cursos repetidos en Primaria', 'Repeticiones totales', 'PIL', 'PIL (etapa)'];
   for (let c = 0; c < ancho; c++) {
     const t = TITULOS_ALUMNADO[c];
     const color = COLS_MANUALES_ALUMNADO.indexOf(t) !== -1 ? '#FFF2CC'

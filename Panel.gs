@@ -293,6 +293,30 @@ function pendientesDelSistema_() {
   return salida;
 }
 
+/* Lo que la parada de seguridad de construirAlumnado ha dejado escrito en la
+   pestaña RESUMEN. Hay que rescatarlo ANTES de pintar el panel, porque el
+   panel usa esa misma pestaña y la borra entera: sin esto, Francisco leería
+   "no he actualizado nada" sin el motivo ni el nombre del fichero que tiene
+   que volver a descargar. Las líneas se devuelven para que el panel las
+   vuelva a poner al final, en "LO QUE HA HECHO ESTA VEZ". */
+function motivoDeLaParada_() {
+  const lineas = [];
+  try {
+    const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_RESUMEN);
+    if (!hoja || hoja.getLastRow() < 1) return lineas;
+    const col = hoja.getRange(1, 1, hoja.getLastRow(), 1).getValues();
+    for (let i = 0; i < col.length; i++) {
+      const t = String(col[i][0] === null || col[i][0] === undefined ? '' : col[i][0]).trim();
+      /* La segunda línea es la marca de hora que pone avisar_, y el panel ya
+         lleva la suya arriba. */
+      if (i === 1 && t.indexOf('Terminado el ') === 0) continue;
+      lineas.push(t);
+    }
+    while (lineas.length && lineas[lineas.length - 1] === '') lineas.pop();
+  } catch (e) { /* si no se puede leer, el panel sale sin el motivo */ }
+  return lineas;
+}
+
 /*** ================= ESCRIBIR EL PANEL ================= ***/
 
 function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
@@ -439,19 +463,40 @@ function actualizarDatos() {
   let notasAvisos = {};
   try { notasAvisos = notasDeAvisos_(); } catch (e) { notasAvisos = {}; }
 
+  let seHaConstruido = false;
   try {
-    construirAlumnado();                     // ALUMNADO, JEFATURA, DISCREPANCIAS, NEAE, PRIMARIA, AVISOS
-    hecho.push('Tabla ALUMNADO reconstruida con todas las fuentes.');
-    try {
-      const rec = restaurarNotasAvisos_(notasAvisos);
-      if (rec) hecho.push('Avisos: recuperadas tus anotaciones en ' + rec + ' filas.');
-    } catch (e) {
-      hecho.push('Avisos: no he podido recuperar tus anotaciones (' + e.message + ').');
+    /* construirAlumnado devuelve false cuando ha decidido parar ella misma,
+       por ejemplo porque un CSV de matrícula no trae las asignaturas. En ese
+       caso no ha escrito ninguna pestaña, así que tampoco hay anotaciones de
+       AVISOS que restaurar. */
+    seHaConstruido = construirAlumnado() !== false;   // ALUMNADO, JEFATURA, DISCREPANCIAS, NEAE, PRIMARIA, AVISOS
+    if (seHaConstruido) {
+      hecho.push('Tabla ALUMNADO reconstruida con todas las fuentes.');
+      try {
+        const rec = restaurarNotasAvisos_(notasAvisos);
+        if (rec) hecho.push('Avisos: recuperadas tus anotaciones en ' + rec + ' filas.');
+      } catch (e) {
+        hecho.push('Avisos: no he podido recuperar tus anotaciones (' + e.message + ').');
+      }
     }
   } catch (e) {
     hecho.push('Tabla ALUMNADO: NO se ha podido construir (' + e.message + ').');
     try { restaurarNotasAvisos_(notasAvisos); } catch (e2) { /* la pestaña puede no existir */ }
     escribirPanel_('Algo ha fallado al actualizar', hecho, E.filas, pendientesDelSistema_());
+    return;
+  }
+
+  /* PARADA. Si la tabla ALUMNADO no se ha reconstruido, no se sigue: rellenar
+     los informes por unidad con lo que hubiera dejaría los papeles del tutor
+     sin optativas y sin religión, que es justo lo que se quiere evitar. Se
+     pinta el panel con el motivo y se termina aquí. */
+  if (!seHaConstruido) {
+    const motivo = motivoDeLaParada_();
+    hecho.push('Tabla ALUMNADO: NO se ha reconstruido, así que no he seguido.');
+    hecho.push('Los informes por unidad se han quedado como estaban.');
+    hecho.push('');
+    escribirPanel_('No he actualizado nada: hay que revisar un fichero',
+      hecho.concat(motivo), E.filas, pendientesDelSistema_());
     return;
   }
 

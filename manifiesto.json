@@ -1,5 +1,5 @@
 {
-  "version": "BD v30 — columnas de ALUMNADO por bloques",
+  "version": "BD v31 — parada de seguridad si un fichero de matrícula no trae las asignaturas",
   "ficheros": [
     "Formato.gs",
     "Codigo.gs",

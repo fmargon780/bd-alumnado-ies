@@ -839,7 +839,7 @@ function construirAlumnado() {
   let hHist = libro.getSheetByName(HOJA_HISTORIAL);
   if (!hHist || hHist.getLastRow() < 3) {
     avisar_('Falta el histórico', 'Antes tienes que pulsar "1. Leer el histórico de matrículas".');
-    return;
+    return false;
   }
 
   /* Una pestaña HISTORIAL hecha con una versión anterior no trae la columna
@@ -852,7 +852,7 @@ function construirAlumnado() {
       hHist = libro.getSheetByName(HOJA_HISTORIAL);
       if (!hHist || hHist.getLastRow() < 3) {
         avisar_('Falta el histórico', 'No he podido releer RegAlum.csv.');
-        return;
+        return false;
       }
     }
   } catch (e) { /* si no se puede mirar, se sigue con lo que haya */ }
@@ -872,7 +872,7 @@ function construirAlumnado() {
     avisar_('No hay ficheros de matrícula',
       'No he encontrado ninguno del curso ' + CURSO_ACTUAL +
       '.\nDeben llamarse MatOMCMatr...' + CURSO_ACTUAL + '.csv');
-    return;
+    return false;
   }
 
   const porCurso = {}, avisos = [], resumen = [];
@@ -916,7 +916,7 @@ function construirAlumnado() {
       'Vuelve a descargar de Séneca el informe de matrícula que trae UNA COLUMNA POR ASIGNATURA, ' +
       'déjalo en la carpeta con el mismo nombre, y pulsa otra vez "Actualizar los datos".\n\n' +
       'No he tocado la base de datos: sigue como estaba.');
-    return;
+    return false;
   }
 
   const notas = {};
@@ -1094,6 +1094,11 @@ function construirAlumnado() {
     '\nDiferencias con Séneca: ' + nDiscrep +
     (nDiscrep ? '\nMíralas en la pestaña "' + HOJA_DISCREP + '".' : '') +
     '\n\nAvisos anotados: ' + avisos.length);
+
+  /* Se ha llegado al final: las pestañas están escritas. Quien la llama
+     (Panel.gs) mira este valor para saber si puede seguir con los informes.
+     Las paradas de arriba devuelven false. */
+  return true;
 }
 
 function leerManualesAlumnado(libro) {

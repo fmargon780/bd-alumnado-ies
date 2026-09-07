@@ -558,6 +558,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
           detalle: 'Matrícula: ' + a.unidad + ' / Histórico: ' + h[2] });
       }
     }
+
     if (!a.unidad) {
       avisos.push({ curso: a.curso, grupo: '', alumno: a.nombre, aviso: 'Sin unidad asignada',
         detalle: 'No aparecerá en ningún informe de grupo' });
@@ -606,8 +607,10 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       v['REL/Atedu'] || '', pend.length ? pend.length : '', pendTexto, edad, mns,
       repESO, cursosESO, repPrim, cursosPrim, fuente, man[0] || '', man[1] || '',
       total, pil, pilEtapa,
-      /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
-         dice nada de este alumno, se respeta lo que hubiera escrito a mano. */
+      /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. En los cursos que
+         el censo trae, el censo manda: quien no aparece en él se queda con la
+         casilla vacía, para que un dato equivocado no se quede escrito para
+         siempre. En los cursos que el censo no trae se conserva lo que hubiera. */
       censo[clave] ? censo[clave].neae : (cursosDelCenso[a.curso] ? '' : (man[2] || '')),
       censo[clave] ? censo[clave].medidas : (cursosDelCenso[a.curso] ? '' : (man[3] || '')),
       man[4] || '']);

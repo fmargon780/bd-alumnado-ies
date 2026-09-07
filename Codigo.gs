@@ -427,6 +427,32 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
   const censo = neae || {};
   const prim = primaria || {};
   const filas = [], avisos = [];
+
+  /* Qué cursos trae el censo NEAE que se ha descargado. En los cursos que el
+     censo cubre, el censo manda: si un alumno no aparece en él, es que no tiene
+     NEAE, y su casilla se queda vacía. Si se conservara lo que había, un dato
+     equivocado se quedaría escrito para siempre. En los cursos que el censo no
+     trae, porque la descarga de Séneca fue solo de un curso, sí se conserva lo
+     que hubiera, para no borrar datos buenos. */
+  const cursosDelCenso = {};
+  for (const kc in censo) {
+    if (censo[kc] && censo[kc].curso) cursosDelCenso[censo[kc].curso] = true;
+  }
+  const cursosConCenso = Object.keys(cursosDelCenso).sort();
+  if (cursosConCenso.length) {
+    const sinCenso = [];
+    for (const cc in alumnosPorCurso) {
+      if (!cursosDelCenso[cc]) sinCenso.push(cc);
+    }
+    if (sinCenso.length) {
+      avisos.push({ curso: '', grupo: '', alumno: '',
+        aviso: 'El censo NEAE no trae todos los cursos',
+        detalle: 'RegAluNEE.csv solo trae fichas de ' + cursosConCenso.join(', ') + '. En ' +
+          sinCenso.sort().join(', ') + ' se conserva lo que ya estaba escrito, que puede estar ' +
+          'anticuado. Vuelve a descargar de Séneca el censo NEAE con los cuatro cursos y pulsa ' +
+          'otra vez el botón para que se recalcule todo.' });
+    }
+  }
   const todos = [];
   for (const curso in alumnosPorCurso) {
     const lista = alumnosPorCurso[curso];
@@ -582,8 +608,8 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       total, pil, pilEtapa,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. Si el censo no
          dice nada de este alumno, se respeta lo que hubiera escrito a mano. */
-      (censo[clave] && censo[clave].neae) || man[2] || '',
-      (censo[clave] && censo[clave].medidas) || man[3] || '',
+      censo[clave] ? censo[clave].neae : (cursosDelCenso[a.curso] ? '' : (man[2] || '')),
+      censo[clave] ? censo[clave].medidas : (cursosDelCenso[a.curso] ? '' : (man[3] || '')),
       man[4] || '']);
   }
   if (enOtroCurso.length) {

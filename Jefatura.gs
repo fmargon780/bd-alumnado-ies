@@ -184,13 +184,21 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     const v = fila[i];
     return v === null || v === undefined ? '' : String(v).trim();
   };
-  const sen = {};
+  /* Los cruces van por nombre Y curso, porque dos alumnos distintos pueden
+     llamarse igual. Se guarda además un índice por nombre suelto, que solo sirve
+     para distinguir "no está" de "está, pero en otro curso". */
+  const sen = {}, senPorNombre = {};
   for (let f = 0; f < filasAlum.length; f++) {
     const n = normalizar(dame(filasAlum[f], 'Alumno/a'));
-    if (n) sen[n] = filasAlum[f];
+    if (!n) continue;
+    sen[n + '|' + dame(filasAlum[f], 'Curso')] = filasAlum[f];
+    senPorNombre[n] = filasAlum[f];
   }
-  const jef = {};
-  for (let i = 0; i < alumnosJef.length; i++) jef[normalizar(alumnosJef[i].nombre)] = alumnosJef[i];
+  const jef = {}, jefPorNombre = {};
+  for (let i = 0; i < alumnosJef.length; i++) {
+    jef[normalizar(alumnosJef[i].nombre) + '|' + alumnosJef[i].curso] = alumnosJef[i];
+    jefPorNombre[normalizar(alumnosJef[i].nombre)] = alumnosJef[i];
+  }
 
   const salida = [];
   const mete = function (curso, grupo, alumno, tipo, enSeneca, enJefatura) {
@@ -200,19 +208,23 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
 
   for (let i = 0; i < alumnosJef.length; i++) {
     const j = alumnosJef[i];
-    const s = sen[normalizar(j.nombre)];
+    const s = sen[normalizar(j.nombre) + '|' + j.curso];
     if (!s) {
-      mete(j.curso, j.unidad, j.nombre, 'No está en Séneca', '(no aparece)', j.unidad);
+      /* En su curso no está. Si en Séneca hay alguien con ese nombre en otro
+         curso, o ha cambiado de curso, o son dos personas distintas que se
+         llaman igual. Las dos cosas hay que mirarlas a mano. */
+      const otro = senPorNombre[normalizar(j.nombre)];
+      if (otro) {
+        mete(j.curso, j.unidad, j.nombre, 'Curso distinto (¿dos alumnos con el mismo nombre?)',
+             dame(otro, 'Unidad'), j.unidad);
+      } else {
+        mete(j.curso, j.unidad, j.nombre, 'No está en Séneca', '(no aparece)', j.unidad);
+      }
       continue;
     }
     const uniSen = dame(s, 'Unidad');
     if (normalizar(uniSen) !== normalizar(j.unidad)) {
-      /* Si además cambia el curso, lo más probable es que sean dos personas
-         distintas con el mismo nombre, no un cambio de grupo. */
-      const mismoCurso = uniSen.substring(0, 2) === j.unidad.substring(0, 2);
-      mete(j.curso, j.unidad, j.nombre,
-           mismoCurso ? 'Grupo distinto' : 'Curso distinto (¿dos alumnos con el mismo nombre?)',
-           uniSen, j.unidad);
+      mete(j.curso, j.unidad, j.nombre, 'Grupo distinto', uniSen, j.unidad);
     }
     const divSen = dame(s, 'MAT') === 'ÁMB' ? 'SÍ' : '';
     if (j.div === 'SÍ' && divSen !== 'SÍ') {
@@ -233,10 +245,12 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
   for (let f = 0; f < filasAlum.length; f++) {
     const nombre = dame(filasAlum[f], 'Alumno/a');
     if (!nombre) continue;
-    if (!jef[normalizar(nombre)]) {
-      mete(dame(filasAlum[f], 'Curso'), dame(filasAlum[f], 'Unidad'), nombre,
-           'No está en el fichero de Jefatura', dame(filasAlum[f], 'Unidad'), '(no aparece)');
-    }
+    if (jef[normalizar(nombre) + '|' + dame(filasAlum[f], 'Curso')]) continue;
+    /* Si Jefatura lo tiene en otro curso, arriba ya se ha avisado como
+       "Curso distinto": no hace falta decir además que no aparece. */
+    if (jefPorNombre[normalizar(nombre)]) continue;
+    mete(dame(filasAlum[f], 'Curso'), dame(filasAlum[f], 'Unidad'), nombre,
+         'No está en el fichero de Jefatura', dame(filasAlum[f], 'Unidad'), '(no aparece)');
   }
 
   /* Ordenadas por curso y por alumno, para que todo lo que no cuadra de una
@@ -302,7 +316,9 @@ function leerJefatura_() {
     const ancho = Math.min(hoja.getLastColumn(), 40);
     const leidos = leerPestanaJefatura_(grupo, hoja.getRange(1, 1, hoja.getLastRow(), ancho).getValues());
     for (let i = 0; i < leidos.length; i++) {
-      const clave = normalizar(leidos[i].nombre);
+      /* Nombre y curso, como todos los cruces del sistema: dos alumnos
+         distintos pueden llamarse igual y no se pueden descartar uno a otro. */
+      const clave = normalizar(leidos[i].nombre) + '|' + leidos[i].curso;
       if (vistos[clave]) {
         avisos.push({ curso: leidos[i].curso, grupo: leidos[i].unidad, alumno: leidos[i].nombre,
           aviso: 'Repetido en el fichero de Jefatura',
@@ -349,8 +365,10 @@ function manualesDiscrepancias_() {
   if (!hoja || hoja.getLastRow() < 3) return previos;
   const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, 8).getValues();
   for (let f = 0; f < datos.length; f++) {
-    const clave = normalizar(datos[f][2]) + '|' + normalizar(datos[f][3]);
-    if (clave !== '|') previos[clave] = [datos[f][6], datos[f][7]];
+    /* Curso, alumno y tipo. El curso hace falta porque dos alumnos distintos
+       pueden llamarse igual, y sus anotaciones no se pueden mezclar. */
+    const clave = normalizar(datos[f][0]) + '|' + normalizar(datos[f][2]) + '|' + normalizar(datos[f][3]);
+    if (normalizar(datos[f][2]) || normalizar(datos[f][3])) previos[clave] = [datos[f][6], datos[f][7]];
   }
   return previos;
 }
@@ -366,7 +384,7 @@ function escribirDiscrepancias_(lista, nombreFichero) {
   hoja.getRange(2, 1, 1, titulos.length).setValues([titulos]).setFontWeight('bold')
       .setBackground('#FCE4D6');
   const filas = lista.map(function (d) {
-    const man = previos[normalizar(d.alumno) + '|' + normalizar(d.tipo)] || ['', ''];
+    const man = previos[normalizar(d.curso) + '|' + normalizar(d.alumno) + '|' + normalizar(d.tipo)] || ['', ''];
     return [d.curso, d.grupo, d.alumno, d.tipo, d.seneca, d.jefatura, man[0], man[1]];
   });
   if (filas.length) {

@@ -231,7 +231,11 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     if (normalizar(uniSen) !== normalizar(j.unidad)) {
       mete(j.curso, j.unidad, j.nombre, 'Grupo distinto', uniSen, j.unidad);
     }
-    const divSen = dame(s, 'MAT') === 'ÁMB' ? 'SÍ' : '';
+    /* La columna Diversificación de ALUMNADO ya reúne las dos maneras que tiene
+       Séneca de decirlo: en 4º, matricular al alumno en Matemáticas = ÁMB; en
+       1º, 2º y 3º, matricularlo en los dos Ámbitos. Vale 'SÍ' solo cuando lo
+       confirma Séneca, y 'SÍ (solo Jefatura)' cuando Séneca todavía no. */
+    const divSen = dame(s, 'Diversificación') === 'SÍ' ? 'SÍ' : '';
     if (j.div === 'SÍ' && divSen !== 'SÍ') {
       mete(j.curso, j.unidad, j.nombre, 'Diversificación no cargada en Séneca', 'NO', 'SÍ');
     } else if (j.div !== 'SÍ' && divSen === 'SÍ') {

@@ -123,13 +123,22 @@ const ABREVIATURAS = {
  * título para llevarla al papel, y el papel no cambia.
  * ======================================================== ***/
 
-const TITULOS_ALUMNADO = ['Alumno/a', 'Unidad', 'Curso', 'Repite el curso actual', 'Diversificación',
-  'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu', 'Nº pendientes',
-  'Asignaturas pendientes', 'Edad a 31/12', 'MAT NO SUP.',
-  'Repeticiones en ESO', 'Cursos repetidos en ESO',
+const TITULOS_ALUMNADO = [
+  /* Quién es */
+  'Alumno/a', 'Unidad', 'Curso', 'Edad a 31/12',
+  /* Su trayectoria: si ha repetido, dónde, y si puede volver a repetir */
+  'Repite el curso actual', 'Repeticiones en ESO', 'Cursos repetidos en ESO',
   'Rep. Primaria (calculado)', 'Cursos repetidos en Primaria', 'Fuente Primaria',
-  'Rep. Primaria (corregido)', 'Motivo de la corrección', 'Repeticiones totales',
-  'PIL', 'PIL (etapa)', 'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones'];
+  'Rep. Primaria (corregido)', 'Motivo de la corrección',
+  'Repeticiones totales', 'PIL', 'PIL (etapa)',
+  /* Lo que debe */
+  'MAT NO SUP.', 'Nº pendientes', 'Asignaturas pendientes',
+  /* Los apoyos que recibe */
+  'Diversificación', 'NEAE', 'MEDIDAS Y RECURSOS',
+  /* Lo que cursa este año */
+  'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu',
+  /* Lo tuyo */
+  'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */
 const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección', 'Observaciones'];
 /* Todas las que hay que leer antes de reconstruir la tabla. NEAE y MEDIDAS Y
@@ -601,18 +610,48 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const divJefatura = !!(jef[clave] && jef[clave].div === 'SÍ');
     const diver = divSeneca ? 'SÍ' : (divJefatura ? 'SÍ (solo Jefatura)' : 'NO');
 
-    filas.push([a.nombre, a.unidad, a.curso, repite, diver, v['OPT'] || '', v['FR -> ALCT'] || '',
-      v['MAT'] || '', v['OPC1'] || '', v['OPC2'] || '', v['OPC3'] || '', v['OPC4'] || '',
-      v['REL/Atedu'] || '', pend.length ? pend.length : '', pendTexto, edad, mns,
-      repESO, cursosESO, repPrim, cursosPrim, fuente, man[0] || '', man[1] || '',
-      total, pil, pilEtapa,
+    /* La fila se monta por TÍTULO, no por posición. Así, cambiar el orden de
+       las columnas es cambiar solo la lista TITULOS_ALUMNADO, y no hay forma de
+       que los datos se descoloquen respecto a los rótulos. */
+    const valores = {
+      'Alumno/a': a.nombre,
+      'Unidad': a.unidad,
+      'Curso': a.curso,
+      'Repite el curso actual': repite,
+      'Diversificación': diver,
+      'OPT': v['OPT'] || '',
+      'FR -> ALCT': v['FR -> ALCT'] || '',
+      'MAT': v['MAT'] || '',
+      'OPC1': v['OPC1'] || '',
+      'OPC2': v['OPC2'] || '',
+      'OPC3': v['OPC3'] || '',
+      'OPC4': v['OPC4'] || '',
+      'REL/Atedu': v['REL/Atedu'] || '',
+      'Nº pendientes': pend.length ? pend.length : '',
+      'Asignaturas pendientes': pendTexto,
+      'Edad a 31/12': edad,
+      'MAT NO SUP.': mns,
+      'Repeticiones en ESO': repESO,
+      'Cursos repetidos en ESO': cursosESO,
+      'Rep. Primaria (calculado)': repPrim,
+      'Cursos repetidos en Primaria': cursosPrim,
+      'Fuente Primaria': fuente,
+      'Rep. Primaria (corregido)': man[0] || '',
+      'Motivo de la corrección': man[1] || '',
+      'Repeticiones totales': total,
+      'PIL': pil,
+      'PIL (etapa)': pilEtapa,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. En los cursos que
          el censo trae, el censo manda: quien no aparece en él se queda con la
          casilla vacía, para que un dato equivocado no se quede escrito para
          siempre. En los cursos que el censo no trae se conserva lo que hubiera. */
-      censo[clave] ? censo[clave].neae : (cursosDelCenso[a.curso] ? '' : (man[2] || '')),
-      censo[clave] ? censo[clave].medidas : (cursosDelCenso[a.curso] ? '' : (man[3] || '')),
-      man[4] || '']);
+      'NEAE': censo[clave] ? censo[clave].neae : (cursosDelCenso[a.curso] ? '' : (man[2] || '')),
+      'MEDIDAS Y RECURSOS': censo[clave] ? censo[clave].medidas : (cursosDelCenso[a.curso] ? '' : (man[3] || '')),
+      'Observaciones': man[4] || ''
+    };
+    filas.push(TITULOS_ALUMNADO.map(function (t) {
+      return valores[t] === undefined ? '' : valores[t];
+    }));
   }
   if (enOtroCurso.length) {
     avisos.push({ curso: '', grupo: '', alumno: '',

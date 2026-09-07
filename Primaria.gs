@@ -269,7 +269,10 @@ function datosPrimaria_() {
         aviso: 'Expediente de Primaria', detalle: r.avisos[i] });
     }
     if (!r.nombre) continue;
-    const clave = normalizar(r.nombre);
+    /* Los expedientes de Primaria son siempre de alumnado de 1º. La clave lleva el
+       curso, como todos los cruces del sistema, para no aplicarle el expediente a
+       otro alumno que se llame igual y esté en otro curso. */
+    const clave = normalizar(r.nombre) + '|1º';
     if (porNombre[clave]) {
       avisos.push({ curso: '1º', grupo: '', alumno: r.nombre,
         aviso: 'Dos expedientes para el mismo alumno',

@@ -56,6 +56,14 @@ function traducirJef_(v) {
   return TRAD_JEFATURA[c] === undefined ? c : TRAD_JEFATURA[c];
 }
 
+/* Compara códigos sin que importe el orden ni los espacios: "CYR / MUS" y
+   "MUS / CYR" son lo mismo. Hace falta para los alumnos de diversificación de
+   3º, que llevan dos optativas en la misma casilla. */
+function juegoJef_(v) {
+  return codigoJef_(v).split('/').map(function (x) { return x.trim(); })
+    .filter(function (x) { return x; }).sort().join(' / ');
+}
+
 /* ¿Es esto el rótulo de un grupo de ESO? Devuelve "1º ESO A" o ''.
    Vale tanto para el nombre de la pestaña ("1ºESO A") como para la celda A1. */
 function grupoDeTexto_(v) {
@@ -72,7 +80,10 @@ function huecosJefatura_(titulos, nivel) {
     if (!t) continue;
     if (t === 'origen' || t === 'centro de procedencia') h.origen = c;
     else if (t.indexOf('rel/') === 0) h.rel = c;
-    else if (t.indexOf('opt') === 0 && t.indexOf('div') !== -1) h.optdiv = c;
+    /* La segunda optativa de los alumnos de diversificación de 3º. Jefatura la
+       titula "2º OPT DIV" en 3º ESO A y "OPT 2 DIV" en 3º ESO B, así que se
+       reconoce porque el título lleva las palabras OPT y DIV, vaya donde vaya. */
+    else if (t.indexOf('opt') !== -1 && t.indexOf('div') !== -1) h.optdiv = c;
     else if (t === 'mat a/b') h.mat = c;
     else if (nivel === '4º' && t === 'opt1') h.opc2 = c;
     else if (nivel === '4º' && t === 'opt2') h.opc1 = c;
@@ -116,7 +127,11 @@ function leerPestanaJefatura_(grupo, valores) {
       curso: nivel,
       origen: h.origen === undefined ? '' : String(fila[h.origen] || '').trim(),
       rel: dame('rel'),
-      opt: dame('opt'),
+      /* Los alumnos de diversificación de 3º cursan dos optativas: la suya y
+         Música, que Jefatura pone en esa columna aparte. En Séneca las dos salen
+         en la misma casilla, separadas por una barra, así que aquí se juntan
+         igual para que se puedan comparar. */
+      opt: [dame('opt'), dame('optdiv')].filter(function (x) { return x; }).join(' / '),
       optdiv: dame('optdiv'),
       mat: dame('mat'),
       opc1: dame('opc1'),
@@ -209,7 +224,7 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     for (let k = 0; k < comps.length; k++) {
       const c = comps[k];
       const vs = dame(s, c.col), vj = j[c.campo] || '';
-      if (codigoJef_(vs) !== codigoJef_(vj)) {
+      if (juegoJef_(vs) !== juegoJef_(vj)) {
         mete(j.curso, j.unidad, j.nombre, c.nombre + ': no coincide', vs || '(vacío)', vj || '(vacío)');
       }
     }

@@ -192,13 +192,16 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     const n = normalizar(dame(filasAlum[f], 'Alumno/a'));
     if (!n) continue;
     sen[n + '|' + dame(filasAlum[f], 'Curso')] = filasAlum[f];
-    senPorNombre[n] = filasAlum[f];
+    if (!senPorNombre[n]) senPorNombre[n] = [];
+    senPorNombre[n].push(filasAlum[f]);
   }
-  const jef = {}, jefPorNombre = {};
+  const jef = {};
   for (let i = 0; i < alumnosJef.length; i++) {
     jef[normalizar(alumnosJef[i].nombre) + '|' + alumnosJef[i].curso] = alumnosJef[i];
-    jefPorNombre[normalizar(alumnosJef[i].nombre)] = alumnosJef[i];
   }
+  /* Nombres de los que ya se ha avisado como "Curso distinto", para no decir
+     después que ese alumno no aparece en el fichero de Jefatura. */
+  const yaAvisados = {};
 
   const salida = [];
   const mete = function (curso, grupo, alumno, tipo, enSeneca, enJefatura) {
@@ -213,10 +216,12 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
       /* En su curso no está. Si en Séneca hay alguien con ese nombre en otro
          curso, o ha cambiado de curso, o son dos personas distintas que se
          llaman igual. Las dos cosas hay que mirarlas a mano. */
-      const otro = senPorNombre[normalizar(j.nombre)];
-      if (otro) {
+      const otros = senPorNombre[normalizar(j.nombre)];
+      if (otros && otros.length) {
+        const donde = otros.map(function (o) { return dame(o, 'Unidad') || '(sin unidad)'; }).join(' y ');
         mete(j.curso, j.unidad, j.nombre, 'Curso distinto (¿dos alumnos con el mismo nombre?)',
-             dame(otro, 'Unidad'), j.unidad);
+             donde, j.unidad);
+        yaAvisados[normalizar(j.nombre)] = true;
       } else {
         mete(j.curso, j.unidad, j.nombre, 'No está en Séneca', '(no aparece)', j.unidad);
       }
@@ -246,9 +251,11 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     const nombre = dame(filasAlum[f], 'Alumno/a');
     if (!nombre) continue;
     if (jef[normalizar(nombre) + '|' + dame(filasAlum[f], 'Curso')]) continue;
-    /* Si Jefatura lo tiene en otro curso, arriba ya se ha avisado como
-       "Curso distinto": no hace falta decir además que no aparece. */
-    if (jefPorNombre[normalizar(nombre)]) continue;
+    /* Si de este alumno ya se ha avisado arriba como "Curso distinto", no hace
+       falta decir además que no aparece. Ojo: se mira si SE AVISÓ, no si el
+       nombre existe en Jefatura; si no, a un homónimo que de verdad falta en el
+       fichero de Jefatura se le silenciaría el aviso. */
+    if (yaAvisados[normalizar(nombre)]) continue;
     mete(dame(filasAlum[f], 'Curso'), dame(filasAlum[f], 'Unidad'), nombre,
          'No está en el fichero de Jefatura', dame(filasAlum[f], 'Unidad'), '(no aparece)');
   }

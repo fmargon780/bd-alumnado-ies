@@ -127,7 +127,7 @@ const MAPA_INFORMES = {
      alumno, se respeta lo que hubiera escrito una persona en el informe. */
   'neae':       { col: 'NEAE', conservaSiVacio: true },
   'medidas/recursos': { col: 'MEDIDAS Y RECURSOS', conservaSiVacio: true },
-  'fr -> alct': { col: 'FR -> ALCT', siLleno: 'SÍ' },
+  'fr -> alct': { col: 'FR -> ALCT', siVale: 'ALCT' },
   'rel/atedu':  { col: 'REL/Atedu' }
 };
 
@@ -304,6 +304,14 @@ function valorInforme(regla, alumno, idxAlum) {
   if (regla.si) return String(v).trim().toUpperCase() === 'SÍ' ? regla.si : '';
   /* 'siEmpieza' es para Diversificación, que vale "SÍ", "SÍ (solo Jefatura)" o "NO". */
   if (regla.siEmpieza) return normalizar(v).indexOf('si') === 0 ? regla.siEmpieza : '';
+  /* 'siVale' es como 'siLleno', pero solo marca cuando el código es el que se
+     espera. Desde BD v25 la columna FR -> ALCT de ALUMNADO vale FR o ALCT en
+     todo 1º, y en el informe solo hay que marcar a quien está exento de
+     francés, es decir a quien cursa ALCT. */
+  if (regla.siVale) {
+    const cod = String(v === null || v === undefined ? '' : v).trim().toUpperCase();
+    return cod === String(regla.siVale).toUpperCase() ? 'SÍ' : '';
+  }
   /* 'siLleno' es para columnas que en ALUMNADO llevan un código y en el
      informe solo hace falta saber si el alumno está o no en ese caso. */
   if (regla.siLleno) return String(v === null || v === undefined ? '' : v).trim() ? regla.siLleno : '';

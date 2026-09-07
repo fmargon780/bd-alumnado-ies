@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v28';
+const VERSION_BD = 'BD v29';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -67,6 +67,19 @@ const FORMATO_HOJAS = {
 
   'HISTORIAL': {
     cabecera: 2, congelar: 2, manuales: [], noProteger: [],
+    notas: {
+      'Alumno/a': 'Nombre tal y como lo escribe Séneca.',
+      'Nº Id. Escolar': 'El número de alumno de Séneca. Es el único identificador de verdad que hay en todo el sistema, y solo viene en el fichero del histórico (RegAlum.csv). Los CSV de matrícula no lo traen.',
+      'Unidad': 'El grupo que consta en el histórico, que puede ir por detrás del de la matrícula.',
+      'Curso': 'El nivel que consta en el histórico: 1º, 2º, 3º o 4º.',
+      'Edad a 31/12': 'Los años que cumple a 31 de diciembre. Lo da Séneca.',
+      'Repite el curso actual': 'SÍ cuando el mismo curso aparece en dos años de matrícula distintos.',
+      'Repeticiones en ESO': 'Cuántos cursos ha repetido en la ESO en este centro.',
+      'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la fuente que diga la columna de al lado.',
+      'Fuente Primaria': 'De dónde sale ese número: EXPEDIENTE, 1ºESO o EDAD, de más a menos fiable.',
+      'Fecha de nacimiento': 'La fecha de nacimiento. Se usa para deshacer empates en el censo NEAE, que solo trae las iniciales del alumno.',
+      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 1º (2022, 2023).'
+    },
     cols: {
       'Alumno/a': [210, 'I'], 'Nº Id. Escolar': [85, 'C'], 'Unidad': [65, 'C'],
       'Curso': [50, 'C'], 'Edad a 31/12': [60, 'C'], 'Repite el curso actual': [65, 'C'],
@@ -80,6 +93,38 @@ const FORMATO_HOJAS = {
     cabecera: 2, congelar: 2,
     manuales: ['Rep. Primaria (corregido)', 'Motivo de la corrección', 'Observaciones'],
     noProteger: ['NEAE', 'MEDIDAS Y RECURSOS'],
+    notas: {
+      'Alumno/a': 'Nombre tal y como lo escribe Séneca: primero los apellidos, luego el nombre, separados por una coma.\n\nEs la forma que tiene el programa de reconocer al mismo alumno en los distintos ficheros. Como los CSV de Séneca no traen número de alumno, el cruce se hace por el nombre MÁS el curso. Si dos alumnos se llaman igual, sale un aviso.',
+      'Unidad': 'Grupo en el que Séneca tiene matriculado al alumno, por ejemplo 2º ESO C.\n\nSi está vacía, el alumno no saldrá en ningún informe de grupo. Esos casos van en rojo y en la pestaña AVISOS.',
+      'Curso': 'El nivel: 1º, 2º, 3º o 4º. Se saca de la Unidad.\n\nAdemás del nivel, sirve para distinguir a dos alumnos que se llamen igual.',
+      'Repite el curso actual': 'SÍ cuando el alumno ya estuvo matriculado antes en este mismo curso.\n\nSale del histórico de matrículas de Séneca (RegAlum.csv), que trae una línea por alumno y año. Si el mismo curso aparece en dos años distintos, es que lo repite.\n\nOjo: solo se ven las matrículas de este centro.',
+      'Diversificación': 'SÍ = Séneca lo confirma.\nSÍ (solo Jefatura) = lo dice el fichero de Jefatura, pero Séneca todavía no.\nNO = no está en diversificación.\n\nSéneca lo refleja matriculando al alumno en las materias de Ámbito. En 4º, además, en Matemáticas = ÁMB.',
+      'OPT': 'La optativa que cursa. Códigos: OyD (Oratoria y Debate), CyR (Computación y Robótica), MTGE (Music, theatre and games), PEPA (Proyecto de Plástica), LAB (Laboratorio de Física y Química), CC (Cultura Clásica), MUS (Música), FR (Francés).\n\nLos alumnos de diversificación de 3º llevan dos, separadas por una barra: la suya y Música.\n\nEn 4º esta columna va vacía: sus opciones están en OPC1 a OPC4.',
+      'FR -> ALCT': 'Solo en 1º. Dice qué cursa el alumno de las dos opciones que hay:\n\nFR = Francés, Segundo Idioma.\nALCT = Área Lingüística de carácter transversal, que es la alternativa de quien está exento de francés.\n\nNo puede estar vacía. Si lo está, es que en Séneca no está matriculado en ninguna de las dos, y sale un aviso.',
+      'MAT': 'Solo en 4º. Qué matemáticas cursa: MatA, MatB, o ÁMB si va por diversificación (Ámbito Científico-Tecnológico).',
+      'OPC1': 'Solo en 4º. Primera opción: ECO (Economía), TEC (Tecnología) o BYG (Biología y Geología).\n\nLos alumnos de diversificación no cursan esta columna.',
+      'OPC2': 'Solo en 4º. Segunda opción: FOPP (Formación y Orientación Personal y Profesional), FQ (Física y Química) o LAT (Latín).\n\nLos alumnos de diversificación no cursan esta columna.',
+      'OPC3': 'Solo en 4º. Tercera opción: DIG (Digitalización), EA (Expresión Artística) o FR (Francés).',
+      'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
+      'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
+      'Nº pendientes': 'Cuántas asignaturas arrastra de cursos anteriores.\n\nNo cuenta las materias que suspendió el año pasado y está repitiendo: esas van en MAT NO SUP.',
+      'Asignaturas pendientes': 'Las materias que el alumno arrastra de cursos anteriores mientras hace el siguiente. Formato: 2: BYG 1º, GEH 1º.\n\nEn 2º, 3º y 4º salen de las columnas PEND de los CSV de matrícula de Séneca.\n\nEn 1º son las que suspendió en 6º de Primaria, y salen de su expediente de Primaria. Mientras ese expediente no esté descargado, aquí pone ? y la casilla va en ámbar.\n\nUn alumno que repite 1º no arrastra nada de Primaria: su casilla va vacía a propósito.',
+      'Edad a 31/12': 'Los años que cumple el alumno a 31 de diciembre de este curso. Lo da Séneca en el histórico.\n\nSe usa para estimar las repeticiones de Primaria cuando no hay una fuente mejor. Edad que corresponde a cada curso sin repetir: 1º = 12, 2º = 13, 3º = 14, 4º = 15.',
+      'MAT NO SUP.': 'Materias que el alumno suspendió el curso pasado y está volviendo a cursar porque repite. Formato: 5 de 2º: FYQ, GEH, LCL, MAT, FRA2.\n\nSalen de las hojas de notas del curso anterior (cuaderno PROPUESTA MATRÍCULA), y solo de las columnas del propio curso.\n\nNo confundir con Asignaturas pendientes, que son de cursos anteriores. Un mismo código puede salir en las dos columnas: es la misma materia, de años distintos.\n\nUn ? quiere decir que el alumno repite pero no aparece en la hoja de notas.',
+      'Repeticiones en ESO': 'Cuántas veces ha repetido en la ESO, contando también el curso que está repitiendo ahora.\n\nSale del histórico de matrículas de este centro. Si repitió en otro instituto antes de llegar aquí, no aparece.',
+      'Cursos repetidos en ESO': 'Qué cursos ha repetido y en qué años. Formato: 1º (2022, 2023).\n\nEs el detalle de la columna anterior. Sale del histórico de matrículas de este centro.',
+      'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la mejor fuente que haya. La columna Fuente Primaria dice cuál es y cuánto fiarse.\n\nSi el número no es correcto, no se corrige aquí: se escribe el bueno en Rep. Primaria (corregido), que es amarilla.',
+      'Cursos repetidos en Primaria': 'Qué cursos de Primaria repitió.\n\nSolo se sabe de los alumnos de 1º que tienen su expediente de Primaria descargado. Casilla vacía = no repitió ninguno. Un ? = repitió, pero no tenemos el expediente que diga cuál. En 2º, 3º y 4º lo normal es el ?.',
+      'Fuente Primaria': 'De dónde sale el número de repeticiones de Primaria. De más a menos fiable:\n\nEXPEDIENTE = lo dice el expediente de Primaria del alumno. Es seguro, y es el único que dice qué curso repitió. Solo en 1º.\n\n1ºESO = la edad que tenía al matricularse en 1º de ESO en este centro, menos 12. Fiable.\n\nEDAD = estimación: edad de ahora, menos la edad que le tocaría por curso, menos las repeticiones de ESO. Hay que revisarla a mano, y por eso sale en ámbar. Un alumno mayor por otro motivo (llegó tarde al sistema educativo español, estudió fuera) suma una repetición que no existe.',
+      'Rep. Primaria (corregido)': 'AQUÍ ESCRIBES TÚ. Si sabes que el número calculado no es correcto, pon aquí el bueno.\n\nEl programa no toca nunca esta columna, y el número que pongas manda sobre el calculado para las repeticiones totales y para el PIL.',
+      'Motivo de la corrección': 'AQUÍ ESCRIBES TÚ. Por qué has corregido el número: por ejemplo, se incorporó al sistema educativo español en 4º de Primaria.\n\nSirve para que dentro de un año se entienda la corrección.',
+      'Repeticiones totales': 'Repeticiones de Primaria más repeticiones en ESO.\n\nSi has escrito algo en Rep. Primaria (corregido), se usa ese número en vez del calculado.\n\nDe este número dependen las dos columnas de PIL, así que conviene mirarlo cuando un PIL no cuadre.',
+      'PIL': 'No puede repetir ESTE curso otra vez. Si suspende, promociona por imperativo legal.\n\nSÍ cuando se cumple una de las dos: ya está repitiendo el curso en el que está, o tiene 2 o más repeticiones totales.\n\nEs la que sale en el informe de papel, y la que le interesa al tutor.',
+      'PIL (etapa)': 'Ha agotado las DOS permanencias de toda la enseñanza obligatoria (Primaria y ESO juntas). No puede repetir ningún curso más.\n\nSÍ cuando las repeticiones totales son 2 o más.\n\nLa diferencia con la columna PIL son los alumnos que están repitiendo ahora y es su primera repetición: esos son PIL este curso, pero todavía les queda una permanencia para más adelante.\n\nNo sale en el papel: es para hablar con el equipo directivo.',
+      'NEAE': 'Necesidades específicas de apoyo educativo, abreviadas. Sale del censo NEAE de Séneca (RegAluNEE.csv).\n\nCategorías: NEE (necesidades educativas especiales), DIA (dificultades de aprendizaje), AACC (altas capacidades), COM (compensación educativa). Detrás van hasta dos detalles, y un +2 si hay más.\n\nCasilla vacía = ese alumno no tiene NEAE, siempre que el censo descargado incluya su curso. Si el censo no trae su curso, sale un aviso.',
+      'MEDIDAS Y RECURSOS': 'Lo que recibe el alumno, según el censo NEAE de Séneca. Formato: las medidas, una barra, y el profesorado o personal de apoyo. Por ejemplo: ACS, PE, PRA / PT, AL.\n\nLas siglas se explican en la leyenda de cada informe de grupo, que se genera sola con las siglas que aparecen en ese grupo.',
+      'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
+    },
     cols: {
       'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'],
       'Repite el curso actual': [65, 'C'], 'Diversificación': [95, 'C'],
@@ -99,6 +144,26 @@ const FORMATO_HOJAS = {
 
   'JEFATURA': {
     cabecera: 2, congelar: 2, manuales: [], noProteger: [],
+    notas: {
+      'Alumno/a': 'Nombre tal y como lo escribe Jefatura de Estudios en su cuaderno AGRUPAMIENTOS.',
+      'Unidad': 'El grupo en el que Jefatura quiere que esté el alumno. Sale del nombre de la pestaña de su cuaderno.',
+      'Curso': 'El nivel: 1º, 2º, 3º o 4º.',
+      'Grupo de origen': 'De dónde viene el alumno, según Jefatura.',
+      'REL/Atedu': 'Religión o atención educativa, con los códigos ya traducidos a los nuestros.',
+      'OPT': 'La optativa que quiere Jefatura. En los alumnos de diversificación de 3º van las dos, separadas por una barra: la suya y Música.',
+      'OPT 2 (DIV)': 'La segunda optativa de los alumnos de diversificación de 3º, tal como viene en la columna aparte del cuaderno de Jefatura.',
+      'MAT': 'Matemáticas A o B, en 4º.',
+      'OPC1': 'Primera opción de 4º, con el código ya traducido al nuestro.',
+      'OPC2': 'Segunda opción de 4º.',
+      'OPC3': 'Tercera opción de 4º.',
+      'OPC4': 'Cuarta opción de 4º.',
+      'FR -> ALCT': 'En 1º: ALCT si Jefatura lo marca como exento de francés, y FR si no.',
+      'Repite': 'SÍ si Jefatura lo ha marcado como repetidor en su cuaderno.',
+      'PIL': 'SÍ si Jefatura lo ha marcado como PIL en su cuaderno. Es su anotación, no el cálculo del programa.',
+      'Conflictivo': 'SÍ si Jefatura lo ha marcado así en su cuaderno.',
+      'NEAE': 'NEAE si Jefatura lo ha marcado así en su cuaderno. Es su anotación, no el censo de Séneca.',
+      'Diversificación': 'SÍ si Jefatura escribe DIV o DIVER en la fila del alumno. Se mira el texto, no el color de la celda: el amarillo significa otra cosa en 1º.'
+    },
     cols: {
       'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'],
       'Grupo de origen': [110, 'W'], 'REL/Atedu': [65, 'C'], 'OPT': [60, 'C'],
@@ -112,6 +177,16 @@ const FORMATO_HOJAS = {
   'DISCREPANCIAS': {
     cabecera: 2, congelar: 3, manuales: ['Estado', 'Observaciones'], noProteger: [],
     estado: { columna: 'Estado', opciones: ['Corregido en Séneca', 'No procede'] },
+    notas: {
+      'Curso': 'El nivel del alumno. Las filas van ordenadas por curso y por alumno, para que todo lo de una misma persona salga junto.',
+      'Grupo': 'El grupo en el que Jefatura quiere al alumno.',
+      'Alumno/a': 'El alumno al que se refiere la diferencia.',
+      'Qué no cuadra': 'En qué no coinciden Séneca y el fichero de Jefatura. Puede ser el grupo, el curso, la diversificación, la religión, una optativa, la exención de francés, o que el alumno esté en un sitio y no en el otro.',
+      'Séneca dice': 'Lo que hay hoy en Séneca, que es el registro oficial.',
+      'Jefatura quiere': 'Lo que dice el cuaderno de Jefatura de Estudios, que es la organización que ha decidido el centro.',
+      'Estado': 'AQUÍ ESCRIBES TÚ. Elige del desplegable cuando lo hayas resuelto.\n\nDejarlo en blanco quiere decir que sigue pendiente, y es lo que cuentan el panel y la portada del PDF. Por eso el desplegable no tiene ninguna opción que signifique pendiente.',
+      'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar. No se pierde al actualizar.'
+    },
     cols: {
       'Curso': [50, 'C'], 'Grupo': [65, 'C'], 'Alumno/a': [200, 'I'],
       'Qué no cuadra': [190, 'W'], 'Séneca dice': [115, 'W'],
@@ -121,6 +196,17 @@ const FORMATO_HOJAS = {
 
   'NEAE': {
     cabecera: 2, congelar: 2, manuales: [], noProteger: [],
+    notas: {
+      'Alumno/a': 'El alumno al que se ha asignado esta ficha del censo. El fichero de Séneca no trae el nombre: hay que averiguarlo.',
+      'Unidad': 'Su grupo, sacado de la tabla ALUMNADO.',
+      'Curso': 'El nivel que trae la ficha del censo.',
+      'Iniciales': 'Lo único que trae el fichero de Séneca para identificar al alumno. Son la inicial del nombre y las de los apellidos, contando solo las palabras que empiezan por mayúscula.',
+      'Fecha de nacimiento': 'La que trae la ficha. Sirve para deshacer empates cuando dos alumnos del mismo curso tienen las mismas iniciales.',
+      'NEAE': 'La categoría y hasta dos detalles, abreviados.',
+      'MEDIDAS Y RECURSOS': 'Las medidas, una barra, y el profesorado o personal de apoyo.',
+      'Cómo se ha localizado': 'Con qué datos se ha sabido de quién es la ficha: por iniciales y curso, o además por la fecha de nacimiento. Sirve para comprobar que el reparto es correcto.',
+      'Texto original de Séneca': 'Lo que pone el fichero, palabra por palabra, antes de abreviarlo. Si algo está mal abreviado, se ve aquí.'
+    },
     cols: {
       'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'],
       'Iniciales': [70, 'C'], 'Fecha de nacimiento': [95, 'C'],
@@ -131,6 +217,18 @@ const FORMATO_HOJAS = {
 
   'PRIMARIA': {
     cabecera: 2, congelar: 2, manuales: [], noProteger: [],
+    notas: {
+      'Alumno/a': 'El alumno, sacado del NOMBRE DEL FICHERO del expediente. Dentro del fichero no viene. Si el nombre del fichero no coincide con ninguno de la tabla, sale en rojo y en AVISOS.',
+      'Unidad': 'Su grupo, sacado de la tabla ALUMNADO.',
+      'Año de 6º': 'El año académico en el que cursó 6º de Primaria. Si repitió 6º, el más reciente.',
+      'Nº pendientes': 'Cuántas materias suspendió en 6º de Primaria.',
+      'Pendientes de 6º': 'Las materias del propio 6º con nota menor que 5. Son las que pasan a la columna Asignaturas pendientes de ALUMNADO y al informe de papel.',
+      'Arrastraba de antes': 'Materias que el alumno ya traía suspensas de cursos anteriores de Primaria. NO se llevan al informe: en algunos alumnos son diez o más y no caben en el folio.',
+      'Rep. Primaria (expediente)': 'Cuántos cursos de Primaria repitió, según su expediente. Solo se da por bueno si el expediente trae los seis cursos.',
+      'Cursos repetidos': 'Qué cursos de Primaria repitió. Un curso que aparece en dos años académicos distintos es un curso repetido.',
+      'Centro de 6º': 'El colegio donde cursó 6º.',
+      'Fichero': 'El nombre del fichero CSV del que sale todo esto, para poder volver a él.'
+    },
     cols: {
       'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Año de 6º': [65, 'C'],
       'Nº pendientes': [55, 'C'], 'Pendientes de 6º': [200, 'W'],
@@ -144,6 +242,15 @@ const FORMATO_HOJAS = {
   'AVISOS': {
     cabecera: 1, congelar: 3, manuales: ['Estado', 'Observaciones'], noProteger: [],
     estado: { columna: 'Estado', opciones: ['Revisado', 'Corregido', 'No procede'] },
+    notas: {
+      'Curso': 'El nivel del alumno al que se refiere el aviso, si lo hay.',
+      'Grupo': 'Su grupo, si lo hay.',
+      'Alumno/a': 'El alumno al que se refiere el aviso. Hay avisos que no son de ningún alumno concreto y llevan esta casilla vacía.',
+      'Aviso': 'Qué es lo que no cuadra al construir la base de datos.',
+      'Detalle': 'La explicación completa, con los datos concretos.',
+      'Estado': 'AQUÍ ESCRIBES TÚ. Elige del desplegable cuando lo hayas mirado. Dejarlo en blanco quiere decir que sigue pendiente.',
+      'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar. No se pierde al actualizar.'
+    },
     cols: {
       'Curso': [50, 'C'], 'Grupo': [65, 'C'], 'Alumno/a': [200, 'I'],
       'Aviso': [200, 'W'], 'Detalle': [380, 'W'],
@@ -158,6 +265,14 @@ const FORMATO_HOJAS = {
   'AVISOS INFORMES': {
     cabecera: 2, congelar: 2, manuales: ['Estado', 'Observaciones'], noProteger: [],
     estado: { columna: 'Estado', opciones: ['Revisado', 'Corregido', 'No procede'] },
+    notas: {
+      'Grupo': 'El grupo al que se refiere el aviso.',
+      'Pestaña': 'La pestaña del cuaderno de informes donde ha pasado.',
+      'Aviso': 'Qué es lo que no cuadra al rellenar los listados por unidad o al sacar los PDF.',
+      'Detalle': 'La explicación completa, con los datos concretos.',
+      'Estado': 'AQUÍ ESCRIBES TÚ. Elige del desplegable cuando lo hayas mirado. Dejarlo en blanco quiere decir que sigue pendiente.',
+      'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar. No se pierde al actualizar.'
+    },
     cols: {
       'Grupo': [70, 'C'], 'Pestaña': [80, 'C'],
       'Aviso': [220, 'W'], 'Detalle': [340, 'W'],
@@ -416,11 +531,18 @@ function formatearHoja_(nombre) {
   const titulos = hoja.getRange(filaCab, 1, 1, ancho).getValues()[0];
   const nDatos = ultimaFila - filaCab;
 
+  /* La explicación de cada columna va como nota de la celda del título. Se
+     ponen todas de una vez al terminar el recorrido, que es mucho más rápido
+     que casilla por casilla. Una columna sin explicación recibe nota vacía,
+     así se borra la que hubiera de una versión anterior. */
+  const notasFila = [];
+
   for (let c = 0; c < ancho; c++) {
     const titulo = String(titulos[c] === null || titulos[c] === undefined
                           ? '' : titulos[c]).trim();
     const conf = def.cols[titulo] || [ANCHO_DEFECTO, 'C'];
     hoja.setColumnWidth(c + 1, conf[0]);
+    notasFila.push(def.notas && def.notas[titulo] ? def.notas[titulo] : '');
     if (nDatos <= 0) continue;
 
     const rango = hoja.getRange(filaCab + 1, c + 1, nDatos, 1);
@@ -433,6 +555,8 @@ function formatearHoja_(nombre) {
     }
     rango.setVerticalAlignment('top');
   }
+
+  hoja.getRange(filaCab, 1, 1, ancho).setNotes([notasFila]);
 
   /* 3. La cabecera: centrada, con ajuste de texto y sitio para tres líneas.
         Hay títulos largos, como "Cursos repetidos en Primaria". */

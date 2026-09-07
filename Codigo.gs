@@ -359,6 +359,18 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
   for (let i = 0; i < historial.length; i++) {
     hist[normalizar(historial[i][0]) + '|' + historial[i][3]] = historial[i];
   }
+
+  /* Respaldo por nombre suelto. Sirve para cuando el histórico está descargado
+     de antes que la matrícula y el alumno todavía figura en el curso anterior:
+     sin esto se quedaría sin edad, sin repeticiones y sin PIL. Solo se usa
+     cuando no hay ninguna duda, es decir cuando ese nombre es único. */
+  const histPorNombre = {};
+  for (let i = 0; i < historial.length; i++) {
+    const nomH = normalizar(historial[i][0]);
+    if (!histPorNombre[nomH]) histPorNombre[nomH] = [];
+    histPorNombre[nomH].push(historial[i]);
+  }
+  const enOtroCurso = [];
   const jef = jefatura || {};
   const censo = neae || {};
   const prim = primaria || {};
@@ -390,7 +402,11 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const v = a.valores;
     const clave = normalizar(a.nombre) + '|' + a.curso;
     const soloNombre = normalizar(a.nombre);
-    const h = hist[clave];
+    let h = hist[clave];
+    if (!h && histPorNombre[soloNombre] && histPorNombre[soloNombre].length === 1) {
+      h = histPorNombre[soloNombre][0];
+      enOtroCurso.push(a.nombre + ' (' + a.curso + ')');
+    }
     const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', pil = '', mns = '';
@@ -488,6 +504,13 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       (censo[clave] && censo[clave].neae) || man[2] || '',
       (censo[clave] && censo[clave].medidas) || man[3] || '',
       man[4] || '']);
+  }
+  if (enOtroCurso.length) {
+    avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'El histórico va por detrás de la matrícula',
+      detalle: enOtroCurso.length + ' alumnos figuran en RegAlum.csv en un curso distinto del que ' +
+        'tienen matriculado ahora. He usado su fila del histórico igualmente. Si son muchos, ' +
+        'vuelve a descargar RegAlum.csv de Séneca. Por ejemplo: ' + enOtroCurso.slice(0, 5).join('; ') });
   }
   return { filas: filas, avisos: avisos };
 }
@@ -775,8 +798,10 @@ function construirAlumnado() {
     if (iguales.length < 2) continue;
     const donde = iguales.map(function (f) { return f[iUniA] || '(sin unidad)'; });
     let mismoCurso = false;
-    for (let a = 1; a < iguales.length; a++) {
-      if (iguales[a][iCurA] === iguales[0][iCurA]) mismoCurso = true;
+    for (let a = 0; a < iguales.length; a++) {
+      for (let b = a + 1; b < iguales.length; b++) {
+        if (iguales[a][iCurA] === iguales[b][iCurA]) mismoCurso = true;
+      }
     }
     avisos.push({ curso: iguales[0][iCurA], grupo: '', alumno: iguales[0][iNomA],
       aviso: 'Dos alumnos con el mismo nombre',

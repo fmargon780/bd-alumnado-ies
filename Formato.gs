@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya, más
    antigua; mientras esta exista, manda esta. */
-const VERSION_BD = 'BD v25';
+const VERSION_BD = 'BD v26';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;

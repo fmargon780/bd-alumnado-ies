@@ -558,7 +558,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
           detalle: 'Matrícula: ' + a.unidad + ' / Histórico: ' + h[2] });
       }
     }
-
     if (!a.unidad) {
       avisos.push({ curso: a.curso, grupo: '', alumno: a.nombre, aviso: 'Sin unidad asignada',
         detalle: 'No aparecerá en ningún informe de grupo' });

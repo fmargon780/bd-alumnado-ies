@@ -367,7 +367,9 @@ function cruzarNeae_(registros, historial, iNombre, iCurso, iFecha) {
                  '. No hay nadie con esas iniciales en ese curso. Puede que ya no esté matriculado.' });
     }
     if (!elegido) continue;
-    const clave = normalizar(elegido.nombre);
+    /* La clave lleva el curso, como todos los cruces del sistema: dos alumnos
+       distintos pueden llamarse igual, y la ficha NEAE es de uno solo. */
+    const clave = normalizar(elegido.nombre) + '|' + r.curso;
     if (salida[clave]) {
       avisos.push({ curso: r.curso, grupo: '', alumno: elegido.nombre,
         aviso: 'Censo NEAE: dos fichas para el mismo alumno',

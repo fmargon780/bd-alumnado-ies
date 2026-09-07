@@ -876,17 +876,47 @@ function construirAlumnado() {
   }
 
   const porCurso = {}, avisos = [], resumen = [];
+  const ficherosSinMaterias = [];
   for (let i = 0; i < cursos.length; i++) {
     const curso = cursos[i];
     const r = leerMatricula(textoATabla(textoDeArchivo(ficheros[curso])), curso);
     porCurso[curso] = r.alumnos;
     resumen.push(curso + ' ESO: ' + r.alumnos.length + ' alumnos (' + ficheros[curso].getName() + ')');
+
+    /* Cuántas asignaturas esperábamos encontrar en el CSV de este curso, y
+       cuántas hemos encontrado de verdad. */
+    let esperadas = 0;
+    const reglasCurso = REGLAS[curso] || [];
+    for (let k = 0; k < reglasCurso.length; k++) {
+      esperadas += Object.keys(reglasCurso[k].codigos).length;
+    }
+    if (esperadas > 0 && r.faltan.length >= esperadas) {
+      ficherosSinMaterias.push(curso + ' ESO (' + ficheros[curso].getName() + ')');
+    }
+
     r.faltan.forEach(function (t) {
       avisos.push({ curso: curso, grupo: '', alumno: '', aviso: 'Asignatura no encontrada en el CSV', detalle: t });
     });
     r.dobles.forEach(function (t) {
       avisos.push({ curso: curso, grupo: '', alumno: '', aviso: 'Dos opciones a la vez', detalle: t });
     });
+  }
+
+  /* PARADA DE SEGURIDAD. Si en el CSV de un curso no aparece NINGUNA de sus
+     asignaturas, ese fichero no es el informe de matrícula: es otro listado de
+     Séneca con el mismo nombre. Si siguiéramos, la tabla ALUMNADO se quedaría
+     sin optativas, sin religión y sin matemáticas, y la comparación con
+     Jefatura sacaría miles de diferencias falsas. Pasó el 7-sep-2026.
+     Mejor no actualizar nada y decir qué fichero hay que volver a descargar. */
+  if (ficherosSinMaterias.length) {
+    avisar_('No he actualizado nada: falta información en los ficheros de matrícula',
+      'Estos ficheros no traen las asignaturas:\n\n' + ficherosSinMaterias.join('\n') +
+      '\n\nTienen el nombre correcto, pero dentro solo llevan el alumno y su unidad. ' +
+      'Son otro listado de Séneca, no el informe de matrícula.\n\n' +
+      'Vuelve a descargar de Séneca el informe de matrícula que trae UNA COLUMNA POR ASIGNATURA, ' +
+      'déjalo en la carpeta con el mismo nombre, y pulsa otra vez "Actualizar los datos".\n\n' +
+      'No he tocado la base de datos: sigue como estaba.');
+    return;
   }
 
   const notas = {};

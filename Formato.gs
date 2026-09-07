@@ -508,8 +508,10 @@ function claveAvisoLarga_(fila) {
          '|' + normalizar(fila[3]) + '|' + normalizar(fila[4]);
 }
 
+/* Lleva el curso delante porque dos alumnos distintos pueden llamarse igual y
+   sus anotaciones no se pueden mezclar. */
 function claveAvisoCorta_(fila) {
-  return normalizar(fila[2]) + '|' + normalizar(fila[3]);
+  return normalizar(fila[0]) + '|' + normalizar(fila[2]) + '|' + normalizar(fila[3]);
 }
 
 /* Se llama ANTES de reconstruir la pestaña. Devuelve un mapa de anotaciones. */

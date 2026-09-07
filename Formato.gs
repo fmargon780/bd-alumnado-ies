@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v29';
+const VERSION_BD = 'BD v30';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -97,20 +97,8 @@ const FORMATO_HOJAS = {
       'Alumno/a': 'Nombre tal y como lo escribe Séneca: primero los apellidos, luego el nombre, separados por una coma.\n\nEs la forma que tiene el programa de reconocer al mismo alumno en los distintos ficheros. Como los CSV de Séneca no traen número de alumno, el cruce se hace por el nombre MÁS el curso. Si dos alumnos se llaman igual, sale un aviso.',
       'Unidad': 'Grupo en el que Séneca tiene matriculado al alumno, por ejemplo 2º ESO C.\n\nSi está vacía, el alumno no saldrá en ningún informe de grupo. Esos casos van en rojo y en la pestaña AVISOS.',
       'Curso': 'El nivel: 1º, 2º, 3º o 4º. Se saca de la Unidad.\n\nAdemás del nivel, sirve para distinguir a dos alumnos que se llamen igual.',
-      'Repite el curso actual': 'SÍ cuando el alumno ya estuvo matriculado antes en este mismo curso.\n\nSale del histórico de matrículas de Séneca (RegAlum.csv), que trae una línea por alumno y año. Si el mismo curso aparece en dos años distintos, es que lo repite.\n\nOjo: solo se ven las matrículas de este centro.',
-      'Diversificación': 'SÍ = Séneca lo confirma.\nSÍ (solo Jefatura) = lo dice el fichero de Jefatura, pero Séneca todavía no.\nNO = no está en diversificación.\n\nSéneca lo refleja matriculando al alumno en las materias de Ámbito. En 4º, además, en Matemáticas = ÁMB.',
-      'OPT': 'La optativa que cursa. Códigos: OyD (Oratoria y Debate), CyR (Computación y Robótica), MTGE (Music, theatre and games), PEPA (Proyecto de Plástica), LAB (Laboratorio de Física y Química), CC (Cultura Clásica), MUS (Música), FR (Francés).\n\nLos alumnos de diversificación de 3º llevan dos, separadas por una barra: la suya y Música.\n\nEn 4º esta columna va vacía: sus opciones están en OPC1 a OPC4.',
-      'FR -> ALCT': 'Solo en 1º. Dice qué cursa el alumno de las dos opciones que hay:\n\nFR = Francés, Segundo Idioma.\nALCT = Área Lingüística de carácter transversal, que es la alternativa de quien está exento de francés.\n\nNo puede estar vacía. Si lo está, es que en Séneca no está matriculado en ninguna de las dos, y sale un aviso.',
-      'MAT': 'Solo en 4º. Qué matemáticas cursa: MatA, MatB, o ÁMB si va por diversificación (Ámbito Científico-Tecnológico).',
-      'OPC1': 'Solo en 4º. Primera opción: ECO (Economía), TEC (Tecnología) o BYG (Biología y Geología).\n\nLos alumnos de diversificación no cursan esta columna.',
-      'OPC2': 'Solo en 4º. Segunda opción: FOPP (Formación y Orientación Personal y Profesional), FQ (Física y Química) o LAT (Latín).\n\nLos alumnos de diversificación no cursan esta columna.',
-      'OPC3': 'Solo en 4º. Tercera opción: DIG (Digitalización), EA (Expresión Artística) o FR (Francés).',
-      'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
-      'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
-      'Nº pendientes': 'Cuántas asignaturas arrastra de cursos anteriores.\n\nNo cuenta las materias que suspendió el año pasado y está repitiendo: esas van en MAT NO SUP.',
-      'Asignaturas pendientes': 'Las materias que el alumno arrastra de cursos anteriores mientras hace el siguiente. Formato: 2: BYG 1º, GEH 1º.\n\nEn 2º, 3º y 4º salen de las columnas PEND de los CSV de matrícula de Séneca.\n\nEn 1º son las que suspendió en 6º de Primaria, y salen de su expediente de Primaria. Mientras ese expediente no esté descargado, aquí pone ? y la casilla va en ámbar.\n\nUn alumno que repite 1º no arrastra nada de Primaria: su casilla va vacía a propósito.',
       'Edad a 31/12': 'Los años que cumple el alumno a 31 de diciembre de este curso. Lo da Séneca en el histórico.\n\nSe usa para estimar las repeticiones de Primaria cuando no hay una fuente mejor. Edad que corresponde a cada curso sin repetir: 1º = 12, 2º = 13, 3º = 14, 4º = 15.',
-      'MAT NO SUP.': 'Materias que el alumno suspendió el curso pasado y está volviendo a cursar porque repite. Formato: 5 de 2º: FYQ, GEH, LCL, MAT, FRA2.\n\nSalen de las hojas de notas del curso anterior (cuaderno PROPUESTA MATRÍCULA), y solo de las columnas del propio curso.\n\nNo confundir con Asignaturas pendientes, que son de cursos anteriores. Un mismo código puede salir en las dos columnas: es la misma materia, de años distintos.\n\nUn ? quiere decir que el alumno repite pero no aparece en la hoja de notas.',
+      'Repite el curso actual': 'SÍ cuando el alumno ya estuvo matriculado antes en este mismo curso.\n\nSale del histórico de matrículas de Séneca (RegAlum.csv), que trae una línea por alumno y año. Si el mismo curso aparece en dos años distintos, es que lo repite.\n\nOjo: solo se ven las matrículas de este centro.',
       'Repeticiones en ESO': 'Cuántas veces ha repetido en la ESO, contando también el curso que está repitiendo ahora.\n\nSale del histórico de matrículas de este centro. Si repitió en otro instituto antes de llegar aquí, no aparece.',
       'Cursos repetidos en ESO': 'Qué cursos ha repetido y en qué años. Formato: 1º (2022, 2023).\n\nEs el detalle de la columna anterior. Sale del histórico de matrículas de este centro.',
       'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la mejor fuente que haya. La columna Fuente Primaria dice cuál es y cuánto fiarse.\n\nSi el número no es correcto, no se corrige aquí: se escribe el bueno en Rep. Primaria (corregido), que es amarilla.',
@@ -121,24 +109,34 @@ const FORMATO_HOJAS = {
       'Repeticiones totales': 'Repeticiones de Primaria más repeticiones en ESO.\n\nSi has escrito algo en Rep. Primaria (corregido), se usa ese número en vez del calculado.\n\nDe este número dependen las dos columnas de PIL, así que conviene mirarlo cuando un PIL no cuadre.',
       'PIL': 'No puede repetir ESTE curso otra vez. Si suspende, promociona por imperativo legal.\n\nSÍ cuando se cumple una de las dos: ya está repitiendo el curso en el que está, o tiene 2 o más repeticiones totales.\n\nEs la que sale en el informe de papel, y la que le interesa al tutor.',
       'PIL (etapa)': 'Ha agotado las DOS permanencias de toda la enseñanza obligatoria (Primaria y ESO juntas). No puede repetir ningún curso más.\n\nSÍ cuando las repeticiones totales son 2 o más.\n\nLa diferencia con la columna PIL son los alumnos que están repitiendo ahora y es su primera repetición: esos son PIL este curso, pero todavía les queda una permanencia para más adelante.\n\nNo sale en el papel: es para hablar con el equipo directivo.',
+      'MAT NO SUP.': 'Materias que el alumno suspendió el curso pasado y está volviendo a cursar porque repite. Formato: 5 de 2º: FYQ, GEH, LCL, MAT, FRA2.\n\nSalen de las hojas de notas del curso anterior (cuaderno PROPUESTA MATRÍCULA), y solo de las columnas del propio curso.\n\nNo confundir con Asignaturas pendientes, que son de cursos anteriores. Un mismo código puede salir en las dos columnas: es la misma materia, de años distintos.\n\nUn ? quiere decir que el alumno repite pero no aparece en la hoja de notas.',
+      'Nº pendientes': 'Cuántas asignaturas arrastra de cursos anteriores.\n\nNo cuenta las materias que suspendió el año pasado y está repitiendo: esas van en MAT NO SUP.',
+      'Asignaturas pendientes': 'Las materias que el alumno arrastra de cursos anteriores mientras hace el siguiente. Formato: 2: BYG 1º, GEH 1º.\n\nEn 2º, 3º y 4º salen de las columnas PEND de los CSV de matrícula de Séneca.\n\nEn 1º son las que suspendió en 6º de Primaria, y salen de su expediente de Primaria. Mientras ese expediente no esté descargado, aquí pone ? y la casilla va en ámbar.\n\nUn alumno que repite 1º no arrastra nada de Primaria: su casilla va vacía a propósito.',
+      'Diversificación': 'SÍ = Séneca lo confirma.\nSÍ (solo Jefatura) = lo dice el fichero de Jefatura, pero Séneca todavía no.\nNO = no está en diversificación.\n\nSéneca lo refleja matriculando al alumno en las materias de Ámbito. En 4º, además, en Matemáticas = ÁMB.',
       'NEAE': 'Necesidades específicas de apoyo educativo, abreviadas. Sale del censo NEAE de Séneca (RegAluNEE.csv).\n\nCategorías: NEE (necesidades educativas especiales), DIA (dificultades de aprendizaje), AACC (altas capacidades), COM (compensación educativa). Detrás van hasta dos detalles, y un +2 si hay más.\n\nCasilla vacía = ese alumno no tiene NEAE, siempre que el censo descargado incluya su curso. Si el censo no trae su curso, sale un aviso.',
       'MEDIDAS Y RECURSOS': 'Lo que recibe el alumno, según el censo NEAE de Séneca. Formato: las medidas, una barra, y el profesorado o personal de apoyo. Por ejemplo: ACS, PE, PRA / PT, AL.\n\nLas siglas se explican en la leyenda de cada informe de grupo, que se genera sola con las siglas que aparecen en ese grupo.',
+      'OPT': 'La optativa que cursa. Códigos: OyD (Oratoria y Debate), CyR (Computación y Robótica), MTGE (Music, theatre and games), PEPA (Proyecto de Plástica), LAB (Laboratorio de Física y Química), CC (Cultura Clásica), MUS (Música), FR (Francés).\n\nLos alumnos de diversificación de 3º llevan dos, separadas por una barra: la suya y Música.\n\nEn 4º esta columna va vacía: sus opciones están en OPC1 a OPC4.',
+      'FR -> ALCT': 'Solo en 1º. Dice qué cursa el alumno de las dos opciones que hay:\n\nFR = Francés, Segundo Idioma.\nALCT = Área Lingüística de carácter transversal, que es la alternativa de quien está exento de francés.\n\nNo puede estar vacía. Si lo está, es que en Séneca no está matriculado en ninguna de las dos, y sale un aviso.',
+      'MAT': 'Solo en 4º. Qué matemáticas cursa: MatA, MatB, o ÁMB si va por diversificación (Ámbito Científico-Tecnológico).',
+      'OPC1': 'Solo en 4º. Primera opción: ECO (Economía), TEC (Tecnología) o BYG (Biología y Geología).\n\nLos alumnos de diversificación no cursan esta columna.',
+      'OPC2': 'Solo en 4º. Segunda opción: FOPP (Formación y Orientación Personal y Profesional), FQ (Física y Química) o LAT (Latín).\n\nLos alumnos de diversificación no cursan esta columna.',
+      'OPC3': 'Solo en 4º. Tercera opción: DIG (Digitalización), EA (Expresión Artística) o FR (Francés).',
+      'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
+      'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
     },
     cols: {
-      'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'],
-      'Repite el curso actual': [65, 'C'], 'Diversificación': [95, 'C'],
-      'OPT': [60, 'C'], 'FR -> ALCT': [60, 'C'], 'MAT': [55, 'C'],
-      'OPC1': [55, 'C'], 'OPC2': [55, 'C'], 'OPC3': [55, 'C'], 'OPC4': [55, 'C'],
-      'REL/Atedu': [65, 'C'], 'Nº pendientes': [55, 'C'],
-      'Asignaturas pendientes': [230, 'W'], 'Edad a 31/12': [60, 'C'],
-      'MAT NO SUP.': [200, 'W'], 'Repeticiones en ESO': [65, 'C'],
-      'Cursos repetidos en ESO': [140, 'W'],
-      'Rep. Primaria (calculado)': [65, 'C'],
+      'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'], 'Edad a 31/12': [60, 'C'],
+      'Repite el curso actual': [65, 'C'], 'Repeticiones en ESO': [65, 'C'],
+      'Cursos repetidos en ESO': [140, 'W'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Cursos repetidos en Primaria': [105, 'C'], 'Fuente Primaria': [90, 'C'],
       'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
       'Repeticiones totales': [65, 'C'], 'PIL': [45, 'C'], 'PIL (etapa)': [60, 'C'],
-      'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'], 'Observaciones': [200, 'W']
+      'MAT NO SUP.': [200, 'W'], 'Nº pendientes': [55, 'C'], 'Asignaturas pendientes': [230, 'W'],
+      'Diversificación': [95, 'C'], 'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'],
+      'OPT': [60, 'C'], 'FR -> ALCT': [60, 'C'], 'MAT': [55, 'C'], 'OPC1': [55, 'C'],
+      'OPC2': [55, 'C'], 'OPC3': [55, 'C'], 'OPC4': [55, 'C'], 'REL/Atedu': [65, 'C'],
+      'Observaciones': [200, 'W']
     }
   },
 

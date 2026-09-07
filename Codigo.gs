@@ -351,9 +351,13 @@ function leerNotas(valores) {
 
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
 function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae, primaria) {
+  /* Todos los cruces del sistema van por nombre Y curso. Dos alumnos distintos
+     pueden llamarse igual: si la clave fuera solo el nombre, los datos de uno se
+     aplicarían también al otro. El curso los separa. La columna 3 del historial
+     es el curso. */
   const hist = {};
   for (let i = 0; i < historial.length; i++) {
-    hist[normalizar(historial[i][0])] = historial[i];
+    hist[normalizar(historial[i][0]) + '|' + historial[i][3]] = historial[i];
   }
   const jef = jefatura || {};
   const censo = neae || {};
@@ -384,7 +388,8 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
   for (let i = 0; i < todos.length; i++) {
     const a = todos[i];
     const v = a.valores;
-    const clave = normalizar(a.nombre);
+    const clave = normalizar(a.nombre) + '|' + a.curso;
+    const soloNombre = normalizar(a.nombre);
     const h = hist[clave];
     const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
@@ -408,7 +413,9 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       pil = ((total !== '' && total >= 2) || repite === 'SÍ') ? 'SÍ' : 'NO';
       if (repite === 'SÍ') {
         const notas = notasPorCurso[a.curso];
-        const n = notas ? notas[clave] : null;
+        /* Las notas ya vienen separadas por curso (notasPorCurso), así que aquí
+           la clave es solo el nombre. */
+        const n = notas ? notas[soloNombre] : null;
         /* "5 de 2º: FYQ, GEH, LCL" : cuántas son, de qué curso, y cuáles.
            Lleva el curso para que no se confunda con las pendientes.
            Los dos puntos ocupan menos que la raya larga, y en estas columnas
@@ -720,7 +727,9 @@ function construirAlumnado() {
   /* Tercera fuente: el fichero de agrupamientos de Jefatura de Estudios. */
   const J = leerJefatura_();
   const jefPorNombre = {};
-  for (let i = 0; i < J.alumnos.length; i++) jefPorNombre[normalizar(J.alumnos[i].nombre)] = J.alumnos[i];
+  for (let i = 0; i < J.alumnos.length; i++) {
+    jefPorNombre[normalizar(J.alumnos[i].nombre) + '|' + J.alumnos[i].curso] = J.alumnos[i];
+  }
   for (let i = 0; i < J.avisos.length; i++) {
     const a = J.avisos[i];
     if (typeof a === 'string') avisos.push({ curso: '', grupo: '', alumno: '',
@@ -747,11 +756,33 @@ function construirAlumnado() {
   /* La pestaña NEAE deja ver a quién se ha asignado cada ficha del censo,
      que en el fichero de Séneca solo viene con las iniciales. */
   const iNomA = TITULOS_ALUMNADO.indexOf('Alumno/a'), iUniA = TITULOS_ALUMNADO.indexOf('Unidad');
-  const unidadesPorNombre = {}, enAlumnado = {};
+  const iCurA = TITULOS_ALUMNADO.indexOf('Curso');
+  const unidadesPorNombre = {}, enAlumnado = {}, mismoNombre = {};
   for (let f = 0; f < R.filas.length; f++) {
-    const k = normalizar(R.filas[f][iNomA]);
+    const k = normalizar(R.filas[f][iNomA]) + '|' + R.filas[f][iCurA];
     unidadesPorNombre[k] = R.filas[f][iUniA];
     enAlumnado[k] = true;
+    const soloNom = normalizar(R.filas[f][iNomA]);
+    if (!mismoNombre[soloNom]) mismoNombre[soloNom] = [];
+    mismoNombre[soloNom].push(R.filas[f]);
+  }
+
+  /* Dos alumnos distintos pueden llamarse igual. El sistema los separa por el
+     curso, así que conviene tenerlos localizados: si algún día coincidieran en
+     el mismo curso, el curso ya no bastaría y habría que mirarlos a mano. */
+  for (const nom in mismoNombre) {
+    const iguales = mismoNombre[nom];
+    if (iguales.length < 2) continue;
+    const donde = iguales.map(function (f) { return f[iUniA] || '(sin unidad)'; });
+    let mismoCurso = false;
+    for (let a = 1; a < iguales.length; a++) {
+      if (iguales[a][iCurA] === iguales[0][iCurA]) mismoCurso = true;
+    }
+    avisos.push({ curso: iguales[0][iCurA], grupo: '', alumno: iguales[0][iNomA],
+      aviso: 'Dos alumnos con el mismo nombre',
+      detalle: 'Aparece en ' + donde.join(' y en ') + '. ' + (mismoCurso
+        ? 'Coinciden en el mismo curso, así que el programa NO los puede distinguir: hay que revisar a mano sus datos.'
+        : 'Son cursos distintos, así que el programa los distingue bien y cada uno lleva lo suyo.') });
   }
   try { escribirNeae_(N.porNombre, unidadesPorNombre, N.nombre); }
   catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
@@ -842,11 +873,16 @@ function leerManualesAlumnado(libro) {
      primera vez) devuelve -1 y se lee como vacía. Antes esto abortaba la
      lectura entera y se perdía lo escrito a mano en las demás. */
   const cols = COLS_CONSERVADAS.map(function (t) { return titulos.indexOf(normalizar(t)); });
+  const iCur = titulos.indexOf(normalizar('Curso'));
   const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
   for (let f = 0; f < datos.length; f++) {
     const nombre = normalizar(datos[f][0]);
     if (!nombre) continue;
-    manuales[nombre] = cols.map(function (c) { return c === -1 ? '' : datos[f][c]; });
+    /* La clave lleva el curso, como todos los cruces del sistema: si no, lo que
+       Francisco escribe a mano en un alumno se copiaría a otro que se llame
+       igual y esté en otro curso. */
+    const curso = iCur === -1 ? '' : String(datos[f][iCur] || '').trim();
+    manuales[nombre + '|' + curso] = cols.map(function (c) { return c === -1 ? '' : datos[f][c]; });
   }
   return manuales;
 }

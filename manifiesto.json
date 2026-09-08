@@ -1,5 +1,5 @@
 {
-  "version": "BD v37 — el manifiesto vuelve a cargar Ficheros.gs y Obligatorias.gs",
+  "version": "BD v36 — el PIL exige además que suspendiera más de dos materias",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

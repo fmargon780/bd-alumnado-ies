@@ -1,5 +1,5 @@
 {
-  "version": "BD v31 — parada de seguridad si un fichero de matrícula no trae las asignaturas",
+  "version": "BD v32 — repeticiones sin localizar: las que hubo en otro centro ya no se pierden al llegar el expediente de Primaria",
   "ficheros": [
     "Formato.gs",
     "Codigo.gs",

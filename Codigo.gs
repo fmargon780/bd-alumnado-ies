@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v40';
+const VERSION = 'BD v41';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -174,8 +174,9 @@ const TITULOS_ALUMNADO = [
   'Rep. Primaria (corregido)', 'Motivo de la corrección',
   'Repeticiones totales',
   /* Y qué puede pasar. Las tres van en orden de tiempo: el año pasado, este
-     junio, y el resto de la etapa. */
-  'PIL', 'No podrá repetir este curso', 'Ha agotado las dos permanencias',
+     junio, y el resto de la etapa. Delante de la primera va la casilla en la
+     que el equipo directivo puede decidir a mano. */
+  'PIL (a mano)', 'PIL', 'No podrá repetir este curso', 'Ha agotado las dos permanencias',
   /* Lo que debe */
   'MAT NO SUP.', 'Nº pendientes', 'Asignaturas pendientes',
   /* Los apoyos que recibe */
@@ -186,15 +187,15 @@ const TITULOS_ALUMNADO = [
   'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */
 const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección',
-  'Repetía el año pasado (corregido)', 'Observaciones'];
+  'Repetía el año pasado (corregido)', 'PIL (a mano)', 'Observaciones'];
 /* Todas las que hay que leer antes de reconstruir la tabla. NEAE y MEDIDAS Y
    RECURSOS las rellena ahora el censo de Séneca, pero si el censo no dice nada
    de un alumno se conserva lo que hubiera escrito a mano. */
 const COLS_CONSERVADAS = ['Rep. Primaria (corregido)', 'Motivo de la corrección',
   'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones',
-  /* Va la última a propósito: las de arriba se leen por su posición en esta
-     lista (man[0] … man[4]) y no se pueden mover de sitio. */
-  'Repetía el año pasado (corregido)'];
+  /* Estas dos van las últimas a propósito: las de arriba se leen por su
+     posición en esta lista (man[0] … man[4]) y no se pueden mover de sitio. */
+  'Repetía el año pasado (corregido)', 'PIL (a mano)'];
 /* La fecha de nacimiento la usa el censo NEAE para deshacer empates entre
    alumnos con las mismas iniciales. "Cursos repetidos en ESO" va la última
    para no mover de sitio nada de lo que ya leía componerAlumnado. */
@@ -623,7 +624,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       h = histPorNombre[soloNombre][0];
       enOtroCurso.push(a.nombre + ' (' + a.curso + ')');
     }
-    const man = (manuales && manuales[clave]) || ['', '', '', '', '', ''];
+    const man = (manuales && manuales[clave]) || ['', '', '', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', mns = '';
     let sinLocalizar = '';
@@ -959,6 +960,24 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
 
     /* Diversificación. En 4º Séneca la marca con los ámbitos. En 1º, 2º y 3º
        Séneca no la trae, así que solo la sabemos por el fichero de Jefatura. */
+    /* LA ÚLTIMA PALABRA LA TIENE EL EQUIPO DIRECTIVO. Añadido en la BD v41,
+       a petición del director: quiere poder marcar a mano si un alumno es PIL
+       o no, cuando no esté de acuerdo con lo que decide el programa.
+
+       Se escribe SÍ o NO en la columna amarilla 'PIL (a mano)' y manda sobre
+       todo lo demás, incluida la interrogante. Va también al informe en papel.
+       Dejarla vacía quiere decir "decide tú", que es lo normal.
+
+       Solo afecta a la columna PIL. Las otras dos columnas de permanencia
+       siguen diciendo lo que dicen los datos: contestan a otras preguntas y no
+       son cosa de una decisión. */
+    const decisionAMano = String(man[6] || '').trim().toUpperCase();
+    if (decisionAMano === 'SÍ' || decisionAMano === 'SI') {
+      pil = 'SÍ';
+    } else if (decisionAMano === 'NO') {
+      pil = 'NO';
+    }
+
     const divSeneca = (v['MAT'] === 'ÁMB') || a.diver === true;
     const divJefatura = !!(jef[clave] && jef[clave].div === 'SÍ');
     const diver = divSeneca ? 'SÍ' : (divJefatura ? 'SÍ (solo Jefatura)' : 'NO');
@@ -997,6 +1016,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'Rep. Primaria (corregido)': man[0] || '',
       'Motivo de la corrección': man[1] || '',
       'Repeticiones totales': total,
+      'PIL (a mano)': man[6] || '',
       'PIL': pil,
       'No podrá repetir este curso': noPodra,
       'Ha agotado las dos permanencias': agotadas,
@@ -1458,6 +1478,9 @@ function construirAlumnado() {
   /* Y aquellos de los que no sabemos en qué curso estaban el año pasado,
      casi siempre porque llegaron este año de otro centro. */
   const pilSinSaber = R.filas.filter(function (f) { return f[iPil] === SIN_DATO; }).length;
+  /* Los que ha decidido a mano el equipo directivo. */
+  const iMano = TITULOS_ALUMNADO.indexOf('PIL (a mano)');
+  const pilAMano = R.filas.filter(function (f) { return String(f[iMano]).trim() !== ''; }).length;
   /* Los que el año pasado no podían repetir pero promocionaron aprobando: por
      eso NO son PIL. Antes de la BD v36 el programa los contaba como PIL. */
   const iSus = TITULOS_ALUMNADO.indexOf('Suspensos el año pasado');
@@ -1508,6 +1531,7 @@ function construirAlumnado() {
     '\nRepiten ahora y es su primera vez (por eso se separan las dos últimas): ' + soloEsteCurso +
     '\nSin comprobar, salen "' + PIL_POR_EDAD + '": ' + pilPorEdad +
     '\nCon "' + SIN_DATO + '" en PIL porque falta su curso pasado o sus notas: ' + pilSinSaber +
+    '\nDecididos a mano por el equipo directivo: ' + pilAMano +
     '\nNo son PIL porque promocionaron aprobando: ' + promocionaronSolos +
     '\n\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +

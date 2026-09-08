@@ -895,8 +895,12 @@ function rellenarPestanasInformes_() {
     const W = anchosDeLaPestana_(claves);
 
     /* Las filas 1 a 6 llevan la leyenda en una celda unida. Hay que soltarla
-       antes de añadir o quitar columnas, o Google no deja. */
-    try { hoja.getRange(1, 1, FILAS_CABECERA, hoja.getMaxColumns()).breakApart(); }
+       y limpiar el texto residual antes de añadir o quitar columnas, o Google no deja. */
+    try { 
+      const cabecera = hoja.getRange(1, 1, FILAS_CABECERA, hoja.getMaxColumns());
+      cabecera.breakApart();
+      cabecera.clearContent();
+    }
     catch (e) { /* no había nada unido */ }
 
     // Dejar la pestaña con el número de columnas justo

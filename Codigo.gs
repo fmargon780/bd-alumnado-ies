@@ -758,6 +758,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     /* De dónde viene el alumno. */
     let cursoPasado = '', repetiaPasado = '', suspPasado = '', repetiaCorregido = false;
     let fuenteESO = 'HISTÓRICO';
+
     if (!h) {
       fuente = 'No consta en el histórico';
       avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,

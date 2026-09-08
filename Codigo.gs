@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v41';
+const VERSION = 'BD v42';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -168,7 +168,7 @@ const TITULOS_ALUMNADO = [
   'Suspensos el año pasado',
   'Repite el curso actual',
   /* Qué ha repetido */
-  'Repeticiones en ESO', 'Cursos repetidos en ESO',
+  'Repeticiones en ESO', 'Cursos repetidos en ESO', 'Fuente ESO',
   'Rep. Primaria (calculado)', 'Cursos repetidos en Primaria', 'Fuente Primaria',
   'Rep. sin localizar',
   'Rep. Primaria (corregido)', 'Motivo de la corrección',
@@ -541,7 +541,7 @@ function notaDeAlumno_(mapa, nombre) {
 }
 
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
-function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae, primaria) {
+function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae, primaria, secundaria) {
   /* Todos los cruces del sistema van por nombre Y curso. Dos alumnos distintos
      pueden llamarse igual: si la clave fuera solo el nombre, los datos de uno se
      aplicarían también al otro. El curso los separa. La columna 3 del historial
@@ -565,6 +565,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
   const jef = jefatura || {};
   const censo = neae || {};
   const prim = primaria || {};
+  const sec = secundaria || {};
   const filas = [], avisos = [];
 
   /* Qué cursos trae el censo NEAE que se ha descargado. En los cursos que el
@@ -626,6 +627,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     }
     const man = (manuales && manuales[clave]) || ['', '', '', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
+    const expSec = sec[clave];                   // su expediente de Secundaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', mns = '';
     let sinLocalizar = '';
     let cursosESO = SIN_DATO, cursosPrim = SIN_DATO;
@@ -633,6 +635,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     let pil = '', noPodra = '', agotadas = '';
     /* De dónde viene el alumno. */
     let cursoPasado = '', repetiaPasado = '', suspPasado = '', repetiaCorregido = false;
+    let fuenteESO = 'HISTÓRICO';
 
     if (!h) {
       fuente = 'No consta en el histórico';
@@ -653,6 +656,25 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
 
       cursosESO = String(h[10] === null || h[10] === undefined ? '' : h[10]).trim();
       if (!cursosESO) cursosESO = (esNumero(repESO) && aNumero(repESO) > 0) ? SIN_DATO : '';
+
+      /* EL EXPEDIENTE DE SECUNDARIA MANDA SOBRE EL HISTÓRICO. Añadido en la
+         BD v42. El histórico solo ve las matrículas de este centro; el
+         expediente ve toda la ESO del alumno, en el instituto que sea. Cuando
+         está descargado, se usa él para todo lo de Secundaria. Ver
+         Secundaria.gs. */
+      if (expSec) {
+        fuenteESO = 'EXPEDIENTE';
+        if (esNumero(expSec.repeticiones)) repESO = aNumero(expSec.repeticiones);
+        cursosESO = (expSec.cursosRepetidos || []).join('; ');
+        if (!cursosESO) cursosESO = '';
+        if (expSec.cursoPasado) {
+          cursoPasado = expSec.cursoPasado;
+          repetiaPasado = expSec.repetiaPasado || '';
+          /* Si el curso pasado es el mismo en el que está ahora, es que lo
+             está repitiendo, aunque el año pasado lo cursara en otro centro. */
+          if (expSec.cursoPasado === a.curso) repite = 'SÍ';
+        }
+      }
 
       /* La ley solo deja repetir una vez en toda la Primaria. Si el número
          estimado por edad se pasa, el año que sobra no puede ser de Primaria:
@@ -780,7 +802,11 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
          clave es solo el nombre.
          En 1º el curso pasado fue 6º de Primaria y no hay hoja EV: se usan las
          materias que suspendió en 6º según su expediente. */
-      if (a.curso === '1º' && repite !== 'SÍ') {
+      if (expSec && esNumero(expSec.suspensosPasado)) {
+        /* El expediente de Secundaria trae las notas de todos los centros, así
+           que aquí manda sobre el cuaderno de notas de este instituto. */
+        suspPasado = aNumero(expSec.suspensosPasado);
+      } else if (a.curso === '1º' && repite !== 'SÍ') {
         suspPasado = (exp && exp.anoSexto) ? (exp.pendientes || []).length : SIN_DATO;
       } else if (cursoPasado && cursoPasado !== SIN_DATO) {
         const notasPasado = notasPorCurso[cursoPasado];
@@ -971,6 +997,27 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
        Solo afecta a la columna PIL. Las otras dos columnas de permanencia
        siguen diciendo lo que dicen los datos: contestan a otras preguntas y no
        son cosa de una decisión. */
+    /* A QUIÉN LE HACE FALTA EL EXPEDIENTE DE SECUNDARIA. Descargarlos es un
+       trabajo de uno en uno, así que el programa dice exactamente de quién
+       merece la pena. Hace falta cuando su trayectoria de ESO no cuadra y el
+       histórico de este centro no puede explicarlo:
+         - le faltan años que ninguna fuente explica, o
+         - no sabemos en qué curso estaba el año pasado, o
+         - su PIL se ha quedado en interrogante.
+       En 1º no hace falta: no ha estado antes en la ESO. */
+    if (!expSec && a.curso !== '1º' &&
+        ((sinLocalizar !== '' && sinLocalizar > 0) || cursoPasado === SIN_DATO ||
+         pil === SIN_DATO)) {
+      avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+        aviso: 'Hace falta su expediente de Secundaria',
+        detalle: 'Su trayectoria en la ESO no cuadra con lo que ve el histórico de este centro' +
+          ((sinLocalizar !== '' && sinLocalizar > 0)
+            ? ', y le falta ' + sinLocalizar + ' año que nada explica' : '') +
+          '. Descarga de Séneca su expediente académico de Secundaria y déjalo en la ' +
+          'subcarpeta "' + CARPETA_SECUNDARIA + '", con el nombre "' + PREFIJO_EXP_SEC + ' ' +
+          a.nombre + '.csv". Ese fichero trae sus años en otros institutos y cierra el caso solo.' });
+    }
+
     const decisionAMano = String(man[6] || '').trim().toUpperCase();
     if (decisionAMano === 'SÍ' || decisionAMano === 'SI') {
       pil = 'SÍ';
@@ -1009,6 +1056,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'MAT NO SUP.': mns,
       'Repeticiones en ESO': repESO,
       'Cursos repetidos en ESO': cursosESO,
+      'Fuente ESO': fuenteESO,
       'Rep. Primaria (calculado)': repPrim,
       'Cursos repetidos en Primaria': cursosPrim,
       'Fuente Primaria': fuente,
@@ -1385,10 +1433,15 @@ function construirAlumnado() {
     }
   }
   const P = datosPrimaria_(cursosDeAlumno);
+  /* Sexta fuente, opcional: los expedientes de Secundaria. Solo hacen falta
+     los del alumnado avisado. Ver Secundaria.gs. */
+  const S = datosSecundaria_(cursosDeAlumno);
+  for (let i = 0; i < S.avisos.length; i++) avisos.push(S.avisos[i]);
   for (let i = 0; i < P.avisos.length; i++) avisos.push(P.avisos[i]);
 
   const manuales = leerManualesAlumnado(libro);
-  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre, N.porNombre, P.porNombre);
+  const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre, N.porNombre,
+                             P.porNombre, S.porNombre);
   R.avisos.forEach(function (a) { avisos.push(a); });
 
   escribirAlumnado(R.filas);
@@ -1443,6 +1496,10 @@ function construirAlumnado() {
       detalle: 'El fichero "' + P.porNombre[k].fichero + '" no corresponde a ningún alumno de la tabla. ' +
                'Comprueba que el nombre del fichero está escrito igual que en Séneca.' });
   }
+  try { escribirSecundaria_(S.porNombre, unidadesPorNombre, enAlumnado); }
+  catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
+    aviso: 'No he podido escribir la pestaña SECUNDARIA', detalle: e.message }); }
+
   try { escribirPrimaria_(P.porNombre, unidadesPorNombre, enAlumnado); }
   catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
     aviso: 'No he podido escribir la pestaña PRIMARIA', detalle: e.message }); }
@@ -1481,6 +1538,9 @@ function construirAlumnado() {
   /* Los que ha decidido a mano el equipo directivo. */
   const iMano = TITULOS_ALUMNADO.indexOf('PIL (a mano)');
   const pilAMano = R.filas.filter(function (f) { return String(f[iMano]).trim() !== ''; }).length;
+  const necesitanSec = avisos.filter(function (a) {
+    return a.aviso === 'Hace falta su expediente de Secundaria';
+  }).length;
   /* Los que el año pasado no podían repetir pero promocionaron aprobando: por
      eso NO son PIL. Antes de la BD v36 el programa los contaba como PIL. */
   const iSus = TITULOS_ALUMNADO.indexOf('Suspensos el año pasado');
@@ -1532,6 +1592,9 @@ function construirAlumnado() {
     '\nSin comprobar, salen "' + PIL_POR_EDAD + '": ' + pilPorEdad +
     '\nCon "' + SIN_DATO + '" en PIL porque falta su curso pasado o sus notas: ' + pilSinSaber +
     '\nDecididos a mano por el equipo directivo: ' + pilAMano +
+    '\n\nEXPEDIENTES DE SECUNDARIA' +
+    '\nFicheros leídos: ' + S.total + ' de ' + S.ficheros +
+    '\nAlumnos que necesitan el suyo (salen en AVISOS): ' + necesitanSec +
     '\nNo son PIL porque promocionaron aprobando: ' + promocionaronSolos +
     '\n\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +

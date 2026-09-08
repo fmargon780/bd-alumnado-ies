@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v35';
+const VERSION_BD = 'BD v36';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -103,6 +103,7 @@ const FORMATO_HOJAS = {
       'Edad a 31/12': 'Los años que cumple el alumno a 31 de diciembre de este curso. Lo da Séneca en el histórico.\n\nSe usa para estimar las repeticiones de Primaria cuando no hay una fuente mejor. Edad que corresponde a cada curso sin repetir: 1º = 12, 2º = 13, 3º = 14, 4º = 15.',
       'Curso el año pasado': 'En qué curso estaba el alumno el año académico pasado.\n\nSale del histórico de matrículas de Séneca, que trae una línea por alumno y año. En 1º de ESO el curso pasado fue 6º de Primaria, y eso lo dice su expediente.\n\nUn ? quiere decir que no lo sabemos: casi siempre es alumnado que llegó este año de otro centro, porque el histórico solo trae las matrículas de aquí.\n\nEsta columna y la siguiente están puestas para que se pueda entender de dónde sale la columna PIL.',
       'Repetía el año pasado': 'SÍ cuando el curso en el que estaba el año pasado ya lo había cursado antes.\n\nEs el dato clave de la columna PIL: quien el año pasado estaba repitiendo su curso ya no podía volver a repetirlo, así que si este año está en el siguiente es que promocionó sin poder quedarse.\n\nEn 1º de ESO quiere decir que repitió 6º de Primaria, y eso solo lo dice su expediente. Un ? quiere decir que no lo sabemos.',
+      'Suspensos el año pasado': 'Cuántas materias suspendió el curso pasado, contando también las que arrastraba de cursos anteriores. Son todas las materias con evaluación negativa, que es lo que cuenta para decidir si promociona.\n\nEn 2º, 3º y 4º sale de la columna "Suspensos" de la hoja EV de su curso del año pasado, en el cuaderno de notas. En 1º son las materias que suspendió en 6º de Primaria, según su expediente.\n\nEstá aquí para poder entender la columna PIL: un alumno que el año pasado ya no podía repetir, pero que suspendió dos materias o menos, promocionó por sus propios medios y NO es PIL.\n\nUn ? quiere decir que no tenemos sus notas del año pasado.',
       'Repite el curso actual': 'SÍ cuando el alumno ya estuvo matriculado antes en este mismo curso.\n\nSale del histórico de matrículas de Séneca (RegAlum.csv), que trae una línea por alumno y año. Si el mismo curso aparece en dos años distintos, es que lo repite.\n\nOjo: solo se ven las matrículas de este centro.',
       'Repeticiones en ESO': 'Cuántas veces ha repetido en la ESO, contando también el curso que está repitiendo ahora.\n\nSale del histórico de matrículas de este centro. Si repitió en otro instituto antes de llegar aquí, no aparece.',
       'Cursos repetidos en ESO': 'Qué cursos ha repetido y en qué años. Formato: 1º (2022, 2023).\n\nEs el detalle de la columna anterior. Sale del histórico de matrículas de este centro.',
@@ -135,7 +136,7 @@ const FORMATO_HOJAS = {
     cols: {
       'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'], 'Edad a 31/12': [60, 'C'],
       'Curso el año pasado': [80, 'C'], 'Repetía el año pasado': [80, 'C'],
-      'Repite el curso actual': [65, 'C'], 'Repeticiones en ESO': [65, 'C'],
+      'Suspensos el año pasado': [80, 'C'], 'Repite el curso actual': [65, 'C'], 'Repeticiones en ESO': [65, 'C'],
       'Cursos repetidos en ESO': [140, 'W'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Cursos repetidos en Primaria': [105, 'C'], 'Fuente Primaria': [90, 'C'],
       'Rep. sin localizar': [70, 'C'], 'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
@@ -434,6 +435,7 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     /* De dónde viene el alumno: en ámbar lo que no sabemos. */
     siDice('Curso el año pasado', SIN_DATO, FMT_AMBAR);
     siDice('Repetía el año pasado', SIN_DATO, FMT_AMBAR);
+    siDice('Suspensos el año pasado', SIN_DATO, FMT_AMBAR);
   } else if (nombre === 'HISTORIAL') {
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
   } else if (nombre === 'PRIMARIA') {

@@ -15,7 +15,8 @@
  *   a) Mira los ficheros de Drive y ve de cuándo es cada uno.
  *   b) Enseña un cuadro con eso y espera un Continuar o un Cancelar.
  *   c) Si continúa: relee el histórico SOLO si ha cambiado, reconstruye la
- *      tabla ALUMNADO y rellena las 23 pestañas del cuaderno de informes.
+ *      tabla ALUMNADO, comprueba las materias obligatorias y rellena las 23
+ *      pestañas del cuaderno de informes.
  *   d) Deja el formato de todas las pestañas en condiciones (ver Formato.gs).
  *   e) Deja escrito el panel: qué ha hecho, cómo están las fuentes y qué
  *      queda por cuadrar.
@@ -476,6 +477,25 @@ function actualizarDatos() {
     seHaConstruido = construirAlumnado() !== false;   // ALUMNADO, JEFATURA, DISCREPANCIAS, NEAE, PRIMARIA, AVISOS
     if (seHaConstruido) {
       hecho.push('Tabla ALUMNADO reconstruida con todas las fuentes.');
+
+      /* LAS MATERIAS OBLIGATORIAS. Ver Obligatorias.gs.
+         La comparación con Jefatura solo mira las asignaturas que el alumno
+         elige, porque son las únicas que Jefatura escribe. Esto comprueba las
+         otras: que cada alumno esté matriculado en Séneca en las materias que
+         cursa todo su curso.
+         Va AQUÍ, después de construir la tabla y ANTES de recuperar las
+         anotaciones de AVISOS, porque añade filas a esa pestaña y así esas
+         filas también conservan el Estado y las Observaciones de Francisco. */
+      try {
+        const O = comprobarObligatorias_();
+        hecho.push(O.alumnos
+          ? 'Materias obligatorias: ' + O.alumnos +
+            ' alumnos a los que les falta alguna en Séneca. Están en AVISOS.'
+          : 'Materias obligatorias: todo el alumnado está matriculado en las de su curso.');
+      } catch (e) {
+        hecho.push('Materias obligatorias: no he podido comprobarlas (' + e.message + ').');
+      }
+
       try {
         const rec = restaurarNotasAvisos_(notasAvisos);
         if (rec) hecho.push('Avisos: recuperadas tus anotaciones en ' + rec + ' filas.');

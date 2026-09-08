@@ -1021,7 +1021,8 @@ function construirAlumnado() {
   for (const k in P.porNombre) {
     if (enAlumnado[k]) continue;
     expSinAlumno++;
-    avisos.push({ curso: '1º', grupo: '', alumno: P.porNombre[k].nombre,
+    const cursoAviso = k.split('|')[1] || '';
+    avisos.push({ curso: cursoAviso, grupo: '', alumno: P.porNombre[k].nombre,
       aviso: 'Expediente de Primaria sin alumno',
       detalle: 'El fichero "' + P.porNombre[k].fichero + '" no corresponde a ningún alumno de la tabla. ' +
                'Comprueba que el nombre del fichero está escrito igual que en Séneca.' });

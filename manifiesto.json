@@ -1,11 +1,12 @@
 {
-  "version": "BD v41 — el equipo directivo puede marcar a mano si un alumno es PIL",
+  "version": "BD v42 — expedientes de Secundaria: se ven las repeticiones hechas en otros institutos",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",
     "Codigo.gs",
     "NEAE.gs",
     "Primaria.gs",
+    "Secundaria.gs",
     "Jefatura.gs",
     "Obligatorias.gs",
     "Informes.gs",

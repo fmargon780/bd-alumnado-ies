@@ -1,5 +1,5 @@
 {
-  "version": "BD v36 — el PIL exige además que suspendiera más de dos materias",
+  "version": "BD v37 — se localiza al alumno en el cuaderno de notas aunque allí le falte el segundo apellido",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v39';
+const VERSION = 'BD v40';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -164,7 +164,8 @@ const TITULOS_ALUMNADO = [
   /* Quién es */
   'Alumno/a', 'Unidad', 'Curso', 'Edad a 31/12',
   /* De dónde viene */
-  'Curso el año pasado', 'Repetía el año pasado', 'Suspensos el año pasado',
+  'Curso el año pasado', 'Repetía el año pasado', 'Repetía el año pasado (corregido)',
+  'Suspensos el año pasado',
   'Repite el curso actual',
   /* Qué ha repetido */
   'Repeticiones en ESO', 'Cursos repetidos en ESO',
@@ -184,12 +185,16 @@ const TITULOS_ALUMNADO = [
   /* Lo tuyo */
   'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */
-const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección', 'Observaciones'];
+const COLS_MANUALES_ALUMNADO = ['Rep. Primaria (corregido)', 'Motivo de la corrección',
+  'Repetía el año pasado (corregido)', 'Observaciones'];
 /* Todas las que hay que leer antes de reconstruir la tabla. NEAE y MEDIDAS Y
    RECURSOS las rellena ahora el censo de Séneca, pero si el censo no dice nada
    de un alumno se conserva lo que hubiera escrito a mano. */
 const COLS_CONSERVADAS = ['Rep. Primaria (corregido)', 'Motivo de la corrección',
-  'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones'];
+  'NEAE', 'MEDIDAS Y RECURSOS', 'Observaciones',
+  /* Va la última a propósito: las de arriba se leen por su posición en esta
+     lista (man[0] … man[4]) y no se pueden mover de sitio. */
+  'Repetía el año pasado (corregido)'];
 /* La fecha de nacimiento la usa el censo NEAE para deshacer empates entre
    alumnos con las mismas iniciales. "Cursos repetidos en ESO" va la última
    para no mover de sitio nada de lo que ya leía componerAlumnado. */
@@ -618,7 +623,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       h = histPorNombre[soloNombre][0];
       enOtroCurso.push(a.nombre + ' (' + a.curso + ')');
     }
-    const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
+    const man = (manuales && manuales[clave]) || ['', '', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', mns = '';
     let sinLocalizar = '';
@@ -626,7 +631,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     /* Las tres columnas de permanencia. Ver el comentario grande de arriba. */
     let pil = '', noPodra = '', agotadas = '';
     /* De dónde viene el alumno. */
-    let cursoPasado = '', repetiaPasado = '', suspPasado = '';
+    let cursoPasado = '', repetiaPasado = '', suspPasado = '', repetiaCorregido = false;
 
     if (!h) {
       fuente = 'No consta en el histórico';
@@ -754,6 +759,18 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         repetiaPasado = SIN_DATO;
       }
 
+      /* LO QUE ESCRIBE FRANCISCO MANDA. Añadido en la BD v40.
+         El histórico de Séneca solo trae las matrículas de este centro, así
+         que un alumno que repitió el año pasado en otro instituto figura aquí
+         como si no lo hubiera repetido. Si Francisco lo averigua, escribe SÍ
+         en la columna amarilla y el programa se fía de él. */
+      const diceFrancisco = String(man[5] || '').trim().toUpperCase();
+      if (diceFrancisco === 'SÍ' || diceFrancisco === 'SI') {
+        repetiaPasado = 'SÍ'; repetiaCorregido = true;
+      } else if (diceFrancisco === 'NO') {
+        repetiaPasado = 'NO'; repetiaCorregido = true;
+      }
+
       /* CUÁNTAS SUSPENDIÓ EL AÑO PASADO.
          En 2º, 3º y 4º sale de la hoja EV de su curso del año pasado, columna
          "Suspensos", que suma las del propio curso y las pendientes: son todas
@@ -831,7 +848,33 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       } else if (repite === 'SÍ') {
         pil = 'NO';
       } else if (!noPodiaRepetir) {
-        pil = (repetiaPasado === SIN_DATO) ? SIN_DATO : 'NO';
+        /* Aquí el programa diría que no es PIL. Pero hay un caso en el que no
+           puede estar seguro, y lo vio Francisco el 8-sep-2026 con un alumno
+           que había repetido 2º en otro instituto:
+
+             - le faltan años que ninguna fuente explica ('Rep. sin localizar'),
+             - y el año pasado suspendió más de dos materias.
+
+           Ese año perdido pudo ser justo el curso pasado, repitiendo fuera. Si
+           fue así, el alumno no podía volver a repetirlo y es PIL. Como no se
+           puede demostrar ni descartar, va la interrogante y sale en AVISOS.
+           Si Francisco lo averigua, lo escribe en la columna amarilla
+           'Repetía el año pasado (corregido)' y esto se cierra. */
+        if (repetiaPasado === SIN_DATO) {
+          pil = SIN_DATO;
+        } else if (!repetiaCorregido && sinLocalizar !== '' && sinLocalizar > 0 &&
+                   esNumero(suspPasado) && aNumero(suspPasado) > MAX_SUSPENSOS_PROMOCION) {
+          pil = SIN_DATO;
+          avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+            aviso: 'Puede ser PIL y no se puede saber aquí',
+            detalle: 'El año pasado suspendió ' + suspPasado + ' materias, y le falta ' +
+              sinLocalizar + ' año que ninguna de nuestras fuentes explica. Si ese año lo ' +
+              'perdió repitiendo el curso pasado en otro centro, no podía volver a repetirlo ' +
+              'y es PIL. Míralo en Séneca: si el año pasado estaba repitiendo, escribe SÍ en ' +
+              'la columna amarilla "Repetía el año pasado (corregido)"; si no, escribe NO.' });
+        } else {
+          pil = 'NO';
+        }
       } else if (!esNumero(suspPasado)) {
         pil = SIN_DATO;
       } else if (aNumero(suspPasado) > MAX_SUSPENSOS_PROMOCION) {
@@ -930,6 +973,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'Repite el curso actual': repite,
       'Curso el año pasado': cursoPasado,
       'Repetía el año pasado': repetiaPasado,
+      'Repetía el año pasado (corregido)': man[5] || '',
       'Suspensos el año pasado': suspPasado,
       'Diversificación': diver,
       'OPT': v['OPT'] || '',

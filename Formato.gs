@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v40';
+const VERSION_BD = 'BD v41';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -95,8 +95,10 @@ const FORMATO_HOJAS = {
   'ALUMNADO': {
     cabecera: 2, congelar: 2,
     manuales: ['Rep. Primaria (corregido)', 'Motivo de la corrección',
-               'Repetía el año pasado (corregido)', 'Observaciones'],
+               'Repetía el año pasado (corregido)', 'PIL (a mano)', 'Observaciones'],
     noProteger: ['NEAE', 'MEDIDAS Y RECURSOS'],
+    estado: { columna: 'PIL (a mano)', opciones: ['SÍ', 'NO'],
+              ayuda: 'Elige SÍ o NO. Manda sobre lo que calcula el programa y es lo que sale en el papel. Si lo dejas vacío, decide el programa.' },
     notas: {
       'Alumno/a': 'Nombre tal y como lo escribe Séneca: primero los apellidos, luego el nombre, separados por una coma.\n\nEs la forma que tiene el programa de reconocer al mismo alumno en los distintos ficheros. Como los CSV de Séneca no traen número de alumno, el cruce se hace por el nombre MÁS el curso. Si dos alumnos se llaman igual, sale un aviso.',
       'Unidad': 'Grupo en el que Séneca tiene matriculado al alumno, por ejemplo 2º ESO C.\n\nSi está vacía, el alumno no saldrá en ningún informe de grupo. Esos casos van en rojo y en la pestaña AVISOS.',
@@ -116,6 +118,7 @@ const FORMATO_HOJAS = {
       'Rep. Primaria (corregido)': 'AQUÍ ESCRIBES TÚ. Si sabes que el número calculado no es correcto, pon aquí el bueno.\n\nEl programa no toca nunca esta columna, y el número que pongas manda sobre el calculado para las repeticiones totales y para el PIL.',
       'Motivo de la corrección': 'AQUÍ ESCRIBES TÚ. Por qué has corregido el número: por ejemplo, se incorporó al sistema educativo español en 4º de Primaria.\n\nSirve para que dentro de un año se entienda la corrección.',
       'Repeticiones totales': 'Repeticiones de Primaria más repeticiones en ESO.\n\nSi has escrito algo en Rep. Primaria (corregido), se usa ese número en vez del calculado.\n\nDe este número dependen las dos columnas de PIL, así que conviene mirarlo cuando un PIL no cuadre.',
+      'PIL (a mano)': 'AQUÍ ESCRIBE EL EQUIPO DIRECTIVO. Elige SÍ o NO del desplegable.\n\nLo que se ponga aquí manda sobre lo que calcule el programa, y es lo que sale en el informe en papel. Sirve para cuando el director no esté de acuerdo con lo que ha decidido el sistema, o para cerrar a mano un alumno que sale con ?.\n\nDejarla VACÍA es lo normal: quiere decir que decide el programa.\n\nSolo afecta a la columna PIL. Las otras dos columnas de permanencia siguen diciendo lo que dicen los datos.\n\nConviene anotar el motivo en la columna Observaciones, para que dentro de un año se entienda la decisión. El programa no toca nunca esta columna.',
       'PIL': 'PIL quiere decir Promoción por Imperativo Legal, y esta columna es la lectura literal de esas palabras: EL ALUMNO ESTÁ EN ESTE CURSO PORQUE EL AÑO PASADO YA NO PODÍA REPETIR.\n\nMira al curso PASADO, no a este. Es la que necesita el equipo directivo para contarle al profesorado cómo llega cada alumno, y es la que sale en el informe en papel.\n\nSÍ cuando el alumno no repite este curso y además se cumple una de estas dos: el año pasado ya estaba repitiendo su curso, o ya tenía gastadas las dos permanencias.\n\nNO cuando repite este curso: entonces no promocionó, se quedó.\n\nSÍ (por edad) = sale SÍ, pero apoyado en un número de repeticiones que es una suposición sacada de la edad y que nadie ha comprobado. Va en ámbar.\n\nUn ? quiere decir que no sabemos en qué curso estaba el año pasado, casi siempre porque llegó de otro centro.\n\nEN 1º DE ESO ESTA COLUMNA VA SIEMPRE A NO. Habla de la ESO, y pasar de 6º de Primaria a 1º no es promocionar por imperativo legal: en Primaria la promoción no se decide contando materias suspensas. La repetición de 6º sí cuenta para las otras dos columnas y para las repeticiones totales.\n\nNO CONFUNDIR con las dos columnas siguientes: son tres preguntas distintas y los tres grupos de alumnos son distintos.',
       'No podrá repetir este curso': 'Si suspende en junio, pasará al curso siguiente igualmente.\n\nMira al futuro próximo. Es la pregunta que le interesa al tutor durante el curso. Es lo que esta base de datos llamaba PIL hasta la BD v33.\n\nSÍ cuando se cumple una de las dos: ya está repitiendo el curso en el que está, o tiene 2 o más repeticiones totales.\n\nSÍ (por edad) = sale SÍ, pero apoyado en un número sin comprobar. Va en ámbar.\n\nEsta columna no sale en el papel.',
       'Ha agotado las dos permanencias': 'No puede repetir ningún curso más en toda la enseñanza obligatoria, Primaria y ESO juntas. La norma deja repetir dos veces como máximo.\n\nMira a toda la etapa, no a un curso. Es lo que esta base de datos llamaba PIL (etapa) hasta la BD v33.\n\nSÍ cuando las repeticiones totales son 2 o más.\n\nSÍ (por edad) = sale SÍ, pero apoyado en un número sin comprobar. Va en ámbar.\n\nLa diferencia con la columna de al lado son los alumnos que están repitiendo ahora y es su primera repetición: esos no podrán repetir este curso otra vez, pero todavía les queda una permanencia para más adelante.\n\nEsta columna no sale en el papel.',
@@ -143,7 +146,7 @@ const FORMATO_HOJAS = {
       'Cursos repetidos en ESO': [140, 'W'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Cursos repetidos en Primaria': [105, 'C'], 'Fuente Primaria': [90, 'C'],
       'Rep. sin localizar': [70, 'C'], 'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
-      'Repeticiones totales': [65, 'C'], 'PIL': [85, 'C'],
+      'Repeticiones totales': [65, 'C'], 'PIL (a mano)': [80, 'C'], 'PIL': [85, 'C'],
       'No podrá repetir este curso': [95, 'C'], 'Ha agotado las dos permanencias': [95, 'C'],
       'MAT NO SUP.': [200, 'W'], 'Nº pendientes': [55, 'C'], 'Asignaturas pendientes': [230, 'W'],
       'Diversificación': [95, 'C'], 'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'],
@@ -485,7 +488,8 @@ function fmtDesplegables_(hoja, def, filaCab, ultimaFila, titulos) {
   const regla = SpreadsheetApp.newDataValidation()
     .requireValueInList(def.estado.opciones, true)
     .setAllowInvalid(false)
-    .setHelpText('Elige una opción. Si lo dejas vacío, cuenta como pendiente.')
+    .setHelpText(def.estado.ayuda ||
+                 'Elige una opción. Si lo dejas vacío, cuenta como pendiente.')
     .build();
   hoja.getRange(filaCab + 1, c, nDatos, 1).setDataValidation(regla);
 }

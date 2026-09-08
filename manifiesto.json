@@ -1,5 +1,5 @@
 {
-  "version": "BD v42 — expedientes de Secundaria: se ven las repeticiones hechas en otros institutos",
+  "version": "BD v43 — el cuadro de la trayectoria del alumno, año por año, en una sola casilla",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v31';
+const VERSION_BD = 'BD v32';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -104,6 +104,7 @@ const FORMATO_HOJAS = {
       'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la mejor fuente que haya. La columna Fuente Primaria dice cuál es y cuánto fiarse.\n\nSi el número no es correcto, no se corrige aquí: se escribe el bueno en Rep. Primaria (corregido), que es amarilla.',
       'Cursos repetidos en Primaria': 'Qué cursos de Primaria repitió.\n\nSolo se sabe de los alumnos de 1º que tienen su expediente de Primaria descargado. Casilla vacía = no repitió ninguno. Un ? = repitió, pero no tenemos el expediente que diga cuál. En 2º, 3º y 4º lo normal es el ?.',
       'Fuente Primaria': 'De dónde sale el número de repeticiones de Primaria. De más a menos fiable:\n\nEXPEDIENTE = lo dice el expediente de Primaria del alumno. Es seguro, y es el único que dice qué curso repitió. Solo en 1º.\n\n1ºESO = la edad que tenía al matricularse en 1º de ESO en este centro, menos 12. Fiable.\n\nEDAD = estimación: edad de ahora, menos la edad que le tocaría por curso, menos las repeticiones de ESO. Hay que revisarla a mano, y por eso sale en ámbar. Un alumno mayor por otro motivo (llegó tarde al sistema educativo español, estudió fuera) suma una repetición que no existe.',
+      'Rep. sin localizar': 'Repeticiones que este alumno hizo seguro, pero de las que no sabemos ni el curso ni el centro.\n\nSe calcula con la edad: años que le sobran para el curso en el que está, menos las repeticiones de ESO en este centro, menos las de Primaria. Lo que queda son años perdidos que ninguna de nuestras fuentes explica.\n\nCasi siempre es alumnado que repitió en otro instituto antes de llegar aquí: el histórico de Séneca solo trae las matrículas de este centro.\n\nCuentan para las repeticiones totales y para el PIL, igual que las demás. Van en ámbar porque conviene mirarlas: si el alumno va retrasado por otro motivo (llegó tarde al sistema educativo español, estudió fuera), el número no es una repetición, y entonces se corrige a mano en Rep. Primaria (corregido).',
       'Rep. Primaria (corregido)': 'AQUÍ ESCRIBES TÚ. Si sabes que el número calculado no es correcto, pon aquí el bueno.\n\nEl programa no toca nunca esta columna, y el número que pongas manda sobre el calculado para las repeticiones totales y para el PIL.',
       'Motivo de la corrección': 'AQUÍ ESCRIBES TÚ. Por qué has corregido el número: por ejemplo, se incorporó al sistema educativo español en 4º de Primaria.\n\nSirve para que dentro de un año se entienda la corrección.',
       'Repeticiones totales': 'Repeticiones de Primaria más repeticiones en ESO.\n\nSi has escrito algo en Rep. Primaria (corregido), se usa ese número en vez del calculado.\n\nDe este número dependen las dos columnas de PIL, así que conviene mirarlo cuando un PIL no cuadre.',
@@ -130,7 +131,7 @@ const FORMATO_HOJAS = {
       'Repite el curso actual': [65, 'C'], 'Repeticiones en ESO': [65, 'C'],
       'Cursos repetidos en ESO': [140, 'W'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Cursos repetidos en Primaria': [105, 'C'], 'Fuente Primaria': [90, 'C'],
-      'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
+      'Rep. sin localizar': [70, 'C'], 'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
       'Repeticiones totales': [65, 'C'], 'PIL': [45, 'C'], 'PIL (etapa)': [60, 'C'],
       'MAT NO SUP.': [200, 'W'], 'Nº pendientes': [55, 'C'], 'Asignaturas pendientes': [230, 'W'],
       'Diversificación': [95, 'C'], 'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'],
@@ -399,6 +400,15 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     siDice('Cursos repetidos en ESO', SIN_DATO, FMT_AMBAR);
     /* Repeticiones de Primaria estimadas por edad: hay que revisarlas a mano. */
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
+    /* Repeticiones que hubo pero no sabemos dónde. Cuentan para el PIL, y
+       conviene mirarlas una a una: puede que el alumno vaya retrasado por
+       otro motivo. Aquí el valor es un número, no un texto. */
+    const cSinLoc = fmtColumnaDe_(titulos, 'Rep. sin localizar');
+    if (cSinLoc) {
+      reglas.push(SpreadsheetApp.newConditionalFormatRule()
+        .whenNumberGreaterThan(0).setBackground(FMT_AMBAR)
+        .setRanges([hoja.getRange(primera, cSinLoc, nDatos, 1)]).build());
+    }
     /* Sin unidad en Séneca: este alumno no sale en ningún informe. */
     siVacia('Unidad', FMT_ROJO);
     /* Los PIL, para localizarlos de un vistazo. No es un problema: es un dato.

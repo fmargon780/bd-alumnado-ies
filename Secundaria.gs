@@ -87,6 +87,10 @@ function leerExpedienteSec_(archivo) {
     nombre: alumno, fichero: archivo.getName(),
     anos: [], centros: [], repeticiones: '', cursosRepetidos: [],
     cursoPasado: '', repetiaPasado: '', suspensosPasado: '',
+    /* porAno: { 2024: { curso, centro, estado, suspensos } }. Es lo que
+       necesita la columna Trayectoria de ALUMNADO, que enseña la historia del
+       alumno año por año en una sola casilla. */
+    porAno: {},
     avisos: []
   };
   if (!alumno) {
@@ -118,6 +122,7 @@ function leerExpedienteSec_(archivo) {
   const anosPorCurso = {};   // '2º' -> { 2024: true, 2025: true }
   const cursoDelAno = {};    // 2025 -> '2º'
   const centros = {};
+  const detallePorAno = {};  // 2025 -> { curso, centro, estado }
   let ultimo = 0;
   for (let f = 1; f < tabla.length; f++) {
     const fila = tabla[f];
@@ -131,9 +136,14 @@ function leerExpedienteSec_(archivo) {
     anosPorCurso[curso][ano] = true;
     cursoDelAno[ano] = curso;
     if (ano > ultimo) ultimo = ano;
+    let centroFila = '';
     if (iCentro !== -1) {
-      const c = String(fila[iCentro] || '').replace(/\s+/g, ' ').trim();
-      if (c) centros[c] = true;
+      centroFila = String(fila[iCentro] || '').replace(/\s+/g, ' ').trim();
+      if (centroFila) centros[centroFila] = true;
+    }
+    if (!detallePorAno[ano]) {
+      detallePorAno[ano] = { curso: curso, centro: centroFila,
+                             estado: String(fila[iEstado] || '').trim() };
     }
   }
   if (!ultimo) {
@@ -158,6 +168,7 @@ function leerExpedienteSec_(archivo) {
   salida.cursosRepetidos = repetidos;
   salida.centros = Object.keys(centros);
   salida.anos = Object.keys(cursoDelAno).sort();
+  salida.porAno = detallePorAno;
 
   /* El curso pasado, y si lo estaba repitiendo. Esto es lo que el histórico de
      este centro no puede saber cuando el alumno venía de otro instituto. */
@@ -181,11 +192,12 @@ function leerExpedienteSec_(archivo) {
      que decide la promoción. Una materia que sale dos veces (ordinaria y
      extraordinaria) se queda con la nota más alta. Una nota vacía no es un
      suspenso: es una materia en marcha o sin calificar todavía. */
-  if (cursoPasado && iMateria !== -1 && iNota !== -1) {
-    const mejores = {};
+  if (iMateria !== -1 && iNota !== -1) {
+    const mejores = {};   // año -> clave de materia -> mejor nota
     for (let f = 1; f < tabla.length; f++) {
       const fila = tabla[f];
-      if (parseInt(fila[iAno], 10) !== anoPasado) continue;
+      const ano = parseInt(fila[iAno], 10);
+      if (!ano) continue;
       if (!cursoSecundaria_(fila[iCurso])) continue;
       const estado = iEstado === -1 ? '' : normalizar(fila[iEstado]);
       if (ESTADOS_QUE_NO_CUENTAN.indexOf(estado) !== -1) continue;
@@ -193,16 +205,21 @@ function leerExpedienteSec_(archivo) {
       if (!p.materia) continue;
       const clave = normalizar(p.materia) + '|' + p.de;
       const nota = fila[iNota];
-      const antes = mejores[clave];
-      if (!antes || (esNumero(nota) && (!esNumero(antes) || aNumero(nota) > aNumero(antes)))) {
-        mejores[clave] = nota;
+      if (!mejores[ano]) mejores[ano] = {};
+      const antes = mejores[ano][clave];
+      if (antes === undefined ||
+          (esNumero(nota) && (!esNumero(antes) || aNumero(nota) > aNumero(antes)))) {
+        mejores[ano][clave] = nota;
       }
     }
-    let suspensos = 0;
-    for (const k in mejores) {
-      if (esNumero(mejores[k]) && aNumero(mejores[k]) < 5) suspensos++;
+    for (const ano in mejores) {
+      let suspensos = 0;
+      for (const k in mejores[ano]) {
+        if (esNumero(mejores[ano][k]) && aNumero(mejores[ano][k]) < 5) suspensos++;
+      }
+      if (detallePorAno[ano]) detallePorAno[ano].suspensos = suspensos;
+      if (parseInt(ano, 10) === anoPasado) salida.suspensosPasado = suspensos;
     }
-    salida.suspensosPasado = suspensos;
   }
 
   return salida;

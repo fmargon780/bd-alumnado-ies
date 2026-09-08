@@ -8,11 +8,26 @@
  *
  *   rellenarPestanasInformes_()  escribe las 23 pestañas y la portada.
  *                                Lo llama el botón "Actualizar los datos".
- *   generarPdfs()                exporta los PDF de lo que ya está escrito.
- *                                Es el botón "2. Generar los PDF".
+ *   generarPdfs()                exporta los PDF DEFINITIVOS, los del
+ *                                profesorado. Es el botón 2 del menú.
+ *   generarPdfsBorrador()        exporta los PDF de BORRADOR, los de
+ *                                Francisco. Es el botón 3 del menú.
  *
  * Se separan porque los PDF son la única parte que Google rechaza a veces, y
  * Francisco muchas veces solo quiere revisar avisos con los datos al día.
+ *
+ * LOS DOS TIPOS DE PDF (BD v45, 8-sep-2026). Lo pidió el director: en las
+ * copias que él reparte al profesorado no deben salir las interrogantes.
+ *
+ *   DEFINITIVO  con membrete · sin interrogantes · carpeta "Informes por unidad"
+ *   BORRADOR    sin membrete · con interrogantes · rótulo BORRADOR arriba ·
+ *               subcarpeta "Borradores"
+ *
+ * Las pestañas del cuaderno son las mismas para los dos. No se duplican. Lo
+ * que hace el programa es preparar cada pestaña justo antes de exportarla y
+ * dejarla como estaba justo después, pestaña por pestaña. Así no hay dos
+ * versiones de los datos que puedan descuadrarse, y si Google corta a medias,
+ * la siguiente pulsación de "Actualizar los datos" lo deja todo en su sitio.
  *
  * El informe se lee de izquierda a derecha como una frase:
  *   quién es -> cómo va -> qué apoyos tiene -> qué cursa
@@ -202,8 +217,12 @@ const ALTO_LINEA = 12;
 
 /* Esta línea va siempre, en todos los grupos. Debe caber en un solo renglón:
    como mucho, unos 100 caracteres. */
+/* El trozo que explica la interrogante va aparte: en los PDF definitivos no
+   hay ninguna interrogante, así que esa explicación se quita de la leyenda. */
+const LEYENDA_INTERROGANTE = '  ?: aún sin dato.';
 const LEYENDA_FIJA = [
-  'NO SUPERADAS: del curso que repite.  PENDIENTES: de antes.  DIV: diversificación.  ?: aún sin dato.'
+  'NO SUPERADAS: del curso que repite.  PENDIENTES: de antes.  DIV: diversificación.' +
+  LEYENDA_INTERROGANTE
 ];
 const SEPARADOR_LEYENDA = '  ';   // entre dos explicaciones del mismo renglón
 const LETRA_LEYENDA = 6;
@@ -229,6 +248,21 @@ const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
   '&gridlines=false&fzr=true' +
   '&top_margin=0.20&bottom_margin=0.20&left_margin=0.45&right_margin=0.45' +
   '&horizontal_alignment=LEFT&vertical_alignment=TOP';
+
+/*** ================= LOS DOS TIPOS DE PDF =================
+ *
+ * El borrador se distingue a simple vista: no lleva el membrete del centro y
+ * lleva la palabra BORRADOR en grande, arriba, en el sitio del membrete. Se
+ * repite en todas las páginas, porque las filas 1 a 9 están congeladas.
+ *
+ * Google no sabe poner una marca de agua girada al exportar a PDF, así que el
+ * aviso va como texto en la cabecera, que sí sale siempre.
+ * ======================================================== ***/
+
+const TEXTO_BORRADOR   = 'BORRADOR';
+const LETRA_BORRADOR   = 26;
+const COLOR_BORRADOR   = '#9E9E9E';
+const CARPETA_BORRADORES = 'Borradores';
 
 /*** ================= LÓGICA PURA ================= ***/
 
@@ -605,10 +639,15 @@ function ajustarFilasDelLogo_(hoja) {
    Antes se creaba una carpeta nueva cada día y se acumulaban. */
 const CARPETA_INFORMES = 'Informes por unidad';
 
-function carpetaDeInformes_() {
+function carpetaDeInformes_(borrador) {
   const raiz = DriveApp.getFolderById(CARPETA_ID);
   const encontradas = raiz.getFoldersByName(CARPETA_INFORMES);
-  return encontradas.hasNext() ? encontradas.next() : raiz.createFolder(CARPETA_INFORMES);
+  const carpeta = encontradas.hasNext() ? encontradas.next() : raiz.createFolder(CARPETA_INFORMES);
+  if (!borrador) return carpeta;
+  /* Los borradores van en una subcarpeta, para que no se mezclen con los que
+     el director va a repartir. */
+  const dentro = carpeta.getFoldersByName(CARPETA_BORRADORES);
+  return dentro.hasNext() ? dentro.next() : carpeta.createFolder(CARPETA_BORRADORES);
 }
 /* Ya no se hace un PDF con todos los grupos juntos. Se hacía, pero su
    numeración iba corrida de la primera página a la última, y la de cada informe
@@ -654,47 +693,180 @@ function exportarHoja_(libro, hoja, token, aviso) {
   return null;
 }
 
-function pdfsPorInforme_(libro, entradas) {
+/*** ================= PREPARAR LA PESTAÑA PARA CADA TIPO =================
+ *
+ * Se hace pestaña por pestaña, justo antes de exportarla, y se deshace justo
+ * después. Nunca se queda una pestaña a medias: el deshacer va en un bloque
+ * "finally", que Google ejecuta pase lo que pase.
+ *
+ * La portada (RESUMEN) no se toca: es la hoja de Francisco, tiene otro
+ * formato y no lleva ni membrete ni interrogantes sueltas.
+ * ======================================================== ***/
+
+/* Hasta qué columna llega el hueco del membrete, mirando los anchos que tiene
+   de verdad la pestaña. Es el mismo cálculo que columnaTrasElMembrete_, pero
+   sin necesitar la lista de columnas. */
+function columnasDelMembrete_(hoja) {
+  const max = Math.max(1, hoja.getLastColumn());
+  const limite = ANCHO_MEMBRETE + AIRE_TRAS_MEMBRETE;
+  let acumulado = 0;
+  for (let c = 1; c <= max; c++) {
+    if (acumulado >= limite) return Math.max(1, c - 1);
+    acumulado += hoja.getColumnWidth(c);
+  }
+  return Math.max(1, max - 1);
+}
+
+/* Deja la pestaña como tiene que salir en el PDF de este tipo.
+   Devuelve lo que hace falta para volver a dejarla como estaba. */
+function prepararParaPdf_(hoja, borrador) {
+  const estado = { borrador: !!borrador, rango: null, valores: null, leyenda: null };
+
+  if (borrador) {
+    /* Fuera el membrete. No se borra: se encoge a un punto, y al terminar se
+       le devuelve su tamaño. Borrar la imagen sería no poder recuperarla si
+       el fichero MEMBRETE no estuviera en la carpeta. */
+    let imagenes = [];
+    try { imagenes = hoja.getImages(); } catch (e) { imagenes = []; }
+    for (let i = 0; i < imagenes.length; i++) {
+      const img = imagenes[i];
+      let fila;
+      try { fila = img.getAnchorCell().getRow(); } catch (e) { continue; }
+      if (fila > FILAS_CABECERA) continue;
+      img.setWidth(1);
+      img.setHeight(1);
+    }
+    /* Y en su sitio, la palabra BORRADOR en grande. */
+    const rango = hoja.getRange(1, 1, FILAS_CABECERA, columnasDelMembrete_(hoja));
+    try { rango.breakApart(); } catch (e) { /* no estaba unida */ }
+    try { rango.merge(); } catch (e) { /* si no deja unir, se escribe igual */ }
+    rango.setValue(TEXTO_BORRADOR)
+         .setFontSize(LETRA_BORRADOR).setFontWeight('bold').setFontColor(COLOR_BORRADOR)
+         .setHorizontalAlignment('left').setVerticalAlignment('middle').setWrap(false);
+    estado.rango = rango;
+    return estado;
+  }
+
+  /* Definitivo: como no va a salir ninguna interrogante, sobra el trozo de la
+     leyenda que la explica. */
+  try {
+    const celda = hoja.getRange(1, columnasDelMembrete_(hoja) + 1);
+    const texto = String(celda.getValue() || '');
+    if (texto.indexOf(LEYENDA_INTERROGANTE) !== -1) {
+      estado.leyenda = { celda: celda, texto: texto };
+      celda.setValue(texto.split(LEYENDA_INTERROGANTE).join(''));
+    }
+  } catch (e) { /* si no se puede tocar la leyenda, el PDF sale igual */ }
+
+  /* Y las casillas que solo llevan una interrogante salen en blanco. El dato
+     no se pierde: se vuelve a escribir en cuanto termina la exportación de
+     esta pestaña. */
+  const ultima = hoja.getLastRow();
+  const ancho = hoja.getLastColumn();
+  if (ultima < FILA_DATOS || ancho < 1) return estado;
+  const rango = hoja.getRange(FILA_DATOS, 1, ultima - FILA_DATOS + 1, ancho);
+  const antes = rango.getValues();
+  const ahora = [];
+  let hay = false;
+  for (let f = 0; f < antes.length; f++) {
+    const fila = [];
+    for (let c = 0; c < antes[f].length; c++) {
+      const v = antes[f][c];
+      if (String(v === null || v === undefined ? '' : v).trim() === SIN_DATO) {
+        fila.push(''); hay = true;
+      } else fila.push(v);
+    }
+    ahora.push(fila);
+  }
+  if (!hay) return estado;
+  rango.setValues(ahora);
+  estado.rango = rango;
+  estado.valores = antes;
+  return estado;
+}
+
+/* Deja la pestaña como estaba antes de exportarla. */
+function deshacerParaPdf_(hoja, estado) {
+  if (!estado) return;
+  if (estado.borrador) {
+    if (estado.rango) {
+      try { estado.rango.breakApart(); } catch (e) { /* no estaba unida */ }
+      estado.rango.clearContent();
+      estado.rango.setFontSize(LETRA_LEYENDA).setFontWeight('normal').setFontColor('#000000');
+    }
+    /* ponerMembrete_ con blob nulo no cambia la imagen: solo le devuelve su
+       ancho y su alto de siempre. */
+    try { ponerMembrete_(hoja, null); } catch (e) { /* mejor seguir */ }
+    return;
+  }
+  if (estado.rango && estado.valores) estado.rango.setValues(estado.valores);
+  if (estado.leyenda) {
+    try { estado.leyenda.celda.setValue(estado.leyenda.texto); }
+    catch (e) { /* la siguiente actualización la vuelve a escribir */ }
+  }
+}
+
+function pdfsPorInforme_(libro, entradas, borrador) {
   /* Siempre la misma carpeta. Cada fichero se sustituye cuando se consigue
      sacar, así que si un día Google corta a medias, lo que ya estaba sigue
      ahí y basta con volver a pulsar para completar lo que falte. */
-  const nombreCarpeta = CARPETA_INFORMES;
-  const carpeta = carpetaDeInformes_();
+  const nombreCarpeta = borrador ? CARPETA_INFORMES + ' / ' + CARPETA_BORRADORES
+                                 : CARPETA_INFORMES;
+  const carpeta = carpetaDeInformes_(borrador);
 
   const token = ScriptApp.getOAuthToken();
   let hechos = 0, dobles = [], fallidos = [], seguidos = 0;
   for (let i = 0; i < entradas.length; i++) {
     const e = entradas[i];
     if (i) Utilities.sleep(2500);            // sin prisa, que Google se agobia
-    const aviso = {};
-    let blob = exportarHoja_(libro, e.hoja, token, aviso);
-    if (!blob) {
-      fallidos.push(e.nombre + ' (Google respondió ' + aviso.codigo + ')');
-      seguidos++;
-      /* Si falla dos veces seguidas es que Google ha cerrado el grifo.
-         Mejor parar y decirlo, que seguir dando golpes. */
-      if (seguidos >= 2) {
-        for (let k = i + 1; k < entradas.length; k++) fallidos.push(entradas[k].nombre + ' (no intentado)');
-        break;
+    const nombre = borrador ? e.nombre + ' BORRADOR' : e.nombre;
+
+    /* La portada no se prepara: solo las pestañas de grupo, que son las que
+       llevan membrete e interrogantes. Se reconocen porque tienen 'celda'. */
+    let estado = null;
+    try {
+      if (e.celda) {
+        estado = prepararParaPdf_(e.hoja, borrador);
+        SpreadsheetApp.flush();
       }
-      continue;
+
+      const aviso = {};
+      let blob = exportarHoja_(libro, e.hoja, token, aviso);
+      if (!blob) {
+        fallidos.push(nombre + ' (Google respondió ' + aviso.codigo + ')');
+        seguidos++;
+        /* Si falla dos veces seguidas es que Google ha cerrado el grifo.
+           Mejor parar y decirlo, que seguir dando golpes. */
+        if (seguidos >= 2) {
+          for (let k = i + 1; k < entradas.length; k++) {
+            fallidos.push((borrador ? entradas[k].nombre + ' BORRADOR' : entradas[k].nombre) +
+                          ' (no intentado)');
+          }
+          break;
+        }
+        continue;
+      }
+      seguidos = 0;
+      const paginas = contarPaginas_(blob);
+      /* Si el informe ocupa más de una hoja, se lo decimos al tutor en la
+         cabecera, que se repite en todas sus páginas, y lo volvemos a sacar. */
+      if (paginas > 1 && e.celda) {
+        e.celda.setValue(e.texto + ' · ' + paginas + ' hojas');
+        SpreadsheetApp.flush();
+        Utilities.sleep(1500);
+        const otro = exportarHoja_(libro, e.hoja, token, {});
+        if (otro) blob = otro;
+        dobles.push(nombre + ' (' + paginas + ' hojas)');
+      }
+      const anteriores = carpeta.getFilesByName(nombre + '.pdf');
+      while (anteriores.hasNext()) anteriores.next().setTrashed(true);
+      carpeta.createFile(blob.setName(nombre + '.pdf'));
+      hechos++;
+    } finally {
+      /* Pase lo que pase, la pestaña se queda como estaba. */
+      try { deshacerParaPdf_(e.hoja, estado); SpreadsheetApp.flush(); }
+      catch (x) { /* la siguiente actualización la deja bien igualmente */ }
     }
-    seguidos = 0;
-    const paginas = contarPaginas_(blob);
-    /* Si el informe ocupa más de una hoja, se lo decimos al tutor en la
-       cabecera, que se repite en todas sus páginas, y lo volvemos a sacar. */
-    if (paginas > 1 && e.celda) {
-      e.celda.setValue(e.texto + ' · ' + paginas + ' hojas');
-      SpreadsheetApp.flush();
-      Utilities.sleep(1500);
-      const otro = exportarHoja_(libro, e.hoja, token, {});
-      if (otro) blob = otro;
-      dobles.push(e.nombre + ' (' + paginas + ' hojas)');
-    }
-    const anteriores = carpeta.getFilesByName(e.nombre + '.pdf');
-    while (anteriores.hasNext()) anteriores.next().setTrashed(true);
-    carpeta.createFile(blob.setName(e.nombre + '.pdf'));
-    hechos++;
   }
   return { carpeta: nombreCarpeta, hechos: hechos, dobles: dobles, fallidos: fallidos };
 }
@@ -876,7 +1048,6 @@ function rellenarPestanasInformes_() {
     if (!grupo) continue;   // no es una pestaña de grupo
     limpiarRotuloDiver_(hoja, fila7);
     const nivel = grupo.substring(0, 2);
-
     const anchoViejo = hoja.getLastColumn();
     const titulosViejos = hoja.getRange(FILA_TITULOS, 1, 1, anchoViejo).getValues()[0];
     if (indiceTitulos(titulosViejos)[normalizar('Alumno/a:')] === undefined) {
@@ -1053,13 +1224,28 @@ function rellenarPestanasInformes_() {
            siglasSinExplicar: listaSinExplicar, pendientesSeneca: nPend };
 }
 
-/*** ================= BOTÓN 2: GENERAR LOS PDF =================
+/*** ================= BOTONES 2 Y 3: LOS PDF =================
  *
- * No escribe ni un dato: exporta lo que ya está en las pestañas. Por eso se
- * puede pulsar cuando se quiera, y por eso no pasa nada si Google corta a
- * medias: se vuelve a pulsar más tarde y completa lo que falte.
+ * No cambian ningún dato: exportan lo que ya está en las pestañas. Cada
+ * pestaña se prepara justo antes de exportarla y se deja como estaba justo
+ * después. Por eso se pueden pulsar cuando se quiera, y por eso no pasa nada
+ * si Google corta a medias: se vuelve a pulsar más tarde y completa lo que
+ * falte.
+ *
+ *   Botón 2, definitivos -> con membrete, sin interrogantes.
+ *   Botón 3, borrador    -> sin membrete, con interrogantes, rótulo BORRADOR.
+ *
+ * generarPdfs() se llama igual que siempre, para que la opción de menú de
+ * antes siga funcionando mientras el menú se refresca.
  * ======================================================== ***/
-function generarPdfs() {
+
+function generarPdfs() { generarLosPdf_(false); }
+
+function generarPdfsBorrador() { generarLosPdf_(true); }
+
+function generarLosPdf_(borrador) {
+  const comoSeLlama = borrador ? '3. Generar los PDF (borrador)'
+                               : '2. Generar los PDF (definitivos)';
   let libro;
   try {
     libro = SpreadsheetApp.openById(ID_INFORMES);
@@ -1086,14 +1272,14 @@ function generarPdfs() {
   const avisos = [];
   let sueltos = null;
   try {
-    sueltos = pdfsPorInforme_(libro, entradas);
+    sueltos = pdfsPorInforme_(libro, entradas, borrador);
     for (let i = 0; i < sueltos.dobles.length; i++) {
       avisos.push(['', '', 'Informe de más de una hoja', sueltos.dobles[i] +
                    '. Lo pone en su cabecera, para que el tutor lo sepa.']);
     }
     for (let i = 0; i < sueltos.fallidos.length; i++) {
       avisos.push(['', '', 'PDF que no ha salido', sueltos.fallidos[i] +
-                   '. Vuelve a pulsar "2. Generar los PDF" dentro de un rato.']);
+                   '. Vuelve a pulsar "' + comoSeLlama + '" dentro de un rato.']);
     }
   } catch (e) {
     avisos.push(['', '', 'No he podido hacer los PDF', e.message]);
@@ -1102,13 +1288,17 @@ function generarPdfs() {
   escribirAvisosInformes_(avisos);
 
   const total = sueltos ? sueltos.hechos + sueltos.fallidos.length : entradas.length;
-  avisar_('PDF generados (' + VERSION + ')',
+  avisar_((borrador ? 'PDF de borrador generados' : 'PDF definitivos generados') +
+    ' (' + VERSION + ')',
+    (borrador
+      ? 'Son los tuyos, para revisar: sin membrete, con las interrogantes y con la palabra BORRADOR arriba.'
+      : 'Son los del profesorado: con membrete y sin ninguna interrogante.') + '\n\n' +
     (sueltos
       ? 'Carpeta "' + sueltos.carpeta + '": ' + sueltos.hechos + ' de ' + total + ' ficheros.' +
         (sueltos.fallidos.length
           ? '\n\nGoogle no me ha dejado sacar ' + sueltos.fallidos.length +
             '. No pasa nada: los que ya estaban siguen ahí.' +
-            '\nVuelve a pulsar "2. Generar los PDF" dentro de un rato y completará lo que falte.'
+            '\nVuelve a pulsar "' + comoSeLlama + '" dentro de un rato y completará lo que falte.'
           : '\n\nHan salido todos.')
       : 'No se ha podido exportar nada.') +
     '\n\nAvisos anotados: ' + avisos.length +

@@ -92,13 +92,13 @@ const ROTULOS = {
    Bloque 1: quién es. Bloque 2: su trayectoria. Bloque 3: sus apoyos.
    Bloque 4: su matrícula de este curso. */
 const COLUMNAS_POR_NIVEL = {
-  '1º': ['alumno/a:', 'rep', 'mat no sup.', 'mat. pend. 6º', 'pil',
+  '1º': ['alumno/a:', 'rep', 'mat no sup.', 'pil', 'mat. pend. 6º',
          'neae', 'medidas/recursos', 'opt', 'fr -> alct', 'rel/atedu'],
-  '2º': ['alumno/a:', 'rep', 'mat no sup.', 'mat. pend.', 'pil',
+  '2º': ['alumno/a:', 'rep', 'mat no sup.', 'pil', 'mat. pend.',
          'neae', 'medidas/recursos', 'opt', 'rel/atedu'],
-  '3º': ['alumno/a:', 'rep', 'mat no sup.', 'mat. pend.', 'pil', 'div',
+  '3º': ['alumno/a:', 'rep', 'mat no sup.', 'pil', 'mat. pend.', 'div',
          'neae', 'medidas/recursos', 'opt', 'rel/atedu'],
-  '4º': ['alumno/a:', 'rep', 'mat no sup.', 'mat. pend.', 'pil', 'div',
+  '4º': ['alumno/a:', 'rep', 'mat no sup.', 'pil', 'mat. pend.', 'div',
          'neae', 'medidas/recursos', 'itinerario', 'rel/atedu']
 };
 

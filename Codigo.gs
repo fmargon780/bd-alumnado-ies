@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v36';
+const VERSION = 'BD v37';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -498,6 +498,42 @@ function leerNotas(valores) {
   return alumnos;
 }
 
+/* BUSCAR A UN ALUMNO EN UNA HOJA DE NOTAS. Añadido en la BD v37.
+
+   Normalmente basta con el nombre, porque las hojas EV ya vienen separadas
+   por curso. Pero en el cuaderno de notas hay alumnos a los que les falta el
+   SEGUNDO APELLIDO: Séneca escribe "Ahassan El Hammiti, Yahya" y la hoja pone
+   "Ahassan, Yahya". Sin esto, esos alumnos se quedaban sin sus suspensos del
+   año pasado y sin sus materias no superadas, y su PIL salía con interrogante.
+   Lo encontró Francisco el 8-sep-2026.
+
+   Cómo se busca cuando el nombre exacto no está: mismo nombre de pila, y los
+   apellidos de la hoja tienen que ser el principio de los apellidos de Séneca.
+   Solo se da por bueno si hay UN ÚNICO candidato en esa hoja. Si hay dos, no
+   se coge ninguno: más vale una interrogante que atribuirle a un alumno las
+   notas de otro. */
+function notaDeAlumno_(mapa, nombre) {
+  if (!mapa) return null;
+  if (mapa[nombre]) return mapa[nombre];
+  const coma = nombre.indexOf(', ');
+  if (coma === -1) return null;
+  const apellidos = nombre.substring(0, coma);
+  const pila = nombre.substring(coma + 2);
+  if (!apellidos || !pila) return null;
+  let encontrado = null, cuantos = 0;
+  for (const k in mapa) {
+    const c = k.indexOf(', ');
+    if (c === -1) continue;
+    if (k.substring(c + 2) !== pila) continue;
+    const apCorto = k.substring(0, c);
+    if (!apCorto || apellidos.indexOf(apCorto + ' ') !== 0) continue;
+    cuantos++;
+    encontrado = mapa[k];
+    encontrado.nombreEnLaHoja = k;
+  }
+  return cuantos === 1 ? encontrado : null;
+}
+
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
 function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, jefatura, neae, primaria) {
   /* Todos los cruces del sistema van por nombre Y curso. Dos alumnos distintos
@@ -730,7 +766,15 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         suspPasado = (exp && exp.anoSexto) ? (exp.pendientes || []).length : SIN_DATO;
       } else if (cursoPasado && cursoPasado !== SIN_DATO) {
         const notasPasado = notasPorCurso[cursoPasado];
-        const nPasado = notasPasado ? notasPasado[soloNombre] : null;
+        const nPasado = notaDeAlumno_(notasPasado, soloNombre);
+        if (nPasado && nPasado.nombreEnLaHoja && nPasado.nombreEnLaHoja !== soloNombre) {
+          avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+            aviso: 'Nombre incompleto en el cuaderno de notas',
+            detalle: 'En la hoja "EV ' + cursoPasado + ' ESO" figura como "' + nPasado.nombreEnLaHoja +
+              '", sin el segundo apellido. He dado por hecho que es el mismo alumno, porque no ' +
+              'hay ningún otro que encaje. Si lo corriges en el cuaderno de notas, este aviso ' +
+              'desaparece.' });
+        }
         suspPasado = (nPasado && esNumero(nPasado.declarado)) ? aNumero(nPasado.declarado) : SIN_DATO;
       } else {
         suspPasado = SIN_DATO;
@@ -797,7 +841,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         const notas = notasPorCurso[a.curso];
         /* Las notas ya vienen separadas por curso (notasPorCurso), así que aquí
            la clave es solo el nombre. */
-        const n = notas ? notas[soloNombre] : null;
+        const n = notaDeAlumno_(notas, soloNombre);
         /* "5 de 2º: FYQ, GEH, LCL" : cuántas son, de qué curso, y cuáles.
            Lleva el curso para que no se confunda con las pendientes.
            Los dos puntos ocupan menos que la raya larga, y en estas columnas
@@ -1393,7 +1437,6 @@ function construirAlumnado() {
     return f[iCur] === '1º' && f[iAsi] === SIN_DATO;
   }).length;
   const sinNotas = R.filas.filter(function (f) { return f[iMns] === SIN_DATO; }).length;
-
   avisar_('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
     '\n\nTotal de alumnos: ' + R.filas.length +

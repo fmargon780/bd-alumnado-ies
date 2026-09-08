@@ -118,7 +118,11 @@ const MAPA_INFORMES = {
      no haya descargado el expediente de un alumno, ahí va un "?", y se
      respeta lo que él hubiera escrito a mano: para eso está 'conservaSiVacio'. */
   'mat. pend. 6º': { col: 'Asignaturas pendientes', conservaSiVacio: true },
-  'pil':        { col: 'PIL (etapa)', si: 'SÍ' },
+  /* El PIL del papel sale de la lectura de etapa (lo cambió Francisco el
+     8-sep-2026). Desde la BD v33 esa columna tiene tres valores, y el papel
+     los distingue: "SÍ" es seguro, y "SÍ?" quiere decir que sale PIL por una
+     suposición de edad que nadie ha comprobado. */
+  'pil':        { col: 'PIL (etapa)', traduce: { 'SÍ': 'SÍ', 'SÍ (por edad)': 'SÍ?' } },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
   'opt':        { col: 'OPT' },
@@ -302,6 +306,12 @@ function valorInforme(regla, alumno, idxAlum) {
   if (i === undefined) return '';
   const v = alumno[i];
   if (regla.si) return String(v).trim().toUpperCase() === 'SÍ' ? regla.si : '';
+  /* 'traduce' es para las columnas con más de dos valores: cada valor de la
+     hoja tiene su marca en el papel, y lo que no esté en la lista va vacío. */
+  if (regla.traduce) {
+    const clave = String(v === null || v === undefined ? '' : v).trim();
+    return regla.traduce[clave] === undefined ? '' : regla.traduce[clave];
+  }
   /* 'siEmpieza' es para Diversificación, que vale "SÍ", "SÍ (solo Jefatura)" o "NO". */
   if (regla.siEmpieza) return normalizar(v).indexOf('si') === 0 ? regla.siEmpieza : '';
   /* 'siVale' es como 'siLleno', pero solo marca cuando el código es el que se
@@ -731,7 +741,7 @@ function escribirPortada_(libro, A, resumenGrupos) {
     const fila = A.filas[f];
     if (!dame(fila, 'Alumno/a')) continue;
     nTot++;
-    if (dame(fila, 'PIL') === 'SÍ') nPil++;
+    if (String(dame(fila, 'PIL')).indexOf('SÍ') === 0) nPil++;
     if (dame(fila, 'Repite el curso actual') === 'SÍ') nRep++;
     if (normalizar(dame(fila, 'Diversificación')).indexOf('si') === 0) nDiv++;
     if (dame(fila, 'Nº pendientes') !== '') nPen++;

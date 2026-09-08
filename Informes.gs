@@ -120,13 +120,20 @@ const MAPA_INFORMES = {
   'mat. pend. 6º': { col: 'Asignaturas pendientes', conservaSiVacio: true },
   /* La columna PIL del papel sale, desde la BD v34, de la columna 'PIL' de
      ALUMNADO, que quiere decir: este alumno está en el curso en el que está
-     porque el año pasado ya no podía repetir. Es la lectura del equipo
-     directivo, y es la que le sirve al profesorado para saber cómo llega.
-     Tiene tres valores y el papel los distingue: "SÍ" es seguro, "SÍ?" quiere
-     decir que se apoya en una suposición de edad sin comprobar, y "?" que no
-     sabemos en qué curso estaba el año pasado (llegó de otro centro).
-     Las otras dos columnas de permanencia se quedan en la hoja. */
-  'pil':        { col: 'PIL', traduce: { 'SÍ': 'SÍ', 'SÍ (por edad)': 'SÍ?', '?': '?' } },
+     porque el año pasado ya no podía repetir y aun así suspendió más de dos
+     materias. Es la lectura del equipo directivo, y es la que le sirve al
+     profesorado para saber cómo llega.
+
+     AL PAPEL SOLO VAN LOS SÍ COMPROBADOS (BD v38, decidido por Francisco el
+     8-sep-2026). En la hoja esa columna tiene además "SÍ (por edad)", cuando
+     el número en el que se apoya es una suposición, y "?", cuando faltan sus
+     datos del año pasado. Esos dos se quedan en la hoja y NO salen impresos:
+     son la lista de trabajo de Francisco, no información para el tutor. El
+     tutor solo debe ver lo que está confirmado.
+
+     Al no estar en esta lista, cualquier otro valor sale como casilla vacía.
+     Las otras dos columnas de permanencia tampoco van al papel. */
+  'pil':        { col: 'PIL', traduce: { 'SÍ': 'SÍ' } },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
   'opt':        { col: 'OPT' },

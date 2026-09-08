@@ -1,5 +1,5 @@
 {
-  "version": "BD v35 — en Primaria solo se puede repetir una vez: la estimación por edad ya no atribuye a Primaria más de una",
+  "version": "BD v36 — el PIL exige además que suspendiera más de dos materias: quien promocionó aprobando ya no sale PIL",
   "ficheros": [
     "Formato.gs",
     "Codigo.gs",

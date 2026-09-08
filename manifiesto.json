@@ -1,5 +1,5 @@
 {
-  "version": "BD v43 — el cuadro de la trayectoria del alumno, año por año, en una sola casilla",
+  "version": "BD v44 — el cuadro de antes de actualizar enseña, de cada fichero, la fecha del que ya está metido y la del que hay ahora",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

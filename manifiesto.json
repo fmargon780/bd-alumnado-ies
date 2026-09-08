@@ -1,5 +1,5 @@
 {
-  "version": "BD v45 — dos tipos de PDF: definitivos (con membrete, sin interrogantes) y borrador (sin membrete, con interrogantes)",
+  "version": "BD v46 — una opción de menú que ordena la carpeta de Drive y deja en la carpeta de datos solo lo que se descarga de Séneca",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",
@@ -10,11 +10,13 @@
     "Jefatura.gs",
     "Obligatorias.gs",
     "Informes.gs",
+    "Orden.gs",
     "Panel.gs"
   ],
   "menu": [
     { "titulo": "1. Actualizar los datos", "funcion": "actualizarDatos" },
     { "titulo": "2. Generar los PDF (definitivos)", "funcion": "generarPdfs" },
-    { "titulo": "3. Generar los PDF (borrador)", "funcion": "generarPdfsBorrador" }
+    { "titulo": "3. Generar los PDF (borrador)", "funcion": "generarPdfsBorrador" },
+    { "titulo": "4. Ordenar la carpeta de Drive", "funcion": "ordenarCarpeta" }
   ]
 }

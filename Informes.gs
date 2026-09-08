@@ -118,11 +118,15 @@ const MAPA_INFORMES = {
      no haya descargado el expediente de un alumno, ahí va un "?", y se
      respeta lo que él hubiera escrito a mano: para eso está 'conservaSiVacio'. */
   'mat. pend. 6º': { col: 'Asignaturas pendientes', conservaSiVacio: true },
-  /* El PIL del papel sale de la lectura de etapa (lo cambió Francisco el
-     8-sep-2026). Desde la BD v33 esa columna tiene tres valores, y el papel
-     los distingue: "SÍ" es seguro, y "SÍ?" quiere decir que sale PIL por una
-     suposición de edad que nadie ha comprobado. */
-  'pil':        { col: 'PIL (etapa)', traduce: { 'SÍ': 'SÍ', 'SÍ (por edad)': 'SÍ?' } },
+  /* La columna PIL del papel sale, desde la BD v34, de la columna 'PIL' de
+     ALUMNADO, que quiere decir: este alumno está en el curso en el que está
+     porque el año pasado ya no podía repetir. Es la lectura del equipo
+     directivo, y es la que le sirve al profesorado para saber cómo llega.
+     Tiene tres valores y el papel los distingue: "SÍ" es seguro, "SÍ?" quiere
+     decir que se apoya en una suposición de edad sin comprobar, y "?" que no
+     sabemos en qué curso estaba el año pasado (llegó de otro centro).
+     Las otras dos columnas de permanencia se quedan en la hoja. */
+  'pil':        { col: 'PIL', traduce: { 'SÍ': 'SÍ', 'SÍ (por edad)': 'SÍ?', '?': '?' } },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
   'opt':        { col: 'OPT' },
@@ -446,14 +450,13 @@ function leerAlumnado_() {
 
 /*** ================= EL MEMBRETE ================= ***/
 
-/* Busca el fichero de imagen llamado MEMBRETE en la carpeta de datos.
-   Usa la misma caché de ficheros que buscarCsv (Codigo.gs). */
+/* Busca el fichero de imagen llamado MEMBRETE en la carpeta de datos. */
 function blobMembrete_() {
-  const listas = ficherosPorCarpeta_();
-  for (let c = 0; c < listas.length; c++) {
-    const ficheros = listas[c];
-    for (let i = 0; i < ficheros.length; i++) {
-      const f = ficheros[i];
+  const carpetas = carpetasDondeBuscar();
+  for (let c = 0; c < carpetas.length; c++) {
+    const it = carpetas[c].getFiles();
+    while (it.hasNext()) {
+      const f = it.next();
       const nombre = f.getName();
       const sinExt = normalizar(nombre.replace(/\.[^.]+$/, ''));
       if (sinExt !== NOMBRE_MEMBRETE) continue;
@@ -962,22 +965,12 @@ function rellenarPestanasInformes_() {
         .setFontSize(LETRA_INFORME).setVerticalAlignment('middle');
     hoja.setColumnWidth(1, ANCHO_NUMERACION);
     hoja.getRange(FILA_DATOS, 1, bloque.length, 1).setHorizontalAlignment('center');
-    /* El ancho no se puede agrupar (cada columna lleva el suyo), pero el
-       ajuste de texto solo tiene dos casos: con ajuste o centrada. Se
-       agrupan en dos listas y se aplican con getRangeList al final, en vez
-       de una llamada por columna. Con esto se rellenan 23 pestañas cada
-       vez que se pulsa "Actualizar los datos". */
-    const colsConAjuste = [], colsCentradas = [];
-    const filaUltima = FILA_DATOS + bloque.length - 1;
     for (let c = 0; c < claves.length; c++) {
       hoja.setColumnWidth(c + 2, W.anchos[claves[c]]);
-      const letra = fmtLetraColumna_(c + 2);
-      const ref = letra + FILA_DATOS + ':' + letra + filaUltima;
-      if (CON_AJUSTE.indexOf(claves[c]) !== -1) colsConAjuste.push(ref);
-      else colsCentradas.push(ref);
+      const rango = hoja.getRange(FILA_DATOS, c + 2, bloque.length, 1);
+      if (CON_AJUSTE.indexOf(claves[c]) !== -1) rango.setWrap(true).setHorizontalAlignment('left');
+      else rango.setWrap(false).setHorizontalAlignment('center');
     }
-    if (colsConAjuste.length) hoja.getRangeList(colsConAjuste).setWrap(true).setHorizontalAlignment('left');
-    if (colsCentradas.length) hoja.getRangeList(colsCentradas).setWrap(false).setHorizontalAlignment('center');
     hoja.setRowHeight(FILA_TITULOS, altoDeLosRotulos_(claves, W.anchos));
     hoja.autoResizeRows(FILA_DATOS, bloque.length);
     if (ponerMembrete_(hoja, membrete)) membretesCambiados++;

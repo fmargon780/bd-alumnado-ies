@@ -1,11 +1,12 @@
 {
-  "version": "BD v34 — tres columnas de permanencia con nombre propio; PIL pasa a ser la del equipo directivo y es la que va al papel",
+  "version": "BD v34 — tres columnas de permanencia con nombre propio; PIL pasa a ser la del equipo directivo y es la que va al papel. Añadida la comprobación de materias obligatorias en Séneca (Obligatorias.gs)",
   "ficheros": [
     "Formato.gs",
     "Codigo.gs",
     "NEAE.gs",
     "Primaria.gs",
     "Jefatura.gs",
+    "Obligatorias.gs",
     "Informes.gs",
     "Panel.gs"
   ],

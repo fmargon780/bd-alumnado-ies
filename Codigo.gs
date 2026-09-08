@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v38';
+const VERSION = 'BD v39';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -813,7 +813,22 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         noPodiaRepetir = true; noPodiaSeguro = (totalSeguro >= 2);
       }
 
-      if (repite === 'SÍ') {
+      /* EN 1º DE ESO ESTA COLUMNA VA SIEMPRE A NO. Añadido en la BD v39, y lo
+         vio Francisco: un alumno de 1º que el año pasado repitió 6º de
+         Primaria salía marcado como PIL, y no lo es.
+
+         El motivo: esta columna habla de la ESO. Pasar de 6º de Primaria a 1º
+         de ESO no es promocionar por imperativo legal en el sentido que le da
+         el equipo directivo, y además en Primaria la promoción no se decide
+         contando materias suspensas, así que la regla de "más de dos" no vale
+         allí. La repetición de Primaria sigue contando para las otras dos
+         columnas de permanencia y para las repeticiones totales: lo que no
+         hace es convertir a nadie en PIL de entrada.
+
+         Un repetidor de 1º tampoco lo es, porque no promocionó: se quedó. */
+      if (a.curso === '1º') {
+        pil = 'NO';
+      } else if (repite === 'SÍ') {
         pil = 'NO';
       } else if (!noPodiaRepetir) {
         pil = (repetiaPasado === SIN_DATO) ? SIN_DATO : 'NO';

@@ -1048,6 +1048,7 @@ function rellenarPestanasInformes_() {
     if (!grupo) continue;   // no es una pestaña de grupo
     limpiarRotuloDiver_(hoja, fila7);
     const nivel = grupo.substring(0, 2);
+
     const anchoViejo = hoja.getLastColumn();
     const titulosViejos = hoja.getRange(FILA_TITULOS, 1, 1, anchoViejo).getValues()[0];
     if (indiceTitulos(titulosViejos)[normalizar('Alumno/a:')] === undefined) {

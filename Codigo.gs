@@ -1437,6 +1437,7 @@ function construirAlumnado() {
     return f[iCur] === '1º' && f[iAsi] === SIN_DATO;
   }).length;
   const sinNotas = R.filas.filter(function (f) { return f[iMns] === SIN_DATO; }).length;
+
   avisar_('Tabla ALUMNADO construida (' + VERSION + ')',
     resumen.join('\n') +
     '\n\nTotal de alumnos: ' + R.filas.length +

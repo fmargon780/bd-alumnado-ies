@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v42';
+const VERSION = 'BD v43';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -40,6 +40,9 @@ const PIL_POR_EDAD = 'SÍ (por edad)';
 const ESTADOS_QUE_NO_CUENTAN = ['anulada', 'trasladada'];
 const COL_AMBITOS = 'Ámbito Científico-Tecnológico';
 const NIVELES_ESO = ['1º', '2º', '3º', '4º'];
+/* Cómo se llama este centro dentro del campo "Centro" de los expedientes de
+   Séneca. Sirve para escribir "aquí" en vez del nombre largo. */
+const CENTRO_PROPIO = 'Fuente Lucena';
 
 /*** ================= LA INTERROGANTE =================
  *
@@ -177,6 +180,7 @@ const TITULOS_ALUMNADO = [
      junio, y el resto de la etapa. Delante de la primera va la casilla en la
      que el equipo directivo puede decidir a mano. */
   'PIL (a mano)', 'PIL', 'No podrá repetir este curso', 'Ha agotado las dos permanencias',
+  'Trayectoria',
   /* Lo que debe */
   'MAT NO SUP.', 'Nº pendientes', 'Asignaturas pendientes',
   /* Los apoyos que recibe */
@@ -202,7 +206,7 @@ const COLS_CONSERVADAS = ['Rep. Primaria (corregido)', 'Motivo de la corrección
 const TITULOS_HISTORIAL = ['Alumno/a', 'Nº Id. Escolar', 'Unidad', 'Curso', 'Edad a 31/12',
   'Repite el curso actual', 'Repeticiones en ESO', 'Rep. Primaria (calculado)', 'Fuente Primaria',
   'Fecha de nacimiento', 'Cursos repetidos en ESO',
-  'Curso el año pasado', 'Repetía el año pasado'];
+  'Curso el año pasado', 'Repetía el año pasado', 'Años en la ESO'];
 
 /*** El menú lo crea Actualizador.gs, no este fichero. ***/
 
@@ -377,6 +381,16 @@ function calcularHistorial(tabla) {
        columna PIL que quiere el equipo directivo.
        Si el alumno no estaba en este centro el año pasado, las dos casillas
        se quedan vacías y más adelante se convierten en interrogante. */
+    /* En qué curso estuvo cada año, en este centro. Es la materia prima de la
+       columna Trayectoria de ALUMNADO, que cuenta la historia del alumno año
+       por año en una sola casilla. Formato: "2024:1º; 2025:2º; 2026:3º". */
+    const parejas = [];
+    for (const n in porNivel) {
+      for (const anoN in porNivel[n]) parejas.push([parseInt(anoN, 10), n]);
+    }
+    parejas.sort(function (x, y) { return x[0] - y[0]; });
+    const anosESO = parejas.map(function (x) { return x[0] + ':' + x[1]; }).join('; ');
+
     const anoAnterior = ultimo - 1;
     let cursoPasado = '', repetiaPasado = '';
     for (const n in porNivel) {
@@ -404,7 +418,7 @@ function calcularHistorial(tabla) {
     filas.push([String(fila[iNombre]).trim(), id, iUnidad === -1 ? '' : String(fila[iUnidad] || '').trim(),
                 niv, isNaN(edad) ? '' : edad, repite, repESO, repPrim, fuente,
                 iFecNac === -1 ? '' : String(fila[iFecNac] || '').trim(), cursosESO,
-                cursoPasado, repetiaPasado]);
+                cursoPasado, repetiaPasado, anosESO]);
   }
   filas.sort(function (a, b) { return normalizar(a[0]) < normalizar(b[0]) ? -1 : 1; });
   return { filas: filas, ano: ultimo };
@@ -538,6 +552,114 @@ function notaDeAlumno_(mapa, nombre) {
     encontrado.nombreEnLaHoja = k;
   }
   return cuantos === 1 ? encontrado : null;
+}
+
+/*** ================= EL CUADRO DE LA TRAYECTORIA =================
+ *
+ * Lo pidió Francisco el 8-sep-2026: "necesitamos algo que nos muestre de una
+ * forma muy esquemática la historia ordenada de las matrículas de un alumno,
+ * con su decisión de promoción, su número de pendientes... Una especie de
+ * cuadro sinóptico que nos diga de una sola pasada la información que tenemos
+ * cierta, la que nos falta, la dudosa."
+ *
+ * Sale en la columna Trayectoria de ALUMNADO, una línea por año académico.
+ * LA REFERENCIA TEMPORAL VA SIEMPRE DELANTE, que es como lo quiere leer él.
+ * Lo que no se sabe lleva una interrogante, y el veredicto va en la última
+ * línea, marcada con una flecha.
+ *
+ * No calcula nada nuevo: junta en una casilla lo que ya está repartido por
+ * seis columnas.
+ * ======================================================== ***/
+
+/* "29000517 - C.E.I.P. Carmen Arévalo" -> "C.E.I.P. Carmen Arévalo".
+   Y si es este instituto, "aquí". Una casilla vacía también es "aquí": solo
+   el histórico de este centro deja el centro sin decir. */
+function centroCorto_(centro) {
+  const t = String(centro || '').trim();
+  if (!t) return 'aquí';
+  if (t.indexOf(CENTRO_PROPIO) !== -1) return 'aquí';
+  return t.replace(/^\s*\d+\s*-\s*/, '');
+}
+
+function trayectoria_(d) {
+  const L = [];
+
+  /* 1. Primaria. Va primero porque es lo primero en el tiempo. */
+  const exp = d.exp;
+  if (exp && exp.anoPrimero && exp.anoSexto && exp.repeticiones !== '') {
+    L.push(exp.anoPrimero + '-' + exp.anoSexto + '  Primaria · ' +
+      ((exp.cursosRepetidos || []).length
+        ? 'repitió ' + exp.cursosRepetidos.join(', ')
+        : 'sin repetir') + ' · expediente');
+  } else if (exp && exp.anoSexto) {
+    L.push('hasta ' + exp.anoSexto + '  Primaria · expediente incompleto (?)');
+  } else if (esNumero(d.repPrim)) {
+    const n = aNumero(d.repPrim);
+    L.push('Primaria  ' + (n > 0 ? (n + (n === 1 ? ' repetición' : ' repeticiones'))
+                                 : 'sin repetir') +
+      (d.fuenteP === 'EXPEDIENTE' ? ' · expediente' : ' · estimado por edad (?)'));
+  }
+
+  /* 2. Los años de la ESO. Del expediente si lo hay, y si no del histórico de
+        este centro, que no ve los años en otros institutos. */
+  const filas = [];
+  if (d.expSec && d.expSec.porAno) {
+    for (const ano in d.expSec.porAno) {
+      const x = d.expSec.porAno[ano];
+      filas.push({ ano: parseInt(ano, 10), curso: x.curso, centro: x.centro,
+                   estado: x.estado, susp: x.suspensos });
+    }
+  } else if (d.anosESO) {
+    const trozos = String(d.anosESO).split(';');
+    for (let i = 0; i < trozos.length; i++) {
+      const m = trozos[i].trim().match(/^(\d{4})\s*:\s*([1-4]º)$/);
+      if (m) filas.push({ ano: parseInt(m[1], 10), curso: m[2], centro: '', estado: '', susp: '' });
+    }
+  }
+  filas.sort(function (x, y) { return x.ano - y.ano; });
+
+  /* 3. El hueco que no explica nadie, delante del primer año que conocemos. */
+  if (filas.length && esNumero(d.sinLocalizar) && aNumero(d.sinLocalizar) > 0) {
+    const n = aNumero(d.sinLocalizar);
+    L.push('antes de ' + filas[0].ano + '  ? · falta ' + n +
+           (n === 1 ? ' año' : ' años') + ' que nada explica');
+  }
+
+  const ultimo = filas.length ? filas[filas.length - 1].ano : 0;
+  for (let i = 0; i < filas.length; i++) {
+    const f = filas[i];
+    const partes = [f.curso, centroCorto_(f.centro)];
+    if (f.ano === ultimo) {
+      partes.push('en curso');
+    } else {
+      /* La decisión la dice el expediente. Si no lo hay, se deduce: si al año
+         siguiente sigue en el mismo curso, es que repitió. */
+      let decision = String(f.estado || '').trim().toLowerCase();
+      if (!decision) {
+        decision = (filas[i + 1] && filas[i + 1].curso === f.curso) ? 'repite' : 'promociona';
+      }
+      partes.push(decision === 'repite' ? 'REPITE' : decision);
+      let susp = f.susp;
+      if (!esNumero(susp) && f.ano === ultimo - 1 && esNumero(d.suspPasado)) susp = d.suspPasado;
+      partes.push(esNumero(susp) ? (aNumero(susp) + ' susp') : '? susp');
+    }
+    L.push(f.ano + '  ' + partes.join(' · '));
+  }
+
+  /* 4. El veredicto, en la última línea. */
+  if (d.aMano) {
+    L.push('→ PIL ' + d.pil + ' · lo ha decidido el equipo directivo');
+  } else if (d.pil === 'SÍ') {
+    L.push('→ PIL SÍ · comprobado');
+  } else if (d.pil === PIL_POR_EDAD) {
+    L.push('→ PIL SÍ, pero sin comprobar: sale de una cuenta de edad');
+  } else if (d.pil === SIN_DATO) {
+    L.push('→ PIL ? · falta información para decidirlo');
+  } else if (d.pil === 'NO') {
+    L.push('→ no es PIL');
+  }
+
+  return L.join('\n');
 }
 
 /*** ================= LÓGICA: COMPOSICIÓN ================= ***/
@@ -1025,6 +1147,16 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       pil = 'NO';
     }
 
+    /* El cuadro de la trayectoria. Se arma al final, cuando ya está todo
+       decidido, porque su última línea es el veredicto. */
+    const cuadro = trayectoria_({
+      exp: exp, expSec: expSec,
+      anosESO: h ? h[13] : '',
+      repPrim: repPrim, fuenteP: fuente,
+      sinLocalizar: sinLocalizar, suspPasado: suspPasado,
+      pil: pil, aMano: (decisionAMano === 'SÍ' || decisionAMano === 'SI' || decisionAMano === 'NO')
+    });
+
     const divSeneca = (v['MAT'] === 'ÁMB') || a.diver === true;
     const divJefatura = !!(jef[clave] && jef[clave].div === 'SÍ');
     const diver = divSeneca ? 'SÍ' : (divJefatura ? 'SÍ (solo Jefatura)' : 'NO');
@@ -1068,6 +1200,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'PIL': pil,
       'No podrá repetir este curso': noPodra,
       'Ha agotado las dos permanencias': agotadas,
+      'Trayectoria': cuadro,
       /* NEAE y MEDIDAS Y RECURSOS salen del censo de Séneca. En los cursos que
          el censo trae, el censo manda: quien no aparece en él se queda con la
          casilla vacía, para que un dato equivocado no se quede escrito para
@@ -1304,7 +1437,7 @@ function construirAlumnado() {
      columnas, y esos datos solo están en RegAlum.csv. Se relee el histórico
      una vez y ya queda. */
   const COLS_QUE_OBLIGAN_A_RELEER = ['Cursos repetidos en ESO', 'Curso el año pasado',
-                                     'Repetía el año pasado'];
+                                     'Repetía el año pasado', 'Años en la ESO'];
   try {
     const titulosH = hHist.getRange(2, 1, 1, hHist.getLastColumn()).getValues()[0].map(normalizar);
     let falta = false;
@@ -1679,6 +1812,19 @@ function escribirAlumnado(filas) {
   hoja.getRange(2, 1, 1, ancho).setValues([TITULOS_ALUMNADO]).setFontWeight('bold')
       .setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
+
+  /* EL CUADRO DE LA TRAYECTORIA, TAMBIÉN COMO NOTA DEL NOMBRE. Lo pidió
+     Francisco: quiere verlo de una sola pasada. Puesto solo en su columna
+     habría que ensanchar la fila y la tabla se haría inmanejable, así que el
+     mismo texto se copia como nota de la casilla del alumno: se pasa el ratón
+     por encima del nombre y sale el cuadro entero, sin mover nada.
+     La columna Trayectoria se queda igualmente, para poder filtrar y copiar. */
+  const iTray = TITULOS_ALUMNADO.indexOf('Trayectoria');
+  if (filas.length && iTray !== -1) {
+    const notas = filas.map(function (f) { return [String(f[iTray] || '')]; });
+    try { hoja.getRange(3, 1, filas.length, 1).setNotes(notas); }
+    catch (e) { /* las notas son un lujo: si fallan, la columna sigue estando */ }
+  }
 
   const calculadas = ['Repite el curso actual', 'Curso el año pasado', 'Repetía el año pasado',
     'Suspensos el año pasado',

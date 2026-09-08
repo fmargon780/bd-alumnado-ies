@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v35';
+const VERSION = 'BD v36';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -22,6 +22,17 @@ const EDAD_TEORICA = { '1º': 12, '2º': 13, '3º': 14, '4º': 15 };
    tampoco: lo que cambia es que ya no se le atribuye a Primaria algo que no
    puede haber pasado en Primaria. */
 const MAX_REP_PRIMARIA = 1;
+
+/* CUÁNTAS ASIGNATURAS SUSPENSAS DEJAN PROMOCIONAR.
+   Añadido en la BD v36, a partir de una observación de Francisco: un alumno
+   que el año pasado estaba repitiendo y este año está en el curso siguiente
+   NO tiene por qué haber promocionado por imperativo legal. Puede haber
+   aprobado. Con dos suspensas o menos promociona por sus propios medios; con
+   más de dos, si no podía repetir, la ley lo sube igualmente, y ESO es el PIL.
+   Se cuentan todas las materias con evaluación negativa, incluidas las
+   pendientes de cursos anteriores: es la columna "Suspensos" de las hojas EV
+   del cuaderno de notas. */
+const MAX_SUSPENSOS_PROMOCION = 2;
 /* El tercer valor de las dos columnas de PIL, desde la BD v33. Quiere decir:
    sale PIL, pero el número en el que se apoya es una suposición por edad y
    nadie lo ha comprobado. Ver el punto 7 del CONTEXTO. */
@@ -153,7 +164,8 @@ const TITULOS_ALUMNADO = [
   /* Quién es */
   'Alumno/a', 'Unidad', 'Curso', 'Edad a 31/12',
   /* De dónde viene */
-  'Curso el año pasado', 'Repetía el año pasado', 'Repite el curso actual',
+  'Curso el año pasado', 'Repetía el año pasado', 'Suspensos el año pasado',
+  'Repite el curso actual',
   /* Qué ha repetido */
   'Repeticiones en ESO', 'Cursos repetidos en ESO',
   'Rep. Primaria (calculado)', 'Cursos repetidos en Primaria', 'Fuente Primaria',
@@ -578,7 +590,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     /* Las tres columnas de permanencia. Ver el comentario grande de arriba. */
     let pil = '', noPodra = '', agotadas = '';
     /* De dónde viene el alumno. */
-    let cursoPasado = '', repetiaPasado = '';
+    let cursoPasado = '', repetiaPasado = '', suspPasado = '';
 
     if (!h) {
       fuente = 'No consta en el histórico';
@@ -706,6 +718,24 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
         repetiaPasado = SIN_DATO;
       }
 
+      /* CUÁNTAS SUSPENDIÓ EL AÑO PASADO.
+         En 2º, 3º y 4º sale de la hoja EV de su curso del año pasado, columna
+         "Suspensos", que suma las del propio curso y las pendientes: son todas
+         las materias con evaluación negativa, que es lo que cuenta para
+         promocionar. Las hojas ya vienen separadas por curso, así que aquí la
+         clave es solo el nombre.
+         En 1º el curso pasado fue 6º de Primaria y no hay hoja EV: se usan las
+         materias que suspendió en 6º según su expediente. */
+      if (a.curso === '1º' && repite !== 'SÍ') {
+        suspPasado = (exp && exp.anoSexto) ? (exp.pendientes || []).length : SIN_DATO;
+      } else if (cursoPasado && cursoPasado !== SIN_DATO) {
+        const notasPasado = notasPorCurso[cursoPasado];
+        const nPasado = notasPasado ? notasPasado[soloNombre] : null;
+        suspPasado = (nPasado && esNumero(nPasado.declarado)) ? aNumero(nPasado.declarado) : SIN_DATO;
+      } else {
+        suspPasado = SIN_DATO;
+      }
+
       /* Las tres columnas de permanencia. Ver el comentario grande de arriba. */
 
       /* 3. Ha agotado las dos permanencias de la etapa. */
@@ -717,19 +747,36 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       noPodra = (repite === 'SÍ') ? 'SÍ' : agotadas;
 
       /* 1. PIL: promocionó por imperativo legal al curso en el que está.
-         Quien repite ahora no promocionó, así que no lo es. Quien el año
-         pasado estaba repitiendo su curso ya no podía repetirlo otra vez, así
-         que si está en el siguiente es que promocionó sin poder quedarse. Y
-         quien ya tenía las dos permanencias gastadas, igual. Si no sabemos en
-         qué curso estaba el año pasado, no se afirma nada: va la interrogante. */
+
+         Son DOS condiciones, y hacen falta las dos (BD v36):
+
+           a) El año pasado ya no podía repetir. O porque estaba repitiendo ese
+              mismo curso, o porque ya tenía gastadas las dos permanencias.
+           b) Y aun así no cumplía los requisitos para promocionar, es decir
+              suspendió más de MAX_SUSPENSOS_PROMOCION materias.
+
+         Si se cumple (a) pero no (b), el alumno promocionó por sus propios
+         medios y NO es PIL. Lo señaló Francisco el 8-sep-2026, y sin esa
+         segunda condición el programa daba por PIL a 25 alumnos que habían
+         aprobado.
+
+         Quien repite este curso no promocionó, así que nunca es PIL. Y lo que
+         no se sabe se deja en interrogante, no se afirma. */
+      let noPodiaRepetir = false, noPodiaSeguro = false;
+      if (repetiaPasado === 'SÍ') {
+        noPodiaRepetir = true; noPodiaSeguro = true;
+      } else if (total !== '' && total >= 2) {
+        noPodiaRepetir = true; noPodiaSeguro = (totalSeguro >= 2);
+      }
+
       if (repite === 'SÍ') {
         pil = 'NO';
-      } else if (repetiaPasado === 'SÍ') {
-        pil = 'SÍ';
-      } else if (total !== '' && total >= 2) {
-        pil = (totalSeguro >= 2) ? 'SÍ' : PIL_POR_EDAD;
-      } else if (repetiaPasado === SIN_DATO) {
+      } else if (!noPodiaRepetir) {
+        pil = (repetiaPasado === SIN_DATO) ? SIN_DATO : 'NO';
+      } else if (!esNumero(suspPasado)) {
         pil = SIN_DATO;
+      } else if (aNumero(suspPasado) > MAX_SUSPENSOS_PROMOCION) {
+        pil = noPodiaSeguro ? 'SÍ' : PIL_POR_EDAD;
       } else {
         pil = 'NO';
       }
@@ -824,6 +871,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'Repite el curso actual': repite,
       'Curso el año pasado': cursoPasado,
       'Repetía el año pasado': repetiaPasado,
+      'Suspensos el año pasado': suspPasado,
       'Diversificación': diver,
       'OPT': v['OPT'] || '',
       'FR -> ALCT': v['FR -> ALCT'] || '',
@@ -1276,6 +1324,14 @@ function construirAlumnado() {
   /* Y aquellos de los que no sabemos en qué curso estaban el año pasado,
      casi siempre porque llegaron este año de otro centro. */
   const pilSinSaber = R.filas.filter(function (f) { return f[iPil] === SIN_DATO; }).length;
+  /* Los que el año pasado no podían repetir pero promocionaron aprobando: por
+     eso NO son PIL. Antes de la BD v36 el programa los contaba como PIL. */
+  const iSus = TITULOS_ALUMNADO.indexOf('Suspensos el año pasado');
+  const iRepPas = TITULOS_ALUMNADO.indexOf('Repetía el año pasado');
+  const promocionaronSolos = R.filas.filter(function (f) {
+    return f[iRepPas] === 'SÍ' && f[iRep] !== 'SÍ' && esNumero(f[iSus]) &&
+           aNumero(f[iSus]) <= MAX_SUSPENSOS_PROMOCION;
+  }).length;
   const mns = R.filas.filter(function (f) { return f[iMns] !== '' && f[iMns] !== SIN_DATO; }).length;
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
@@ -1317,7 +1373,8 @@ function construirAlumnado() {
     '\nHan agotado las dos permanencias de la etapa: ' + pilEtapa +
     '\nRepiten ahora y es su primera vez (por eso se separan las dos últimas): ' + soloEsteCurso +
     '\nSin comprobar, salen "' + PIL_POR_EDAD + '": ' + pilPorEdad +
-    '\nCon "' + SIN_DATO + '" en PIL porque no sabemos su curso pasado: ' + pilSinSaber +
+    '\nCon "' + SIN_DATO + '" en PIL porque falta su curso pasado o sus notas: ' + pilSinSaber +
+    '\nNo son PIL porque promocionaron aprobando: ' + promocionaronSolos +
     '\n\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +
     '\nEn diversificación: ' + div +
@@ -1389,8 +1446,9 @@ function escribirAlumnado(filas) {
     'Una casilla vacía quiere decir que no hay nada que poner; una "' + SIN_DATO +
     '" quiere decir que ese dato todavía no lo tenemos. ' +
     'LAS TRES COLUMNAS DE PERMANENCIA, en orden de tiempo: "PIL" quiere decir que el alumno ' +
-    'está en este curso porque el año pasado ya no podía repetir, es decir que promocionó por ' +
-    'imperativo legal; es la que va al informe en papel. "No podrá repetir este curso" quiere ' +
+    'está en este curso porque el año pasado ya no podía repetir Y ADEMÁS suspendió más de ' +
+    MAX_SUSPENSOS_PROMOCION + ' materias, es decir que promocionó por imperativo legal; es la ' +
+    'que va al informe en papel. "No podrá repetir este curso" quiere ' +
     'decir que si suspende en junio pasará de curso igualmente. "Ha agotado las dos ' +
     'permanencias" quiere decir que no puede repetir ningún curso más en toda la enseñanza ' +
     'obligatoria, Primaria y ESO juntas. Son tres preguntas distintas y los tres grupos de ' +
@@ -1402,6 +1460,7 @@ function escribirAlumnado(filas) {
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
 
   const calculadas = ['Repite el curso actual', 'Curso el año pasado', 'Repetía el año pasado',
+    'Suspensos el año pasado',
     'Diversificación', 'Cursos repetidos en ESO', 'Cursos repetidos en Primaria',
     'Rep. sin localizar', 'Repeticiones totales',
     'PIL', 'No podrá repetir este curso', 'Ha agotado las dos permanencias'];

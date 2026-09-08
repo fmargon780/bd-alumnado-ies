@@ -118,7 +118,7 @@ const MAPA_INFORMES = {
      no haya descargado el expediente de un alumno, ahí va un "?", y se
      respeta lo que él hubiera escrito a mano: para eso está 'conservaSiVacio'. */
   'mat. pend. 6º': { col: 'Asignaturas pendientes', conservaSiVacio: true },
-  'pil':        { col: 'PIL', si: 'SÍ' },
+  'pil':        { col: 'PIL (etapa)', si: 'SÍ' },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
   'opt':        { col: 'OPT' },

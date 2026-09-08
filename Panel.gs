@@ -79,14 +79,16 @@ function guardarPropiedad_(clave, valor) {
 /*** ================= BUSCAR EL FICHERO DE JEFATURA ================= ***/
 
 /* Igual que hace Jefatura.gs, pero solo para saber si está y de cuándo es.
-   No lo abre ni lo lee: aquí solo interesa la fecha. */
+   No lo abre ni lo lee: aquí solo interesa la fecha. Usa la misma caché de
+   ficheros que buscarCsv (Codigo.gs), así que no vuelve a listar Drive. */
 function buscarAgrupamientosPanel_() {
-  const carpetas = carpetasDondeBuscar();
+  const listas = ficherosPorCarpeta_();
   let mejor = null;
-  for (let c = 0; c < carpetas.length; c++) {
-    const it = carpetas[c].getFilesByType(MimeType.GOOGLE_SHEETS);
-    while (it.hasNext()) {
-      const f = it.next();
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const f = ficheros[i];
+      if (f.getMimeType() !== MimeType.GOOGLE_SHEETS) continue;
       if (normalizar(f.getName()).indexOf('agrupamientos') === -1) continue;
       if (!mejor || f.getLastUpdated().getTime() > mejor.getLastUpdated().getTime()) mejor = f;
     }
@@ -194,13 +196,15 @@ function estadoDeLasFuentes_() {
   lineas.push('Fichero de Jefatura: ' + (jef ? haceCuanto_(jef.getLastUpdated()) : 'NO ESTÁ') +
               '. ' + estadoJef);
 
-  /* 5. Los expedientes de Primaria. */
+  /* 5. Los expedientes de Primaria. Lista cacheada: ver ficherosDeExpedientes_
+        en Primaria.gs. Así no se lista la carpeta dos veces (aquí y al
+        construir la tabla) cuando hay muchos ficheros acumulados. */
   let nExp = 0, expReciente = null;
   const carpeta = carpetaExpedientes_();
   if (carpeta) {
-    const it = carpeta.getFiles();
-    while (it.hasNext()) {
-      const f = it.next();
+    const ficherosExp = ficherosDeExpedientes_();
+    for (let i = 0; i < ficherosExp.length; i++) {
+      const f = ficherosExp[i];
       if (!/\.csv$/i.test(f.getName())) continue;
       nExp++;
       const u = f.getLastUpdated();

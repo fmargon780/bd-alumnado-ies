@@ -446,13 +446,14 @@ function leerAlumnado_() {
 
 /*** ================= EL MEMBRETE ================= ***/
 
-/* Busca el fichero de imagen llamado MEMBRETE en la carpeta de datos. */
+/* Busca el fichero de imagen llamado MEMBRETE en la carpeta de datos.
+   Usa la misma caché de ficheros que buscarCsv (Codigo.gs). */
 function blobMembrete_() {
-  const carpetas = carpetasDondeBuscar();
-  for (let c = 0; c < carpetas.length; c++) {
-    const it = carpetas[c].getFiles();
-    while (it.hasNext()) {
-      const f = it.next();
+  const listas = ficherosPorCarpeta_();
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const f = ficheros[i];
       const nombre = f.getName();
       const sinExt = normalizar(nombre.replace(/\.[^.]+$/, ''));
       if (sinExt !== NOMBRE_MEMBRETE) continue;
@@ -961,12 +962,22 @@ function rellenarPestanasInformes_() {
         .setFontSize(LETRA_INFORME).setVerticalAlignment('middle');
     hoja.setColumnWidth(1, ANCHO_NUMERACION);
     hoja.getRange(FILA_DATOS, 1, bloque.length, 1).setHorizontalAlignment('center');
+    /* El ancho no se puede agrupar (cada columna lleva el suyo), pero el
+       ajuste de texto solo tiene dos casos: con ajuste o centrada. Se
+       agrupan en dos listas y se aplican con getRangeList al final, en vez
+       de una llamada por columna. Con esto se rellenan 23 pestañas cada
+       vez que se pulsa "Actualizar los datos". */
+    const colsConAjuste = [], colsCentradas = [];
+    const filaUltima = FILA_DATOS + bloque.length - 1;
     for (let c = 0; c < claves.length; c++) {
       hoja.setColumnWidth(c + 2, W.anchos[claves[c]]);
-      const rango = hoja.getRange(FILA_DATOS, c + 2, bloque.length, 1);
-      if (CON_AJUSTE.indexOf(claves[c]) !== -1) rango.setWrap(true).setHorizontalAlignment('left');
-      else rango.setWrap(false).setHorizontalAlignment('center');
+      const letra = fmtLetraColumna_(c + 2);
+      const ref = letra + FILA_DATOS + ':' + letra + filaUltima;
+      if (CON_AJUSTE.indexOf(claves[c]) !== -1) colsConAjuste.push(ref);
+      else colsCentradas.push(ref);
     }
+    if (colsConAjuste.length) hoja.getRangeList(colsConAjuste).setWrap(true).setHorizontalAlignment('left');
+    if (colsCentradas.length) hoja.getRangeList(colsCentradas).setWrap(false).setHorizontalAlignment('center');
     hoja.setRowHeight(FILA_TITULOS, altoDeLosRotulos_(claves, W.anchos));
     hoja.autoResizeRows(FILA_DATOS, bloque.length);
     if (ponerMembrete_(hoja, membrete)) membretesCambiados++;

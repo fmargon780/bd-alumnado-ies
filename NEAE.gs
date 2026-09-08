@@ -406,7 +406,8 @@ function escribirNeae_(porNombre, unidades, nombreFichero) {
   });
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
   hoja.setFrozenRows(2);
-  for (let c = 1; c <= ancho; c++) hoja.autoResizeColumn(c);
+  /* Sin autoResizeColumn: arreglarFormatoDeTodo_ (Formato.gs) deja un ancho
+     fijo por columna al terminar "Actualizar los datos". */
   hoja.setColumnWidth(ancho, 320);
   if (filas.length) hoja.getRange(3, ancho, filas.length, 1).setWrap(true);
   return filas.length;

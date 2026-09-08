@@ -21,6 +21,17 @@
  *   e) Deja escrito el panel: qué ha hecho, cómo están las fuentes y qué
  *      queda por cuadrar.
  *
+ * EL CUADRO DE ANTES DE ACTUALIZAR (BD v44, 8-sep-2026). Lo pidió Francisco:
+ * el cuadro decía "hoy" o "ayer" de cada fichero, y eso no contesta a la
+ * pregunta que él se hace, que es OTRA: "¿lo que hay en la carpeta es más
+ * nuevo que lo que ya está metido en la tabla?". Ahora cada fuente enseña dos
+ * fechas: la del fichero que se leyó la última vez y la del que hay ahora en
+ * Drive. Para eso el programa apunta, cada vez que actualiza bien, la fecha de
+ * cada fuente en PROP_FUENTES_LEIDAS. Se quitaron también las frases que solo
+ * hablaban de los expedientes de Primaria: desde el 8-sep-2026 valen para
+ * alumnado de cualquier curso, así que contar los de 1º que faltan ya no dice
+ * lo que decía.
+ *
  * LA PROTECCIÓN DEL CUADRO. El 6-sep-2026 un cuadro de diálogo dejó una
  * ejecución en pausa para siempre porque Google no consiguió mostrarlo. Aquí
  * el cuadro sale ANTES de trabajar, así que si falla no se ha hecho nada. Y
@@ -36,6 +47,12 @@ const TITULO_PANEL = 'PANEL — qué hay, qué falta y qué hace cada botón';
 /* Dónde se apunta la fecha del RegAlum que se leyó la última vez. Sirve para
    no volver a leer un fichero de 10 MB que no ha cambiado. */
 const PROP_FECHA_HISTORICO = 'FECHA_REGALUM';
+
+/* Dónde se apunta, de CADA fuente, el fichero que se incorporó la última vez
+   que la actualización terminó bien. Es un JSON: por cada fuente, la fecha del
+   fichero y cuántos ficheros eran. Sirve para poder enseñar las dos fechas en
+   el cuadro. Si se pierde, no pasa nada: la primera vez sale "todavía nada". */
+const PROP_FUENTES_LEIDAS = 'FUENTES_LEIDAS';
 
 /* A partir de cuántos días conviene pedir una versión nueva del fichero de
    Jefatura. No es un error: es un recordatorio. */
@@ -65,6 +82,16 @@ function fechaCorta_(fecha) {
   return d + '/' + m + '/' + fecha.getFullYear();
 }
 
+/* "08/09/2026 09:05". Hace falta la hora: un fichero que se vuelve a
+   descargar el mismo día tiene la misma fecha corta y sin la hora parecería
+   el mismo. */
+function fechaHora_(fecha) {
+  if (!fecha) return '';
+  const h = ('0' + fecha.getHours()).slice(-2);
+  const mi = ('0' + fecha.getMinutes()).slice(-2);
+  return fechaCorta_(fecha) + ' ' + h + ':' + mi;
+}
+
 function propiedadGuardada_(clave) {
   try {
     const v = PropertiesService.getDocumentProperties().getProperty(clave);
@@ -75,6 +102,37 @@ function propiedadGuardada_(clave) {
 function guardarPropiedad_(clave, valor) {
   try { PropertiesService.getDocumentProperties().setProperty(clave, String(valor)); }
   catch (e) { /* si no se puede guardar, solo se releerá de más */ }
+}
+
+/*** ================= LO QUE SE INCORPORÓ LA ÚLTIMA VEZ ================= ***/
+
+/* Devuelve { clave: { ts: milisegundos, n: cuántos ficheros } }. Si no hay
+   nada apuntado, devuelve un objeto vacío y el cuadro dirá "todavía nada". */
+function marcasGuardadas_() {
+  try {
+    const t = propiedadGuardada_(PROP_FUENTES_LEIDAS);
+    if (!t) return {};
+    const o = JSON.parse(t);
+    return (o && typeof o === 'object') ? o : {};
+  } catch (e) { return {}; }
+}
+
+/* Se llama solo cuando la tabla ALUMNADO se ha reconstruido de verdad. Si la
+   actualización se para a medias, las marcas se quedan como estaban y el
+   cuadro seguirá diciendo que ese fichero está sin meter, que es la verdad. */
+function guardarMarcas_(marcas) {
+  try {
+    PropertiesService.getDocumentProperties()
+      .setProperty(PROP_FUENTES_LEIDAS, JSON.stringify(marcas || {}));
+  } catch (e) { /* si no se puede guardar, la próxima vez saldrá "todavía nada" */ }
+}
+
+/* El texto de una de las dos fechas del cuadro. */
+function textoDeMarca_(marca) {
+  if (!marca || !marca.ts) return 'todavía nada';
+  let t = fechaHora_(new Date(marca.ts));
+  if (marca.n > 1) t += ' (' + marca.n + ' ficheros)';
+  return t;
 }
 
 /*** ================= BUSCAR EL FICHERO DE JEFATURA ================= ***/
@@ -101,12 +159,54 @@ function buscarAgrupamientosPanel_() {
 /*** ================= EL ESTADO DE LAS FUENTES ================= ***/
 
 /* Devuelve:
-     filas        -> para la tabla del panel
-     lineas       -> para el cuadro de aviso, en texto corrido
+     filas          -> para la tabla del panel (cinco columnas)
+     lineas         -> para el cuadro de aviso, en texto corrido
      historicoNuevo -> si hay que releer el RegAlum
-     avisos       -> cosas que conviene mirar antes de continuar   */
+     marcas         -> lo que hay AHORA en Drive, para apuntarlo si todo va bien
+     avisos         -> cosas que conviene mirar antes de continuar   */
 function estadoDeLasFuentes_() {
   const filas = [], lineas = [], avisos = [];
+  const antes = marcasGuardadas_();
+  const marcas = {};
+
+  /* Apunta una fuente: compara lo que ya está metido con lo que hay ahora,
+     escribe la fila del panel y las dos líneas del cuadro.
+       clave    -> con qué nombre se guarda la marca
+       rotulo   -> cómo se llama en pantalla
+       fichero  -> el nombre del fichero, o cuántos hay
+       fecha    -> la fecha del fichero que hay ahora (o null si no está)
+       n        -> cuántos ficheros hay ahora
+       nota     -> lo que hay que añadir al estado, si hace falta            */
+  const apuntar = function (clave, rotulo, fichero, fecha, n, nota) {
+    const ya = antes[clave] || null;
+    const ahora = fecha ? { ts: fecha.getTime(), n: n || 1 } : null;
+    if (ahora) marcas[clave] = ahora;
+
+    let cambio;
+    if (!ahora) {
+      cambio = 'NO ESTÁ.';
+    } else if (!ya || !ya.ts) {
+      cambio = 'Es la primera vez que lo meto.';
+    } else if (ahora.ts > ya.ts) {
+      cambio = 'Es más nuevo: se mete la versión de ahora.';
+    } else if (ahora.n !== ya.n) {
+      const d = ahora.n - ya.n;
+      cambio = d > 0 ? 'Hay ' + d + ' ficheros más que la última vez.'
+                     : 'Hay ' + (-d) + ' ficheros menos que la última vez.';
+    } else if (ahora.ts < ya.ts) {
+      cambio = 'Es más antiguo que el que ya está metido.';
+    } else {
+      cambio = 'El mismo que ya está metido.';
+    }
+
+    const estado = nota ? cambio + ' ' + nota : cambio;
+    const textoYa = textoDeMarca_(ya);
+    const textoAhora = ahora ? textoDeMarca_(ahora) : 'no está en la carpeta';
+
+    filas.push([rotulo, fichero || '—', textoYa, textoAhora, estado]);
+    lineas.push(rotulo);
+    lineas.push('   metido: ' + textoYa + ' → ahora: ' + textoAhora + '. ' + estado);
+  };
 
   /* 1. El histórico de matrículas. */
   const regAlum = buscarCsv('RegAlum');
@@ -124,27 +224,24 @@ function estadoDeLasFuentes_() {
     historialViejo = titulos.indexOf(normalizar('Fecha de nacimiento')) === -1;
   }
 
-  let historicoNuevo = false, estadoHist = '';
+  let historicoNuevo = false, notaHist = '';
   if (!regAlum) {
-    estadoHist = 'NO ESTÁ. Descárgalo de Séneca.';
+    notaHist = 'Descárgalo de Séneca.';
     avisos.push('Falta el fichero RegAlum.csv.');
   } else if (!hayHistorial) {
     historicoNuevo = true;
-    estadoHist = 'Se va a leer por primera vez (tarda un poco).';
+    notaHist = 'Se lee entero (tarda un poco).';
   } else if (historialViejo) {
     historicoNuevo = true;
-    estadoHist = 'Se va a releer: le falta la fecha de nacimiento.';
+    notaHist = 'Se relee: le falta la fecha de nacimiento.';
   } else if (String(regAlum.getLastUpdated().getTime()) !== guardada) {
     historicoNuevo = true;
-    estadoHist = 'Ha cambiado. Se va a releer (tarda un poco).';
+    notaHist = 'Se relee (tarda un poco).';
   } else {
-    estadoHist = 'Al día. No hace falta releerlo.';
+    notaHist = 'No hace falta releerlo.';
   }
-  filas.push(['Histórico de matrículas', regAlum ? regAlum.getName() : '—',
-              regAlum ? haceCuanto_(regAlum.getLastUpdated()) : '—', estadoHist]);
-  lineas.push('Histórico de matrículas: ' +
-              (regAlum ? haceCuanto_(regAlum.getLastUpdated()) : 'NO ESTÁ') +
-              '. ' + estadoHist);
+  apuntar('historico', 'Histórico de matrículas', regAlum ? regAlum.getName() : '',
+          regAlum ? regAlum.getLastUpdated() : null, 1, notaHist);
 
   /* 2. Los CSV de matrícula, uno por curso. */
   const mat = buscarCsvsMatricula();
@@ -154,99 +251,80 @@ function estadoDeLasFuentes_() {
     const f = mat[cursos[i]].getLastUpdated();
     if (!masReciente || f.getTime() > masReciente.getTime()) masReciente = f;
   }
-  let estadoMat;
+  let notaMat = '';
   if (!cursos.length) {
-    estadoMat = 'NO ESTÁN. Sin ellos no se puede actualizar.';
+    notaMat = 'Sin ellos no se puede actualizar.';
     avisos.push('No hay ficheros de matrícula del curso ' + CURSO_ACTUAL + '.');
   } else if (cursos.length < 4) {
-    estadoMat = 'Solo hay ' + cursos.length + ' de 4 cursos: ' + cursos.join(', ') + '.';
+    notaMat = 'Solo hay ' + cursos.length + ' de 4 cursos: ' + cursos.join(', ') + '.';
     avisos.push('Faltan ficheros de matrícula: solo hay ' + cursos.join(', ') + '.');
   } else {
-    estadoMat = 'Los cuatro cursos.';
+    notaMat = 'Están los cuatro cursos.';
   }
-  filas.push(['Matrícula de 1º a 4º', cursos.length + ' ficheros',
-              masReciente ? haceCuanto_(masReciente) : '—', estadoMat]);
-  lineas.push('Matrícula de 1º a 4º: ' +
-              (masReciente ? haceCuanto_(masReciente) : 'NO ESTÁN') + '. ' + estadoMat);
+  apuntar('matricula', 'Matrícula de 1º a 4º', cursos.length + ' ficheros',
+          masReciente, cursos.length, notaMat);
 
   /* 3. El censo NEAE. */
   const neae = buscarCsv(PREFIJO_NEAE);
-  const estadoNeae = neae ? 'Se lee siempre.'
-                          : 'NO ESTÁ. Las columnas NEAE se quedarán como están.';
   if (!neae) avisos.push('Falta el censo NEAE.');
-  filas.push(['Censo NEAE', neae ? neae.getName() : '—',
-              neae ? haceCuanto_(neae.getLastUpdated()) : '—', estadoNeae]);
-  lineas.push('Censo NEAE: ' + (neae ? haceCuanto_(neae.getLastUpdated()) : 'NO ESTÁ') +
-              '. ' + estadoNeae);
+  apuntar('neae', 'Censo NEAE', neae ? neae.getName() : '',
+          neae ? neae.getLastUpdated() : null, 1,
+          neae ? 'Se lee siempre.' : 'Las columnas NEAE se quedarán como están.');
 
   /* 4. El fichero de Jefatura. Es el que más se queda viejo, porque depende
         de que Jefatura pase una versión nueva. */
   const jef = buscarAgrupamientosPanel_();
-  let estadoJef;
+  let notaJef = '';
   if (!jef) {
-    estadoJef = 'NO ESTÁ. Tiene que ser una hoja de cálculo de Google, no un Excel.';
+    notaJef = 'Tiene que ser una hoja de cálculo de Google, no un Excel.';
     avisos.push('Falta el fichero AGRUPAMIENTOS de Jefatura.');
   } else if (diasDesde_(jef.getLastUpdated()) >= DIAS_JEFATURA) {
-    estadoJef = 'Tiene ya sus días. Pregunta a Jefatura si hay versión nueva.';
+    notaJef = 'Es de ' + haceCuanto_(jef.getLastUpdated()) +
+              ': pregunta a Jefatura si hay versión nueva.';
     avisos.push('El fichero de Jefatura es de ' + haceCuanto_(jef.getLastUpdated()) + '.');
-  } else {
-    estadoJef = 'Reciente.';
   }
-  filas.push(['Fichero de Jefatura', jef ? jef.getName() : '—',
-              jef ? haceCuanto_(jef.getLastUpdated()) : '—', estadoJef]);
-  lineas.push('Fichero de Jefatura: ' + (jef ? haceCuanto_(jef.getLastUpdated()) : 'NO ESTÁ') +
-              '. ' + estadoJef);
+  apuntar('jefatura', 'Fichero de Jefatura', jef ? jef.getName() : '',
+          jef ? jef.getLastUpdated() : null, 1, notaJef);
 
   /* 5. Los expedientes de Primaria. Lista cacheada: ver ficherosDeExpedientes_
         en Primaria.gs. Así no se lista la carpeta dos veces (aquí y al
         construir la tabla) cuando hay muchos ficheros acumulados. */
-  let nExp = 0, expReciente = null;
-  const carpeta = carpetaExpedientes_();
-  if (carpeta) {
+  const carpetaPri = carpetaExpedientes_();
+  let nPri = 0, priReciente = null;
+  if (carpetaPri) {
     const ficherosExp = ficherosDeExpedientes_();
     for (let i = 0; i < ficherosExp.length; i++) {
       const f = ficherosExp[i];
       if (!/\.csv$/i.test(f.getName())) continue;
-      nExp++;
+      nPri++;
       const u = f.getLastUpdated();
-      if (!expReciente || u.getTime() > expReciente.getTime()) expReciente = u;
+      if (!priReciente || u.getTime() > priReciente.getTime()) priReciente = u;
     }
   }
-  const faltan = alumnosDePrimeroSinExpediente_();
-  let estadoExp;
-  if (!carpeta) {
-    estadoExp = 'NO ESTÁ la carpeta "Expedientes Primaria".';
-  } else if (faltan < 0) {
-    estadoExp = nExp + ' ficheros.';
-  } else if (faltan === 0) {
-    estadoExp = 'Completo: todos los de 1º que lo necesitan lo tienen.';
-  } else {
-    estadoExp = 'Faltan ' + faltan + ' alumnos de 1º por descargar.';
-  }
-  filas.push(['Expedientes de Primaria', nExp + ' ficheros',
-              expReciente ? haceCuanto_(expReciente) : '—', estadoExp]);
-  lineas.push('Expedientes de Primaria: ' + nExp + ' ficheros. ' + estadoExp);
+  apuntar('primaria', 'Expedientes de Primaria',
+          carpetaPri ? nPri + ' ficheros' : '', priReciente, nPri,
+          carpetaPri ? '' : 'No está la carpeta "' + CARPETA_PRIMARIA + '".');
 
-  return { filas: filas, lineas: lineas, historicoNuevo: historicoNuevo, avisos: avisos };
-}
-
-/* Cuántos alumnos de 1º salen todavía con la interrogante en las pendientes.
-   Devuelve -1 si la tabla ALUMNADO no está hecha todavía. */
-function alumnosDePrimeroSinExpediente_() {
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_ALUMNADO);
-  if (!hoja || hoja.getLastRow() < 3) return -1;
-  const ancho = hoja.getLastColumn();
-  const titulos = hoja.getRange(2, 1, 1, ancho).getValues()[0].map(normalizar);
-  const iCur = titulos.indexOf(normalizar('Curso'));
-  const iAsi = titulos.indexOf(normalizar('Asignaturas pendientes'));
-  if (iCur === -1 || iAsi === -1) return -1;
-  const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
-  let n = 0;
-  for (let f = 0; f < datos.length; f++) {
-    if (String(datos[f][iCur]).trim() === '1º' &&
-        String(datos[f][iAsi]).trim() === SIN_DATO) n++;
+  /* 6. Los expedientes de Secundaria. Fuente opcional: si no hay carpeta, el
+        sistema funciona igual con el histórico de este centro. */
+  const carpetaSec = carpetaSecundaria_();
+  let nSec = 0, secReciente = null;
+  if (carpetaSec) {
+    const it = carpetaSec.getFiles();
+    while (it.hasNext()) {
+      const f = it.next();
+      if (!/\.csv$/i.test(f.getName())) continue;
+      nSec++;
+      const u = f.getLastUpdated();
+      if (!secReciente || u.getTime() > secReciente.getTime()) secReciente = u;
+    }
   }
-  return n;
+  apuntar('secundaria', 'Expedientes de Secundaria',
+          carpetaSec ? nSec + ' ficheros' : '', secReciente, nSec,
+          carpetaSec ? '' : 'No está la carpeta "' + CARPETA_SECUNDARIA + '".');
+
+  return { filas: filas, lineas: lineas, historicoNuevo: historicoNuevo,
+           marcas: marcas, avisos: avisos };
 }
 
 /*** ================= QUÉ QUEDA POR CUADRAR ================= ***/
@@ -325,14 +403,17 @@ function motivoDeLaParada_() {
 /*** ================= ESCRIBIR EL PANEL ================= ***/
 
 function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
+  const N = 5;   // las cinco columnas del panel
   const libro = SpreadsheetApp.getActiveSpreadsheet();
   let hoja = libro.getSheetByName(HOJA_RESUMEN);
   if (!hoja) hoja = libro.insertSheet(HOJA_RESUMEN, 0);
   hoja.clear();
-  if (hoja.getMaxColumns() < 4) hoja.insertColumnsAfter(hoja.getMaxColumns(), 4 - hoja.getMaxColumns());
+  if (hoja.getMaxColumns() < N) hoja.insertColumnsAfter(hoja.getMaxColumns(), N - hoja.getMaxColumns());
 
   const filas = [], negritas = [], bandas = [];
-  const mete = function (a, b, c, d) { filas.push([a || '', b || '', c || '', d || '']); };
+  const mete = function (a, b, c, d, e) {
+    filas.push([a || '', b || '', c || '', d || '', e || '']);
+  };
   const banda = function (t) { bandas.push(filas.length); mete(t); };
 
   mete(TITULO_PANEL);
@@ -346,11 +427,11 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
   mete('');
 
   if (fuentes && fuentes.length) {
-    banda('DE CUÁNDO ES CADA FICHERO');
+    banda('CADA FICHERO: LO QUE YA ESTÁ METIDO Y LO QUE HAY AHORA');
     negritas.push(filas.length);
-    mete('Fuente', 'Fichero', 'De cuándo', 'Estado');
+    mete('Fuente', 'Fichero', 'Metido la última vez', 'Lo que hay ahora', 'Qué pasa con él');
     for (let i = 0; i < fuentes.length; i++) {
-      mete(fuentes[i][0], fuentes[i][1], fuentes[i][2], fuentes[i][3]);
+      mete(fuentes[i][0], fuentes[i][1], fuentes[i][2], fuentes[i][3], fuentes[i][4]);
     }
     mete('');
   }
@@ -359,7 +440,6 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
     banda('QUÉ QUEDA POR CUADRAR');
     mete('Alumnado en la tabla', String(pend.total));
     mete('Con algún dato sin confirmar (sale "' + SIN_DATO + '")', String(pend.sinDato));
-    mete('De 1º, sin expediente de Primaria descargado', String(pend.primeroSinExpediente));
     mete('Sin unidad asignada en Séneca', String(pend.sinUnidad));
     mete('Diferencias con Jefatura sin marcar', String(pend.discrepancias));
     mete('Avisos anotados', String(pend.avisos));
@@ -371,20 +451,21 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
     for (let i = 0; i < lineasResumen.length; i++) mete(lineasResumen[i]);
   }
 
-  hoja.getRange(1, 1, filas.length, 4).setValues(filas)
+  hoja.getRange(1, 1, filas.length, N).setValues(filas)
       .setFontSize(10).setVerticalAlignment('middle').setWrap(true);
   hoja.getRange(1, 1).setFontSize(14).setFontWeight('bold');
   hoja.getRange(2, 1).setFontStyle('italic');
   for (let i = 0; i < bandas.length; i++) {
-    hoja.getRange(bandas[i] + 1, 1, 1, 4).setFontWeight('bold').setBackground('#D9E1F2');
+    hoja.getRange(bandas[i] + 1, 1, 1, N).setFontWeight('bold').setBackground('#D9E1F2');
   }
   for (let i = 0; i < negritas.length; i++) {
-    hoja.getRange(negritas[i] + 1, 1, 1, 4).setFontWeight('bold').setBackground('#F2F2F2');
+    hoja.getRange(negritas[i] + 1, 1, 1, N).setFontWeight('bold').setBackground('#F2F2F2');
   }
-  hoja.setColumnWidth(1, 300);
-  hoja.setColumnWidth(2, 230);
-  hoja.setColumnWidth(3, 110);
-  hoja.setColumnWidth(4, 330);
+  hoja.setColumnWidth(1, 260);
+  hoja.setColumnWidth(2, 190);
+  hoja.setColumnWidth(3, 145);
+  hoja.setColumnWidth(4, 145);
+  hoja.setColumnWidth(5, 300);
   hoja.setFrozenRows(2);
   libro.setActiveSheet(hoja);
   libro.moveActiveSheet(1);
@@ -401,7 +482,8 @@ function preguntarAntesDeActualizar_(E) {
   try { ui = SpreadsheetApp.getUi(); } catch (e) { return 'sin-cuadro'; }
   if (!ui) return 'sin-cuadro';
 
-  let texto = 'De cuándo es cada cosa:\n\n' + E.lineas.join('\n');
+  let texto = 'De cada fichero: la fecha del que ya está metido y la del que hay ahora ' +
+              'en la carpeta.\n\n' + E.lineas.join('\n');
   if (E.avisos.length) {
     texto += '\n\nOJO:\n' + E.avisos.join('\n');
   }
@@ -438,7 +520,7 @@ function actualizarDatos() {
   if (respuesta === 'sin-cuadro') {
     escribirPanel_('No he podido preguntarte, así que no he tocado nada',
       ['Google no me ha dejado mostrar el cuadro de confirmación.',
-       'Arriba tienes de cuándo es cada fichero.',
+       'Arriba tienes, de cada fichero, lo que ya está metido y lo que hay ahora.',
        'Si lo ves bien, vuelve a pulsar "1. Actualizar los datos".'],
       E.filas, pendientesDelSistema_());
     return;
@@ -524,6 +606,12 @@ function actualizarDatos() {
     return;
   }
 
+  /* Todas las fuentes se han leído de verdad, así que se apunta de cuándo era
+     cada fichero. Es lo que la próxima vez saldrá en la columna "Metido la
+     última vez". Va aquí y no antes: si la actualización se hubiera parado,
+     apuntar la fecha sería mentir. */
+  guardarMarcas_(E.marcas);
+
   try {
     const R = rellenarPestanasInformes_();
     hecho.push('Informes por unidad: ' + R.grupos + ' pestañas rellenadas, ' +
@@ -554,7 +642,8 @@ function actualizarDatos() {
   hecho.push('Para sacar los PDF, pulsa "2. Generar los PDF".');
 
   /* El estado de las fuentes se vuelve a mirar, porque el histórico ya está
-     al día y el número de expedientes que faltan ha podido cambiar. */
+     al día y las marcas de lo incorporado acaban de cambiar. Así la tabla del
+     panel enseña ya las dos fechas iguales. */
   let fuentesFinales = E.filas;
   try { fuentesFinales = estadoDeLasFuentes_().filas; } catch (e) { /* nos quedamos con las de antes */ }
 

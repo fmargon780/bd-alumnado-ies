@@ -277,14 +277,16 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
 /*** ================= ACCESO A DRIVE ================= ***/
 
 /* Busca el cuaderno de Jefatura por su nombre. Devuelve {libro, nombre} o
-   {aviso: '...'} si no lo encuentra o si está sin convertir. */
+   {aviso: '...'} si no lo encuentra o si está sin convertir.
+   Usa la misma caché de ficheros que buscarCsv (Codigo.gs), así que no
+   vuelve a listar Drive si ya se ha mirado antes en esta misma ejecución. */
 function buscarLibroJefatura_() {
-  const carpetas = carpetasDondeBuscar();
+  const listas = ficherosPorCarpeta_();
   let sinConvertir = '';
-  for (let c = 0; c < carpetas.length; c++) {
-    const it = carpetas[c].getFiles();
-    while (it.hasNext()) {
-      const f = it.next();
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const f = ficheros[i];
       if (normalizar(f.getName()).indexOf(NOMBRE_JEFATURA) === -1) continue;
       if (f.getMimeType() === MimeType.GOOGLE_SHEETS) {
         return { libro: SpreadsheetApp.openById(f.getId()), nombre: f.getName() };
@@ -365,7 +367,8 @@ function escribirJefatura_(alumnos, nombreFichero) {
   }
   hoja.setFrozenRows(2);
   hoja.setFrozenColumns(2);
-  for (let c = 1; c <= ancho; c++) hoja.autoResizeColumn(c);
+  /* Sin autoResizeColumn: arreglarFormatoDeTodo_ (Formato.gs) deja un ancho
+     fijo por columna al terminar "Actualizar los datos". */
   if (filas.length) hoja.getRange(2, 1, filas.length + 1, ancho).createFilter();
 }
 
@@ -405,7 +408,8 @@ function escribirDiscrepancias_(lista, nombreFichero) {
         .setBorder(true, true, true, true, true, true, '#999999', SpreadsheetApp.BorderStyle.SOLID);
   }
   hoja.setFrozenRows(2);
-  for (let c = 1; c <= titulos.length; c++) hoja.autoResizeColumn(c);
+  /* Sin autoResizeColumn: igual que en JEFATURA, el ancho lo fija después
+     arreglarFormatoDeTodo_. */
   if (filas.length) hoja.getRange(2, 1, filas.length + 1, titulos.length).createFilter();
   return filas.length;
 }

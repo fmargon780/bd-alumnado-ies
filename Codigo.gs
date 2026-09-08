@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v32';
+const VERSION = 'BD v33';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -724,23 +724,59 @@ function textoDeArchivo(archivo) {
   return texto;
 }
 
-/*** ================= BÚSQUEDA DE FICHEROS ================= ***/
+/*** ================= BÚSQUEDA DE FICHEROS =================
+ *
+ * "Actualizar los datos" mira las mismas dos carpetas de Drive muchas veces
+ * en una sola pulsación: una vez para enseñar el cuadro de antes de empezar,
+ * y otra vez por cada fuente al construir la tabla (RegAlum, la matrícula,
+ * el censo NEAE, Jefatura, el membrete...). Cada mirada volvía a listar los
+ * ficheros de las carpetas desde cero, y eso es lo que más tarda de todo si
+ * hay muchos ficheros dentro (por ejemplo, años de expedientes de Primaria).
+ *
+ * Aquí se listan una sola vez por ejecución y se guarda el resultado en
+ * estas dos variables. La próxima vez que se pulse un botón del menú es una
+ * ejecución nueva (Actualizador.gs vuelve a traer y a compilar el programa
+ * entero), así que esta caché se vacía sola y nunca da información vieja.
+ * ======================================================== ***/
+let CACHE_CARPETAS_ = null;
+let CACHE_FICHEROS_POR_CARPETA_ = null;
+
 function carpetasDondeBuscar() {
+  if (CACHE_CARPETAS_) return CACHE_CARPETAS_;
   const lista = [];
   const carpeta = DriveApp.getFolderById(CARPETA_ID);
   lista.push(carpeta);
   const padres = carpeta.getParents();
   while (padres.hasNext()) lista.push(padres.next());
+  CACHE_CARPETAS_ = lista;
   return lista;
 }
 
-function buscarCsv(prefijo, contiene) {
+/* Los ficheros de cada carpeta de carpetasDondeBuscar(), en el mismo orden,
+   listados una sola vez. Se guardan los ficheros de todo tipo (CSV, Hojas de
+   cálculo, imágenes...), porque distintas búsquedas quieren distintos tipos;
+   cada una filtra lo que le hace falta. */
+function ficherosPorCarpeta_() {
+  if (CACHE_FICHEROS_POR_CARPETA_) return CACHE_FICHEROS_POR_CARPETA_;
   const carpetas = carpetasDondeBuscar();
-  let mejor = null;
+  const listas = [];
   for (let c = 0; c < carpetas.length; c++) {
+    const arr = [];
     const it = carpetas[c].getFiles();
-    while (it.hasNext()) {
-      const f = it.next();
+    while (it.hasNext()) arr.push(it.next());
+    listas.push(arr);
+  }
+  CACHE_FICHEROS_POR_CARPETA_ = listas;
+  return listas;
+}
+
+function buscarCsv(prefijo, contiene) {
+  const listas = ficherosPorCarpeta_();
+  let mejor = null;
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const f = ficheros[i];
       const n = f.getName();
       if (!/\.csv$/i.test(n)) continue;
       if (normalizar(n).indexOf(normalizar(prefijo)) !== 0) continue;
@@ -754,11 +790,11 @@ function buscarCsv(prefijo, contiene) {
 
 function buscarCsvsMatricula() {
   const encontrados = {};
-  const carpetas = carpetasDondeBuscar();
-  for (let c = 0; c < carpetas.length; c++) {
-    const it = carpetas[c].getFiles();
-    while (it.hasNext()) {
-      const f = it.next();
+  const listas = ficherosPorCarpeta_();
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const f = ficheros[i];
       const n = f.getName();
       if (!/\.csv$/i.test(n)) continue;
       if (normalizar(n).indexOf('matomcmatr') !== 0) continue;
@@ -780,11 +816,12 @@ function libroDeNotas() {
     const l = SpreadsheetApp.openById(ID_PROPUESTA);
     if (l) return l;
   } catch (e) { /* seguimos buscando por nombre */ }
-  const carpetas = carpetasDondeBuscar();
-  for (let c = 0; c < carpetas.length; c++) {
-    const it = carpetas[c].getFilesByType(MimeType.GOOGLE_SHEETS);
-    while (it.hasNext()) {
-      const f = it.next();
+  const listas = ficherosPorCarpeta_();
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const f = ficheros[i];
+      if (f.getMimeType() !== MimeType.GOOGLE_SHEETS) continue;
       if (normalizar(f.getName()).indexOf('propuesta') !== -1) return SpreadsheetApp.openById(f.getId());
     }
   }
@@ -851,7 +888,10 @@ function cargarHistorico() {
   hoja.getRange(2, 1, 1, TITULOS_HISTORIAL.length).setValues([TITULOS_HISTORIAL]).setFontWeight('bold');
   if (res.filas.length) hoja.getRange(3, 1, res.filas.length, TITULOS_HISTORIAL.length).setValues(res.filas);
   hoja.setFrozenRows(2);
-  for (let c = 1; c <= TITULOS_HISTORIAL.length; c++) hoja.autoResizeColumn(c);
+  /* No se ajusta el ancho aquí: arreglarFormatoDeTodo_ (Formato.gs) le pone a
+     esta pestaña un ancho fijo por columna justo después, así que ajustarlo
+     antes solo tardaba tiempo para nada. Ver el comentario grande al principio
+     de Formato.gs. */
 
   avisar_('Histórico cargado (' + VERSION + ')',
     'Fichero: ' + archivo.getName() + '\nAño más reciente: ' + res.ano +
@@ -1199,14 +1239,21 @@ function escribirAlumnado(filas) {
   const calculadas = ['Repite el curso actual', 'Diversificación', 'Cursos repetidos en ESO',
     'Cursos repetidos en Primaria', 'Rep. sin localizar', 'Repeticiones totales',
     'PIL', 'PIL (etapa)'];
+  /* El color de la cabecera solo tiene tres posibilidades. Se agrupan las
+     columnas por color y se pintan con tres llamadas (getRangeList) en vez
+     de una por columna. */
+  const porColorCabecera = { '#FFF2CC': [], '#DDEBF7': [], '#D9D9D9': [] };
   for (let c = 0; c < ancho; c++) {
     const t = TITULOS_ALUMNADO[c];
     const color = COLS_MANUALES_ALUMNADO.indexOf(t) !== -1 ? '#FFF2CC'
                 : (calculadas.indexOf(t) !== -1 ? '#DDEBF7' : '#D9D9D9');
-    hoja.getRange(2, c + 1).setBackground(color);
+    porColorCabecera[color].push(fmtLetraColumna_(c + 1) + '2');
     if (COLS_MANUALES_ALUMNADO.indexOf(t) !== -1 && filas.length) {
       hoja.getRange(3, c + 1, filas.length, 1).setBackground('#FFF2CC');
     }
+  }
+  for (const color in porColorCabecera) {
+    if (porColorCabecera[color].length) hoja.getRangeList(porColorCabecera[color]).setBackground(color);
   }
   if (filas.length) {
     hoja.getRange(2, 1, filas.length + 1, ancho)
@@ -1215,7 +1262,9 @@ function escribirAlumnado(filas) {
   }
   hoja.setFrozenRows(2);
   hoja.setFrozenColumns(2);
-  for (let c = 1; c <= ancho; c++) hoja.autoResizeColumn(c);
+  /* Sin autoResizeColumn: arreglarFormatoDeTodo_ deja un ancho fijo por
+     columna al terminar "Actualizar los datos", así que ajustarlo aquí antes
+     era trabajo (lento) que se tiraba siempre. */
   hoja.getRange(2, 1, filas.length + 1, ancho).createFilter();
 }
 
@@ -1230,5 +1279,5 @@ function escribirAvisos(avisos) {
   hoja.getRange(1, 1, 1, 7).setValues([titulos]).setFontWeight('bold');
   if (filas.length) hoja.getRange(2, 1, filas.length, 7).setValues(filas);
   hoja.setFrozenRows(1);
-  for (let c = 1; c <= 7; c++) hoja.autoResizeColumn(c);
+  /* Igual que en ALUMNADO: el ancho fijo lo pone arreglarFormatoDeTodo_. */
 }

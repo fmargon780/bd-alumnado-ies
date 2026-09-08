@@ -224,14 +224,39 @@ function leerExpediente_(archivo, sinDiccionario) {
   return salida;
 }
 
-/*** ================= LA CARPETA ================= ***/
+/*** ================= LA CARPETA =================
+ *
+ * El panel mira esta carpeta para el resumen de "qué hay" y datosPrimaria_
+ * la vuelve a mirar para leer los expedientes de verdad: dentro de una misma
+ * pulsación de "Actualizar los datos" se listaba dos veces, y si hay muchos
+ * ficheros (años de expedientes) eso se nota. Se lista una sola vez y se
+ * guarda en CACHE_FICHEROS_EXPEDIENTES_; la próxima pulsación es una
+ * ejecución nueva y se vuelve a mirar de cero. ***/
+let CACHE_CARPETA_EXPEDIENTES_;   // undefined = no calculada todavía
+let CACHE_FICHEROS_EXPEDIENTES_ = null;
 
 function carpetaExpedientes_() {
+  if (CACHE_CARPETA_EXPEDIENTES_ !== undefined) return CACHE_CARPETA_EXPEDIENTES_;
+  let carpeta = null;
   try {
     const it = DriveApp.getFolderById(CARPETA_ID).getFoldersByName(CARPETA_PRIMARIA);
-    if (it.hasNext()) return it.next();
+    if (it.hasNext()) carpeta = it.next();
   } catch (e) { /* devolvemos null y se avisa */ }
-  return null;
+  CACHE_CARPETA_EXPEDIENTES_ = carpeta;
+  return carpeta;
+}
+
+/* Los ficheros de la carpeta de expedientes, listados una sola vez. */
+function ficherosDeExpedientes_() {
+  if (CACHE_FICHEROS_EXPEDIENTES_) return CACHE_FICHEROS_EXPEDIENTES_;
+  const arr = [];
+  const carpeta = carpetaExpedientes_();
+  if (carpeta) {
+    const it = carpeta.getFiles();
+    while (it.hasNext()) arr.push(it.next());
+  }
+  CACHE_FICHEROS_EXPEDIENTES_ = arr;
+  return arr;
 }
 
 /*** ================= LO QUE LLAMA Codigo.gs ================= ***/
@@ -251,9 +276,9 @@ function datosPrimaria_(cursosDeAlumno) {
 
   const porNombre = {}, sinDiccionario = [];
   let ficheros = 0;
-  const it = carpeta.getFiles();
-  while (it.hasNext()) {
-    const f = it.next();
+  const listaFicheros = ficherosDeExpedientes_();
+  for (let fi = 0; fi < listaFicheros.length; fi++) {
+    const f = listaFicheros[fi];
     if (!/\.csv$/i.test(f.getName())) continue;
     ficheros++;
     let r;
@@ -337,6 +362,7 @@ function escribirPrimaria_(porNombre, unidadesPorNombre, usados) {
   });
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
   hoja.setFrozenRows(2);
-  for (let c = 1; c <= ancho; c++) hoja.autoResizeColumn(c);
+  /* Sin autoResizeColumn: arreglarFormatoDeTodo_ (Formato.gs) deja un ancho
+     fijo por columna al terminar "Actualizar los datos". */
   return filas.length;
 }

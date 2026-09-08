@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v32';
+const VERSION_BD = 'BD v33';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -334,6 +334,20 @@ function fmtColumnaDe_(titulos, titulo) {
   return 0;
 }
 
+/* El número de columna (1, 2, 3...) en letras (A, B, C... AA, AB...), sin
+   preguntarle nada a Google: hace falta para construir a mano las
+   referencias A1 que agrupan columnas con getRangeList, sin gastar una
+   llamada por columna solo para saber su letra. */
+function fmtLetraColumna_(col) {
+  let letras = '';
+  while (col > 0) {
+    const resto = (col - 1) % 26;
+    letras = String.fromCharCode(65 + resto) + letras;
+    col = Math.floor((col - 1) / 26);
+  }
+  return letras;
+}
+
 
 /*** ================= 5. FILAS ALTERNAS Y COLORES ================= ***/
 
@@ -535,7 +549,15 @@ function formatearHoja_(nombre) {
 
   /* 2. Columna a columna: ancho fijo, ajuste de texto y alineación.
         El ancho se decide por el TÍTULO de la columna, no por su posición,
-        así que reordenarlas no rompe nada. */
+        así que reordenarlas no rompe nada.
+
+        El ancho no se puede agrupar porque cada columna suele llevar el
+        suyo. Pero el ajuste de texto y la alineación solo tienen tres
+        combinaciones posibles (C, I, W), así que en vez de tocar cada
+        columna por separado se apuntan en tres grupos y se aplican al final
+        con getRangeList: tres llamadas en total en vez de una por columna.
+        Con 20-30 columnas por pestaña y ocho pestañas, son varios cientos
+        de llamadas menos cada vez que se pulsa "Actualizar los datos". */
   const titulos = hoja.getRange(filaCab, 1, 1, ancho).getValues()[0];
   const nDatos = ultimaFila - filaCab;
 
@@ -544,6 +566,7 @@ function formatearHoja_(nombre) {
      que casilla por casilla. Una columna sin explicación recibe nota vacía,
      así se borra la que hubiera de una versión anterior. */
   const notasFila = [];
+  const grupoRangos = { W: [], I: [], C: [] };
 
   for (let c = 0; c < ancho; c++) {
     const titulo = String(titulos[c] === null || titulos[c] === undefined
@@ -553,15 +576,24 @@ function formatearHoja_(nombre) {
     notasFila.push(def.notas && def.notas[titulo] ? def.notas[titulo] : '');
     if (nDatos <= 0) continue;
 
-    const rango = hoja.getRange(filaCab + 1, c + 1, nDatos, 1);
-    if (conf[1] === 'W') {
-      rango.setWrap(true).setHorizontalAlignment('left');
-    } else if (conf[1] === 'I') {
-      rango.setWrap(false).setHorizontalAlignment('left');
-    } else {
-      rango.setWrap(false).setHorizontalAlignment('center');
+    const tipo = grupoRangos[conf[1]] ? conf[1] : 'C';
+    const letra = fmtLetraColumna_(c + 1);
+    grupoRangos[tipo].push(letra + (filaCab + 1) + ':' + letra + (filaCab + nDatos));
+  }
+
+  if (nDatos > 0) {
+    if (grupoRangos.W.length) {
+      hoja.getRangeList(grupoRangos.W)
+          .setWrap(true).setHorizontalAlignment('left').setVerticalAlignment('top');
     }
-    rango.setVerticalAlignment('top');
+    if (grupoRangos.I.length) {
+      hoja.getRangeList(grupoRangos.I)
+          .setWrap(false).setHorizontalAlignment('left').setVerticalAlignment('top');
+    }
+    if (grupoRangos.C.length) {
+      hoja.getRangeList(grupoRangos.C)
+          .setWrap(false).setHorizontalAlignment('center').setVerticalAlignment('top');
+    }
   }
 
   hoja.getRange(filaCab, 1, 1, ancho).setNotes([notasFila]);

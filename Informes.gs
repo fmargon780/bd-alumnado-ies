@@ -698,6 +698,7 @@ function entradasParaPdf_(libro) {
   const entradas = [];
   const portada = libro.getSheetByName(HOJA_PORTADA);
   if (portada) entradas.push({ hoja: portada, nombre: 'RESUMEN para el equipo directivo' });
+
   const hojas = libro.getSheets();
   for (let h = 0; h < hojas.length; h++) {
     const hoja = hojas[h];

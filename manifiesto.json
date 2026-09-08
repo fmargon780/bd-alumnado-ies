@@ -1,5 +1,5 @@
 {
-  "version": "BD v44 — el cuadro de antes de actualizar enseña, de cada fichero, la fecha del que ya está metido y la del que hay ahora",
+  "version": "BD v45 — dos tipos de PDF: definitivos (con membrete, sin interrogantes) y borrador (sin membrete, con interrogantes)",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",
@@ -14,6 +14,7 @@
   ],
   "menu": [
     { "titulo": "1. Actualizar los datos", "funcion": "actualizarDatos" },
-    { "titulo": "2. Generar los PDF", "funcion": "generarPdfs" }
+    { "titulo": "2. Generar los PDF (definitivos)", "funcion": "generarPdfs" },
+    { "titulo": "3. Generar los PDF (borrador)", "funcion": "generarPdfsBorrador" }
   ]
 }

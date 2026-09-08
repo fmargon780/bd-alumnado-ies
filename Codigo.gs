@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v34';
+const VERSION = 'BD v35';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -9,6 +9,19 @@ const HOJA_ALUMNADO = 'ALUMNADO';
 const HOJA_HISTORIAL = 'HISTORIAL';
 const HOJA_AVISOS = 'AVISOS';
 const EDAD_TEORICA = { '1º': 12, '2º': 13, '3º': 14, '4º': 15 };
+/* EN PRIMARIA SOLO SE PUEDE REPETIR UNA VEZ EN TODA LA ETAPA.
+   Artículo 15 del Real Decreto 157/2022: la permanencia un año más "solo se
+   podrá adoptar una vez durante la etapa" y tiene "carácter excepcional".
+   Añadido en la BD v35, cuando se lo dijeron a Francisco.
+
+   Esto pone un techo a la estimación por edad: un alumno que va dos años por
+   detrás NO puede haber repetido dos veces en Primaria. Como mucho una, y el
+   año que sobra es otra cosa (repitió en otro instituto, o se incorporó tarde
+   al sistema educativo español). Ese año que sobra se va solo a la columna
+   'Rep. sin localizar', así que las repeticiones totales no cambian y el PIL
+   tampoco: lo que cambia es que ya no se le atribuye a Primaria algo que no
+   puede haber pasado en Primaria. */
+const MAX_REP_PRIMARIA = 1;
 /* El tercer valor de las dos columnas de PIL, desde la BD v33. Quiere decir:
    sale PIL, pero el número en el que se apoya es una suposición por edad y
    nadie lo ha comprobado. Ver el punto 7 del CONTEXTO. */
@@ -204,6 +217,18 @@ function esNumero(v) {
 
 function aNumero(v) { return Number(String(v).trim().replace(',', '.')); }
 
+/* Deja un número de repeticiones de Primaria dentro de lo que permite la ley:
+   ni menos de cero ni más de una. Solo se aplica a los números ESTIMADOS por
+   edad; lo que dice el expediente de un alumno se respeta tal cual, porque es
+   un hecho, y si dijera más de una se anota en AVISOS. */
+function topeRepPrimaria_(v) {
+  if (v === '' || v === null || v === undefined || !esNumero(v)) return v;
+  const n = aNumero(v);
+  if (n < 0) return 0;
+  if (n > MAX_REP_PRIMARIA) return MAX_REP_PRIMARIA;
+  return n;
+}
+
 /* El año de nacimiento, venga como fecha de verdad o como texto DD/MM/AAAA,
    que son las dos formas en las que puede estar en la pestaña HISTORIAL. */
 function anoDeNacimiento_(v) {
@@ -356,6 +381,8 @@ function calcularHistorial(tabla) {
     } else if (!isNaN(edad)) {
       repPrim = edad - EDAD_TEORICA[niv] - repESO; fuente = 'EDAD';
     }
+    /* Las dos son cuentas de edad, y la ley les pone techo y suelo. */
+    repPrim = topeRepPrimaria_(repPrim);
     filas.push([String(fila[iNombre]).trim(), id, iUnidad === -1 ? '' : String(fila[iUnidad] || '').trim(),
                 niv, isNaN(edad) ? '' : edad, repite, repESO, repPrim, fuente,
                 iFecNac === -1 ? '' : String(fila[iFecNac] || '').trim(), cursosESO,
@@ -573,11 +600,29 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       cursosESO = String(h[10] === null || h[10] === undefined ? '' : h[10]).trim();
       if (!cursosESO) cursosESO = (esNumero(repESO) && aNumero(repESO) > 0) ? SIN_DATO : '';
 
+      /* La ley solo deja repetir una vez en toda la Primaria. Si el número
+         estimado por edad se pasa, el año que sobra no puede ser de Primaria:
+         se recorta aquí y más abajo se recoge en 'Rep. sin localizar'. Se hace
+         también aquí, y no solo al leer el histórico, para que valga aunque la
+         pestaña HISTORIAL venga de una versión anterior. */
+      repPrim = topeRepPrimaria_(repPrim);
+
       /* El expediente de Primaria lo dice negro sobre blanco, así que manda
          sobre la estimación por edad. Ver Primaria.gs. */
       if (exp && exp.repeticiones !== '' && exp.repeticiones !== undefined) {
         repPrim = exp.repeticiones;
         fuente = 'EXPEDIENTE';
+        /* Un expediente no se recorta: es un hecho. Pero si dice más de una
+           repetición en Primaria, algo no encaja con la ley española y hay
+           que mirarlo. */
+        if (esNumero(repPrim) && aNumero(repPrim) > MAX_REP_PRIMARIA) {
+          avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+            aviso: 'Más de una repetición en Primaria',
+            detalle: 'Su expediente dice que repitió ' + repPrim + ' cursos de Primaria (' +
+              (exp.cursosRepetidos || []).join(', ') + '), y la ley solo permite uno en toda ' +
+              'la etapa. O el alumno estudió parte de Primaria fuera del sistema educativo ' +
+              'español, o hay un error en Séneca. He dejado el número que dice el expediente.' });
+        }
       }
       const corregido = String(man[0] || '').trim();
       const primaria2 = corregido !== '' && !isNaN(Number(corregido)) ? Number(corregido) : repPrim;

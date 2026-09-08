@@ -1,10 +1,13 @@
 /*** ================= EL PANEL Y EL BOTÓN DE ACTUALIZAR =================
  *
  * Antes había tres botones y Francisco tenía que saber cuál pulsar en cada
- * caso. Desde el 6-sep-2026 hay dos, y los eligió él:
+ * caso. El 6-sep-2026 se dejaron en dos, y desde entonces han vuelto a
+ * crecer, pero ahora cada uno hace una cosa que se entiende sola:
  *
- *   1. Actualizar los datos  ->  actualizarDatos()   (está aquí)
- *   2. Generar los PDF       ->  generarPdfs()       (está en Informes.gs)
+ *   1. Actualizar los datos         ->  actualizarDatos()       (está aquí)
+ *   2. Generar los PDF definitivos  ->  generarPdfs()           (Informes.gs)
+ *   3. Generar los PDF de borrador  ->  generarPdfsBorrador()   (Informes.gs)
+ *   4. Ordenar la carpeta de Drive  ->  ordenarCarpeta()        (Orden.gs)
  *
  * POR QUÉ ASÍ. Los PDF son la única parte que Google rechaza a veces, y la
  * única que puede pasarse del tiempo que Google concede a un script. Dejarlos
@@ -421,9 +424,14 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
        (typeof VERSION_BD !== 'undefined' ? VERSION_BD : VERSION));
   mete('');
 
-  banda('LOS DOS BOTONES DEL MENÚ');
+  banda('LAS CUATRO OPCIONES DEL MENÚ');
   mete('1. Actualizar los datos', 'Lee lo que haga falta y rellena las pestañas. No hace PDF.');
-  mete('2. Generar los PDF', 'Saca un PDF por grupo con lo que ya está escrito.');
+  mete('2. Generar los PDF (definitivos)',
+       'Los del profesorado: con membrete y sin ninguna interrogante.');
+  mete('3. Generar los PDF (borrador)',
+       'Los tuyos: sin membrete, con las interrogantes y con la palabra BORRADOR arriba.');
+  mete('4. Ordenar la carpeta de Drive',
+       'Deja en la carpeta de datos solo lo que el programa usa. No borra nada.');
   mete('');
 
   if (fuentes && fuentes.length) {

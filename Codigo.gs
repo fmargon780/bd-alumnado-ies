@@ -958,9 +958,17 @@ function construirAlumnado() {
   const N = datosNeae_(historial, 0, 3, TITULOS_HISTORIAL.indexOf('Fecha de nacimiento'));
   for (let i = 0; i < N.avisos.length; i++) avisos.push(N.avisos[i]);
 
-  /* Quinta fuente: los expedientes de Primaria, uno por alumno de 1º.
+  /* Quinta fuente: los expedientes de Primaria (ahora para cualquier curso).
      Rellenan las pendientes de 6º y las repeticiones. Ver Primaria.gs. */
-  const P = datosPrimaria_();
+  const cursosDeAlumno = {};
+  for (const c in porCurso) {
+    for (let i = 0; i < porCurso[c].length; i++) {
+      const nom = normalizar(porCurso[c][i].nombre);
+      if (!cursosDeAlumno[nom]) cursosDeAlumno[nom] = [];
+      cursosDeAlumno[nom].push(c);
+    }
+  }
+  const P = datosPrimaria_(cursosDeAlumno);
   for (let i = 0; i < P.avisos.length; i++) avisos.push(P.avisos[i]);
 
   const manuales = leerManualesAlumnado(libro);

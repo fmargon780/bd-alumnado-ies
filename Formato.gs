@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v42';
+const VERSION_BD = 'BD v43';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -79,6 +79,7 @@ const FORMATO_HOJAS = {
       'Fuente Primaria': 'De dónde sale ese número EN ESTA PESTAÑA: 1ºESO o EDAD.\n\nAquí nunca pone EXPEDIENTE. Esta pestaña es el volcado del histórico de Séneca, y el expediente de Primaria se aplica después, al construir la tabla ALUMNADO. Si quieres ver la fuente definitiva de un alumno, míralo en ALUMNADO.',
       'Fecha de nacimiento': 'La fecha de nacimiento. Se usa para deshacer empates en el censo NEAE, que solo trae las iniciales del alumno.',
       'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 1º (2022, 2023).',
+      'Años en la ESO': 'En qué curso estuvo cada año, en este centro. Formato: 2024:1º; 2025:2º; 2026:3º. Es de donde sale el cuadro de la Trayectoria en ALUMNADO.',
       'Curso el año pasado': 'En qué curso de este centro estaba matriculado el año académico anterior. Vacío quiere decir que no estaba aquí.',
       'Repetía el año pasado': 'SÍ si el curso en el que estaba el año pasado ya lo había cursado antes. Es el dato del que sale la columna PIL de ALUMNADO.'
     },
@@ -88,7 +89,8 @@ const FORMATO_HOJAS = {
       'Repeticiones en ESO': [65, 'C'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Fuente Primaria': [90, 'C'], 'Fecha de nacimiento': [95, 'C'],
       'Cursos repetidos en ESO': [140, 'W'],
-      'Curso el año pasado': [80, 'C'], 'Repetía el año pasado': [80, 'C']
+      'Curso el año pasado': [80, 'C'], 'Repetía el año pasado': [80, 'C'],
+      'Años en la ESO': [180, 'W']
     }
   },
 
@@ -137,6 +139,7 @@ const FORMATO_HOJAS = {
       'OPC3': 'Solo en 4º. Tercera opción: DIG (Digitalización), EA (Expresión Artística) o FR (Francés).',
       'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
       'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
+      'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso, el centro, la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? susp", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
     },
     cols: {
@@ -154,7 +157,7 @@ const FORMATO_HOJAS = {
       'Diversificación': [95, 'C'], 'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'],
       'OPT': [60, 'C'], 'FR -> ALCT': [60, 'C'], 'MAT': [55, 'C'], 'OPC1': [55, 'C'],
       'OPC2': [55, 'C'], 'OPC3': [55, 'C'], 'OPC4': [55, 'C'], 'REL/Atedu': [65, 'C'],
-      'Observaciones': [200, 'W']
+      'Trayectoria': [200, 'I'], 'Observaciones': [200, 'W']
     }
   },
 

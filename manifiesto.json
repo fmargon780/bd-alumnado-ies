@@ -1,11 +1,13 @@
 {
-  "version": "BD v36 — el PIL exige además que suspendiera más de dos materias: quien promocionó aprobando ya no sale PIL",
+  "version": "BD v37 — el manifiesto vuelve a cargar Ficheros.gs y Obligatorias.gs",
   "ficheros": [
+    "Ficheros.gs",
     "Formato.gs",
     "Codigo.gs",
     "NEAE.gs",
     "Primaria.gs",
     "Jefatura.gs",
+    "Obligatorias.gs",
     "Informes.gs",
     "Panel.gs"
   ],

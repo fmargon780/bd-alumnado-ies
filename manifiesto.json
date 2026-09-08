@@ -1,5 +1,5 @@
 {
-  "version": "BD v37 — se localiza al alumno en el cuaderno de notas aunque allí le falte el segundo apellido",
+  "version": "BD v38 — al informe en papel solo van los PIL comprobados",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

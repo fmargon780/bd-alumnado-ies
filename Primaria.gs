@@ -239,7 +239,7 @@ function carpetaExpedientes_() {
 /* Devuelve { porNombre, avisos, total, ficheros }.
    Si no hay carpeta o no hay ficheros, devuelve un mapa vacío: las columnas
    se quedan exactamente como estaban. */
-function datosPrimaria_() {
+function datosPrimaria_(cursosDeAlumno) {
   const avisos = [];
   const carpeta = carpetaExpedientes_();
   if (!carpeta) {
@@ -269,10 +269,22 @@ function datosPrimaria_() {
         aviso: 'Expediente de Primaria', detalle: r.avisos[i] });
     }
     if (!r.nombre) continue;
-    /* Los expedientes de Primaria son siempre de alumnado de 1º. La clave lleva el
-       curso, como todos los cruces del sistema, para no aplicarle el expediente a
-       otro alumno que se llame igual y esté en otro curso. */
-    const clave = normalizar(r.nombre) + '|1º';
+    /* Asignación dinámica del curso. Se busca el alumno en la matrícula actual
+       para añadirle el curso correcto a la clave. */
+    const nomNorm = normalizar(r.nombre);
+    const posibles = (cursosDeAlumno && cursosDeAlumno[nomNorm]) || [];
+    
+    if (posibles.length > 1) {
+      avisos.push({ curso: '', grupo: '', alumno: r.nombre,
+        aviso: 'Expediente ambiguo por nombre repetido',
+        detalle: 'Hay alumnado que se llama exactamente así en ' + posibles.join(' y ') +
+                 '. Como el fichero de Séneca no indica el curso, el programa no sabe a cuál asignarlo.' });
+      continue;
+    }
+    
+    const cursoAsignado = posibles.length === 1 ? posibles[0] : '1º';
+    const clave = nomNorm + '|' + cursoAsignado;
+    
     if (porNombre[clave]) {
       avisos.push({ curso: '1º', grupo: '', alumno: r.nombre,
         aviso: 'Dos expedientes para el mismo alumno',

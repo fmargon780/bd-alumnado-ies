@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v32';
+const VERSION = 'BD v33';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -9,6 +9,10 @@ const HOJA_ALUMNADO = 'ALUMNADO';
 const HOJA_HISTORIAL = 'HISTORIAL';
 const HOJA_AVISOS = 'AVISOS';
 const EDAD_TEORICA = { '1º': 12, '2º': 13, '3º': 14, '4º': 15 };
+/* El tercer valor de las dos columnas de PIL, desde la BD v33. Quiere decir:
+   sale PIL, pero el número en el que se apoya es una suposición por edad y
+   nadie lo ha comprobado. Ver el punto 7 del CONTEXTO. */
+const PIL_POR_EDAD = 'SÍ (por edad)';
 const ESTADOS_QUE_NO_CUENTAN = ['anulada', 'trasladada'];
 const COL_AMBITOS = 'Ámbito Científico-Tecnológico';
 const NIVELES_ESO = ['1º', '2º', '3º', '4º'];
@@ -184,6 +188,15 @@ function esNumero(v) {
 }
 
 function aNumero(v) { return Number(String(v).trim().replace(',', '.')); }
+
+/* El año de nacimiento, venga como fecha de verdad o como texto DD/MM/AAAA,
+   que son las dos formas en las que puede estar en la pestaña HISTORIAL. */
+function anoDeNacimiento_(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (v instanceof Date) return v.getFullYear();
+  const m = String(v).match(/(\d{4})/);
+  return m ? parseInt(m[1], 10) : 0;
+}
 
 /*** ================= LECTURA DE CSV ================= ***/
 function partirLineaCsv(linea, sep) {
@@ -550,11 +563,52 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       }
       total = (primaria2 === '' ? '' : primaria2 + repESO + (sinLocalizar === '' ? 0 : sinLocalizar));
 
+      /* ================= DE QUÉ NOS FIAMOS (BD v33) =================
+
+         Lo pidió Francisco el 8-sep-2026, y tiene razón: que un alumno vaya
+         por detrás de su edad NO demuestra que haya repetido. Puede haberse
+         incorporado tarde al sistema educativo español. Hasta la BD v32 el
+         programa daba PIL en los dos casos igual, sin decir cuál era.
+
+         Ahora se separa lo que está documentado de lo que es una suposición:
+
+           - Las repeticiones en ESO salen del histórico de Séneca. Son un
+             hecho.
+           - Las de Primaria son un hecho si vienen del expediente, o si
+             Francisco ha escrito el número a mano. Si vienen de la edad, son
+             una suposición. Si son cero, no sostienen ningún PIL y da igual.
+           - Los años sin localizar son una suposición, SALVO que podamos
+             descartar la incorporación tardía. Y eso se puede descartar
+             cuando tenemos su expediente completo de Primaria y empezó 1º de
+             Primaria en el curso que le tocaba por su fecha de nacimiento:
+             entonces estaba aquí desde el principio y los años perdidos son
+             repeticiones de verdad, hechas en otro centro. */
+      let incorporacionNormal = false;
+      if (exp && exp.completo && exp.anoPrimero) {
+        const anoNac = anoDeNacimiento_(h[9]);
+        if (anoNac && Number(exp.anoPrimero) - anoNac === 6) incorporacionNormal = true;
+      }
+      const primariaDocumentada = corregido !== '' || fuente === 'EXPEDIENTE' ||
+                                  primaria2 === 0;
+      let totalSeguro = esNumero(repESO) ? aNumero(repESO) : 0;
+      if (primariaDocumentada && primaria2 !== '') totalSeguro += Number(primaria2);
+      if (incorporacionNormal && sinLocalizar !== '') totalSeguro += Number(sinLocalizar);
+      if (sinLocalizar !== '' && sinLocalizar > 0 && !incorporacionNormal) {
+        avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
+          aviso: 'Va por detrás de su edad y no sabemos por qué',
+          detalle: 'Le faltan ' + sinLocalizar + ' año(s) que ninguna de nuestras fuentes explica. ' +
+            'Puede que repitiera en otro centro, o que se incorporara tarde al sistema educativo ' +
+            'español. Mientras no se sepa, su PIL sale como "' + PIL_POR_EDAD + '". ' +
+            'Si lo averiguas, escribe el número bueno en "Rep. Primaria (corregido)".' });
+      }
+
       /* Las dos lecturas del PIL. Ver el comentario grande de arriba.
            PIL         -> no puede repetir ESTE curso otra vez (la de siempre).
            PIL (etapa) -> ha agotado las dos permanencias de la etapa. */
-      pilEtapa = (total !== '' && total >= 2) ? 'SÍ' : 'NO';
-      pil = (pilEtapa === 'SÍ' || repite === 'SÍ') ? 'SÍ' : 'NO';
+      pilEtapa = (total !== '' && total >= 2) ? (totalSeguro >= 2 ? 'SÍ' : PIL_POR_EDAD) : 'NO';
+      /* Estar repitiendo el curso actual lo dice el histórico de Séneca, así
+         que ese PIL no es una suposición aunque el de etapa sí lo sea. */
+      pil = (repite === 'SÍ') ? 'SÍ' : pilEtapa;
 
       /* QUÉ cursos de Primaria repitió. Solo lo dice el expediente, y solo
          hay expedientes de alumnado de 1º. Si el alumno no repitió ninguno,
@@ -1076,8 +1130,13 @@ function construirAlumnado() {
   const iDiv = TITULOS_ALUMNADO.indexOf('Diversificación');
   const iFue = TITULOS_ALUMNADO.indexOf('Fuente Primaria');
   const iCPr = TITULOS_ALUMNADO.indexOf('Cursos repetidos en Primaria');
-  const pil = R.filas.filter(function (f) { return f[iPil] === 'SÍ'; }).length;
-  const pilEtapa = R.filas.filter(function (f) { return f[iPilE] === 'SÍ'; }).length;
+  const esPil = function (v) { return String(v).indexOf('SÍ') === 0; };
+  const pil = R.filas.filter(function (f) { return esPil(f[iPil]); }).length;
+  const pilEtapa = R.filas.filter(function (f) { return esPil(f[iPilE]); }).length;
+  /* De esos, los que salen PIL apoyados en una suposición por edad. */
+  const pilPorEdad = R.filas.filter(function (f) {
+    return f[iPil] === PIL_POR_EDAD || f[iPilE] === PIL_POR_EDAD;
+  }).length;
   const mns = R.filas.filter(function (f) { return f[iMns] !== '' && f[iMns] !== SIN_DATO; }).length;
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
@@ -1092,7 +1151,7 @@ function construirAlumnado() {
      curso, pero todavía les queda una permanencia para un curso posterior.
      Es justo el grupo en el que se separan las dos lecturas del PIL. */
   const soloEsteCurso = R.filas.filter(function (f) {
-    return f[iPil] === 'SÍ' && f[iPilE] !== 'SÍ';
+    return esPil(f[iPil]) && !esPil(f[iPilE]);
   }).length;
   /* Alumnado del que sabemos que repitió en Primaria pero no de qué curso. */
   const primariaSinCurso = R.filas.filter(function (f) { return f[iCPr] === SIN_DATO; }).length;
@@ -1116,6 +1175,7 @@ function construirAlumnado() {
     '\nPIL de este curso (no lo pueden repetir otra vez): ' + pil +
     '\nPIL de etapa (han agotado las dos permanencias): ' + pilEtapa +
     '\nSolo de este curso (repiten ahora y es su primera vez): ' + soloEsteCurso +
+    '\nSin comprobar, salen "' + PIL_POR_EDAD + '": ' + pilPorEdad +
     '\n\nCon materias no superadas (repetidores): ' + mns +
     '\nCon asignaturas pendientes: ' + pen +
     '\nEn diversificación: ' + div +
@@ -1191,6 +1251,8 @@ function escribirAlumnado(filas) {
     'informe en papel. "PIL (etapa)" quiere decir que ha agotado las DOS permanencias de ' +
     'toda la enseñanza obligatoria, Primaria y ESO juntas, y no puede repetir ningún curso ' +
     'más. La diferencia entre las dos son los que repiten ahora por primera vez. ' +
+    'Un PIL que pone "' + PIL_POR_EDAD + '" quiere decir que el número en el que se apoya ' +
+    'es una suposición sacada de la edad, y que nadie lo ha comprobado todavía. ' +
     'Actualizado: ' + new Date().toLocaleString('es-ES')).setFontStyle('italic');
   hoja.getRange(2, 1, 1, ancho).setValues([TITULOS_ALUMNADO]).setFontWeight('bold')
       .setHorizontalAlignment('center').setVerticalAlignment('middle').setWrap(true);

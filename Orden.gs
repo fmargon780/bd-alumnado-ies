@@ -136,7 +136,13 @@ function ordenarCarpeta() {
   while (enDatos.hasNext()) {
     const f = enDatos.next();
     const papel = papelDelFichero_(f);
-    if (papel === 'cuaderno') { cuadernos.push(f.getName()); continue; }
+    if (papel === 'cuaderno') {
+      /* El cuaderno de Jefatura SÍ vive aquí: es una de las fuentes. Los
+         demás cuadernos que aparezcan solo se nombran, para que Francisco
+         decida si los sube a la carpeta de arriba. */
+      if (normalizar(f.getName()).indexOf('agrupamientos') === -1) cuadernos.push(f.getName());
+      continue;
+    }
     if (papel === 'historico' || papel === 'neae' || papel === 'matricula') continue;
     if (papel === 'membrete') {
       /* El membrete bueno es uno solo. Si hubiera más de uno, el programa no

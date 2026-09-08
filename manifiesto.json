@@ -1,5 +1,5 @@
 {
-  "version": "BD v33 — \"1. Actualizar los datos\" mucho más rápido: ya no se reajustan anchos de columna que el formato final vuelve a fijar, no se listan las mismas carpetas de Drive varias veces, y el formato de columnas se aplica agrupado en vez de uno a uno",
+  "version": "BD v33 — el PIL dice de qué se fía (SÍ, SÍ (por edad) o NO), y \"1. Actualizar los datos\" mucho más rápido: ya no se reajustan anchos de columna que el formato final vuelve a fijar, no se listan las mismas carpetas de Drive varias veces, y el formato de columnas se aplica agrupado en vez de uno a uno",
   "ficheros": [
     "Formato.gs",
     "Codigo.gs",

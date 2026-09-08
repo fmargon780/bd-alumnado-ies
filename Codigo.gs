@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v31';
+const VERSION = 'BD v32';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -129,6 +129,7 @@ const TITULOS_ALUMNADO = [
   /* Su trayectoria: si ha repetido, dónde, y si puede volver a repetir */
   'Repite el curso actual', 'Repeticiones en ESO', 'Cursos repetidos en ESO',
   'Rep. Primaria (calculado)', 'Cursos repetidos en Primaria', 'Fuente Primaria',
+  'Rep. sin localizar',
   'Rep. Primaria (corregido)', 'Motivo de la corrección',
   'Repeticiones totales', 'PIL', 'PIL (etapa)',
   /* Lo que debe */
@@ -497,6 +498,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const man = (manuales && manuales[clave]) || ['', '', '', '', ''];
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', pil = '', mns = '';
+    let sinLocalizar = '';
     /* Las dos columnas nuevas de la BD v27 y la segunda lectura del PIL. */
     let cursosESO = SIN_DATO, cursosPrim = SIN_DATO, pilEtapa = '';
 
@@ -522,7 +524,31 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       }
       const corregido = String(man[0] || '').trim();
       const primaria2 = corregido !== '' && !isNaN(Number(corregido)) ? Number(corregido) : repPrim;
-      total = (primaria2 === '' ? '' : primaria2 + repESO);
+
+      /* REPETICIONES SIN LOCALIZAR. Añadido en la BD v32.
+
+         Las dos fuentes que tenemos son incompletas por naturaleza:
+         RegAlum.csv solo trae las matrículas DE ESTE CENTRO, y el expediente
+         de Primaria solo cuenta lo que pasó en Primaria. Un alumno que
+         repitió en otro instituto no sale en ninguna de las dos.
+
+         Pero se ve en la edad. Si el alumno va más años por detrás de lo que
+         explican sus repeticiones conocidas, esos años son repeticiones que
+         existieron aunque no sepamos dónde. Cuentan para el PIL igual que
+         las demás.
+
+         Por qué hace falta esta columna: hasta la BD v31 esos años iban
+         dentro de la estimación por edad de las repeticiones de Primaria.
+         En cuanto llegaba el expediente de Primaria, la estimación se
+         sustituía por el número exacto y esos años DESAPARECÍAN, así que un
+         alumno podía dejar de ser PIL sin ningún motivo. Pasó al empezar a
+         descargar expedientes de alumnado de 2º, 3º y 4º. */
+      const teorica = EDAD_TEORICA[a.curso];
+      if (primaria2 !== '' && teorica && esNumero(edad) && esNumero(repESO)) {
+        const desfase = aNumero(edad) - teorica - aNumero(repESO) - Number(primaria2);
+        sinLocalizar = desfase > 0 ? desfase : 0;
+      }
+      total = (primaria2 === '' ? '' : primaria2 + repESO + (sinLocalizar === '' ? 0 : sinLocalizar));
 
       /* Las dos lecturas del PIL. Ver el comentario grande de arriba.
            PIL         -> no puede repetir ESTE curso otra vez (la de siempre).
@@ -636,6 +662,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'Rep. Primaria (calculado)': repPrim,
       'Cursos repetidos en Primaria': cursosPrim,
       'Fuente Primaria': fuente,
+      'Rep. sin localizar': sinLocalizar,
       'Rep. Primaria (corregido)': man[0] || '',
       'Motivo de la corrección': man[1] || '',
       'Repeticiones totales': total,
@@ -1055,6 +1082,12 @@ function construirAlumnado() {
   const pen = R.filas.filter(function (f) { return f[iPen] !== ''; }).length;
   const div = R.filas.filter(function (f) { return String(f[iDiv]).indexOf('SÍ') === 0; }).length;
   const porEdad = R.filas.filter(function (f) { return f[iFue] === 'EDAD'; }).length;
+  /* Alumnado que va por detrás de su edad más de lo que explican las
+     repeticiones que conocemos. Casi siempre repitió en otro centro. */
+  const iSin = TITULOS_ALUMNADO.indexOf('Rep. sin localizar');
+  const sinLocalizar = R.filas.filter(function (f) {
+    return esNumero(f[iSin]) && aNumero(f[iSin]) > 0;
+  }).length;
   /* Los que están repitiendo ahora y es su PRIMERA repetición: son PIL de este
      curso, pero todavía les queda una permanencia para un curso posterior.
      Es justo el grupo en el que se separan las dos lecturas del PIL. */
@@ -1096,6 +1129,7 @@ function construirAlumnado() {
     '\nTodavía salen con "' + SIN_DATO + '" porque falta su expediente: ' + sinExpediente +
     '\nRepeticiones de Primaria todavía estimadas por edad: ' + porEdad +
     '\nRepitieron en Primaria pero no sabemos qué curso: ' + primariaSinCurso +
+    '\nRepeticiones que hubo pero no sabemos dónde (alumnos): ' + sinLocalizar +
     (sinNotas ? '\nRepetidores que salen con "' + SIN_DATO +
                 '" porque no aparecen en las notas: ' + sinNotas : '') +
     '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
@@ -1163,7 +1197,8 @@ function escribirAlumnado(filas) {
   if (filas.length) hoja.getRange(3, 1, filas.length, ancho).setValues(filas);
 
   const calculadas = ['Repite el curso actual', 'Diversificación', 'Cursos repetidos en ESO',
-    'Cursos repetidos en Primaria', 'Repeticiones totales', 'PIL', 'PIL (etapa)'];
+    'Cursos repetidos en Primaria', 'Rep. sin localizar', 'Repeticiones totales',
+    'PIL', 'PIL (etapa)'];
   for (let c = 0; c < ancho; c++) {
     const t = TITULOS_ALUMNADO[c];
     const color = COLS_MANUALES_ALUMNADO.indexOf(t) !== -1 ? '#FFF2CC'

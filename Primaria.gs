@@ -42,7 +42,7 @@ const HOJA_PRIMARIA = 'PRIMARIA';
    incluya también lo que el alumno arrastraba de 3º, 4º o 5º. */
 const INCLUIR_ARRASTRADAS = false;
 
-const TITULOS_PRIMARIA = ['Alumno/a', 'Unidad', 'Año de 6º', 'Nº pendientes',
+const TITULOS_PRIMARIA = ['Alumno/a', 'Unidad', 'Año de 1º', 'Año de 6º', 'Nº pendientes',
   'Pendientes de 6º', 'Arrastraba de antes', 'Rep. Primaria (expediente)',
   'Cursos repetidos', 'Centro de 6º', 'Fichero'];
 
@@ -112,7 +112,7 @@ function nombreDelFichero_(nombreFichero) {
 function leerExpediente_(archivo, sinDiccionario) {
   const alumno = nombreDelFichero_(archivo.getName());
   const salida = {
-    nombre: alumno, fichero: archivo.getName(), anoSexto: '', centro: '',
+    nombre: alumno, fichero: archivo.getName(), anoPrimero: '', anoSexto: '', centro: '',
     pendientes: [], arrastradas: [], repeticiones: '', cursosRepetidos: [],
     completo: false, avisos: []
   };
@@ -142,7 +142,7 @@ function leerExpediente_(archivo, sinDiccionario) {
   /* Primera vuelta: qué años hay de cada curso, y cuál es el año de 6º.
      Si el alumno repitió 6º, vale el más reciente. */
   const anosPorCurso = {};
-  let anoSexto = 0;
+  let anoSexto = 0, anoPrimero = 0;
   for (let f = 1; f < tabla.length; f++) {
     const fila = tabla[f];
     const curso = cursoPrimaria_(fila[iCurso]);
@@ -154,6 +154,10 @@ function leerExpediente_(archivo, sinDiccionario) {
     if (!anosPorCurso[curso]) anosPorCurso[curso] = {};
     anosPorCurso[curso][ano] = true;
     if (curso === '6º' && ano > anoSexto) anoSexto = ano;
+    /* El año en que empezó 1º de Primaria. Si repitió 1º, el primero de los dos.
+       Sirve para descartar la incorporación tardía al sistema educativo
+       español: se compara con su fecha de nacimiento en Codigo.gs. */
+    if (curso === '1º' && (!anoPrimero || ano < anoPrimero)) anoPrimero = ano;
   }
 
   /* Repeticiones: un curso que aparece en dos años académicos distintos se
@@ -169,6 +173,7 @@ function leerExpediente_(archivo, sinDiccionario) {
     const veces = Object.keys(anos).length;
     if (veces > 1) { repeticiones += veces - 1; repetidos.push(curso); }
   }
+  salida.anoPrimero = anoPrimero || '';
   salida.completo = faltan.length === 0;
   salida.cursosRepetidos = repetidos;
   if (salida.completo) {
@@ -326,7 +331,7 @@ function escribirPrimaria_(porNombre, unidadesPorNombre, usados) {
   for (const clave in porNombre) {
     const r = porNombre[clave];
     filas.push([r.nombre, unidadesPorNombre[clave] || (usados[clave] ? '' : 'NO ESTÁ EN ALUMNADO'),
-      r.anoSexto, r.pendientes.length ? r.pendientes.length : '',
+      r.anoPrimero, r.anoSexto, r.pendientes.length ? r.pendientes.length : '',
       r.pendientes.join(', '), r.arrastradas.join(', '),
       r.repeticiones === '' ? 'expediente incompleto' : r.repeticiones,
       r.cursosRepetidos.join(', '), r.centro, r.fichero]);

@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v33';
+const VERSION_BD = 'BD v34';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -78,14 +78,17 @@ const FORMATO_HOJAS = {
       'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la fuente que diga la columna de al lado.',
       'Fuente Primaria': 'De dónde sale ese número EN ESTA PESTAÑA: 1ºESO o EDAD.\n\nAquí nunca pone EXPEDIENTE. Esta pestaña es el volcado del histórico de Séneca, y el expediente de Primaria se aplica después, al construir la tabla ALUMNADO. Si quieres ver la fuente definitiva de un alumno, míralo en ALUMNADO.',
       'Fecha de nacimiento': 'La fecha de nacimiento. Se usa para deshacer empates en el censo NEAE, que solo trae las iniciales del alumno.',
-      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 1º (2022, 2023).'
+      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 1º (2022, 2023).',
+      'Curso el año pasado': 'En qué curso de este centro estaba matriculado el año académico anterior. Vacío quiere decir que no estaba aquí.',
+      'Repetía el año pasado': 'SÍ si el curso en el que estaba el año pasado ya lo había cursado antes. Es el dato del que sale la columna PIL de ALUMNADO.'
     },
     cols: {
       'Alumno/a': [210, 'I'], 'Nº Id. Escolar': [85, 'C'], 'Unidad': [65, 'C'],
       'Curso': [50, 'C'], 'Edad a 31/12': [60, 'C'], 'Repite el curso actual': [65, 'C'],
       'Repeticiones en ESO': [65, 'C'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Fuente Primaria': [90, 'C'], 'Fecha de nacimiento': [95, 'C'],
-      'Cursos repetidos en ESO': [140, 'W']
+      'Cursos repetidos en ESO': [140, 'W'],
+      'Curso el año pasado': [80, 'C'], 'Repetía el año pasado': [80, 'C']
     }
   },
 
@@ -98,6 +101,8 @@ const FORMATO_HOJAS = {
       'Unidad': 'Grupo en el que Séneca tiene matriculado al alumno, por ejemplo 2º ESO C.\n\nSi está vacía, el alumno no saldrá en ningún informe de grupo. Esos casos van en rojo y en la pestaña AVISOS.',
       'Curso': 'El nivel: 1º, 2º, 3º o 4º. Se saca de la Unidad.\n\nAdemás del nivel, sirve para distinguir a dos alumnos que se llamen igual.',
       'Edad a 31/12': 'Los años que cumple el alumno a 31 de diciembre de este curso. Lo da Séneca en el histórico.\n\nSe usa para estimar las repeticiones de Primaria cuando no hay una fuente mejor. Edad que corresponde a cada curso sin repetir: 1º = 12, 2º = 13, 3º = 14, 4º = 15.',
+      'Curso el año pasado': 'En qué curso estaba el alumno el año académico pasado.\n\nSale del histórico de matrículas de Séneca, que trae una línea por alumno y año. En 1º de ESO el curso pasado fue 6º de Primaria, y eso lo dice su expediente.\n\nUn ? quiere decir que no lo sabemos: casi siempre es alumnado que llegó este año de otro centro, porque el histórico solo trae las matrículas de aquí.\n\nEsta columna y la siguiente están puestas para que se pueda entender de dónde sale la columna PIL.',
+      'Repetía el año pasado': 'SÍ cuando el curso en el que estaba el año pasado ya lo había cursado antes.\n\nEs el dato clave de la columna PIL: quien el año pasado estaba repitiendo su curso ya no podía volver a repetirlo, así que si este año está en el siguiente es que promocionó sin poder quedarse.\n\nEn 1º de ESO quiere decir que repitió 6º de Primaria, y eso solo lo dice su expediente. Un ? quiere decir que no lo sabemos.',
       'Repite el curso actual': 'SÍ cuando el alumno ya estuvo matriculado antes en este mismo curso.\n\nSale del histórico de matrículas de Séneca (RegAlum.csv), que trae una línea por alumno y año. Si el mismo curso aparece en dos años distintos, es que lo repite.\n\nOjo: solo se ven las matrículas de este centro.',
       'Repeticiones en ESO': 'Cuántas veces ha repetido en la ESO, contando también el curso que está repitiendo ahora.\n\nSale del histórico de matrículas de este centro. Si repitió en otro instituto antes de llegar aquí, no aparece.',
       'Cursos repetidos en ESO': 'Qué cursos ha repetido y en qué años. Formato: 1º (2022, 2023).\n\nEs el detalle de la columna anterior. Sale del histórico de matrículas de este centro.',
@@ -108,8 +113,9 @@ const FORMATO_HOJAS = {
       'Rep. Primaria (corregido)': 'AQUÍ ESCRIBES TÚ. Si sabes que el número calculado no es correcto, pon aquí el bueno.\n\nEl programa no toca nunca esta columna, y el número que pongas manda sobre el calculado para las repeticiones totales y para el PIL.',
       'Motivo de la corrección': 'AQUÍ ESCRIBES TÚ. Por qué has corregido el número: por ejemplo, se incorporó al sistema educativo español en 4º de Primaria.\n\nSirve para que dentro de un año se entienda la corrección.',
       'Repeticiones totales': 'Repeticiones de Primaria más repeticiones en ESO.\n\nSi has escrito algo en Rep. Primaria (corregido), se usa ese número en vez del calculado.\n\nDe este número dependen las dos columnas de PIL, así que conviene mirarlo cuando un PIL no cuadre.',
-      'PIL': 'No puede repetir ESTE curso otra vez. Si suspende, promociona por imperativo legal.\n\nSÍ cuando se cumple una de las dos: ya está repitiendo el curso en el que está, o tiene 2 o más repeticiones totales.\n\nTiene tres valores:\nSÍ = todas las repeticiones en las que se apoya están documentadas.\nSÍ (por edad) = sale PIL, pero alguna de esas repeticiones es una suposición sacada de la edad y nadie la ha comprobado. Va en ámbar.\nNO = puede repetir.',
-      'PIL (etapa)': 'Ha agotado las DOS permanencias de toda la enseñanza obligatoria (Primaria y ESO juntas). No puede repetir ningún curso más.\n\nSÍ cuando las repeticiones totales son 2 o más. Tiene los mismos tres valores que la columna PIL: un SÍ (por edad) quiere decir que el número no está comprobado. En el informe de papel sale como SÍ?, porque esta es la columna que va al papel.\n\nLa diferencia con la columna PIL son los alumnos que están repitiendo ahora y es su primera repetición: esos son PIL este curso, pero todavía les queda una permanencia para más adelante.\n\nNo sale en el papel: es para hablar con el equipo directivo.',
+      'PIL': 'PIL quiere decir Promoción por Imperativo Legal, y esta columna es la lectura literal de esas palabras: EL ALUMNO ESTÁ EN ESTE CURSO PORQUE EL AÑO PASADO YA NO PODÍA REPETIR.\n\nMira al curso PASADO, no a este. Es la que necesita el equipo directivo para contarle al profesorado cómo llega cada alumno, y es la que sale en el informe en papel.\n\nSÍ cuando el alumno no repite este curso y además se cumple una de estas dos: el año pasado ya estaba repitiendo su curso, o ya tenía gastadas las dos permanencias.\n\nNO cuando repite este curso: entonces no promocionó, se quedó.\n\nSÍ (por edad) = sale SÍ, pero apoyado en un número de repeticiones que es una suposición sacada de la edad y que nadie ha comprobado. Va en ámbar.\n\nUn ? quiere decir que no sabemos en qué curso estaba el año pasado, casi siempre porque llegó de otro centro.\n\nNO CONFUNDIR con las dos columnas siguientes: son tres preguntas distintas y los tres grupos de alumnos son distintos.',
+      'No podrá repetir este curso': 'Si suspende en junio, pasará al curso siguiente igualmente.\n\nMira al futuro próximo. Es la pregunta que le interesa al tutor durante el curso. Es lo que esta base de datos llamaba PIL hasta la BD v33.\n\nSÍ cuando se cumple una de las dos: ya está repitiendo el curso en el que está, o tiene 2 o más repeticiones totales.\n\nSÍ (por edad) = sale SÍ, pero apoyado en un número sin comprobar. Va en ámbar.\n\nEsta columna no sale en el papel.',
+      'Ha agotado las dos permanencias': 'No puede repetir ningún curso más en toda la enseñanza obligatoria, Primaria y ESO juntas. La norma deja repetir dos veces como máximo.\n\nMira a toda la etapa, no a un curso. Es lo que esta base de datos llamaba PIL (etapa) hasta la BD v33.\n\nSÍ cuando las repeticiones totales son 2 o más.\n\nSÍ (por edad) = sale SÍ, pero apoyado en un número sin comprobar. Va en ámbar.\n\nLa diferencia con la columna de al lado son los alumnos que están repitiendo ahora y es su primera repetición: esos no podrán repetir este curso otra vez, pero todavía les queda una permanencia para más adelante.\n\nEsta columna no sale en el papel.',
       'MAT NO SUP.': 'Materias que el alumno suspendió el curso pasado y está volviendo a cursar porque repite. Formato: 5 de 2º: FYQ, GEH, LCL, MAT, FRA2.\n\nSalen de las hojas de notas del curso anterior (cuaderno PROPUESTA MATRÍCULA), y solo de las columnas del propio curso.\n\nNo confundir con Asignaturas pendientes, que son de cursos anteriores. Un mismo código puede salir en las dos columnas: es la misma materia, de años distintos.\n\nUn ? quiere decir que el alumno repite pero no aparece en la hoja de notas.',
       'Nº pendientes': 'Cuántas asignaturas arrastra de cursos anteriores.\n\nNo cuenta las materias que suspendió el año pasado y está repitiendo: esas van en MAT NO SUP.',
       'Asignaturas pendientes': 'Las materias que el alumno arrastra de cursos anteriores mientras hace el siguiente. Formato: 2: BYG 1º, GEH 1º.\n\nEn 2º, 3º y 4º salen de las columnas PEND de los CSV de matrícula de Séneca.\n\nEn 1º son las que suspendió en 6º de Primaria, y salen de su expediente de Primaria. Mientras ese expediente no esté descargado, aquí pone ? y la casilla va en ámbar.\n\nUn alumno que repite 1º no arrastra nada de Primaria: su casilla va vacía a propósito.',
@@ -128,11 +134,13 @@ const FORMATO_HOJAS = {
     },
     cols: {
       'Alumno/a': [210, 'I'], 'Unidad': [65, 'C'], 'Curso': [50, 'C'], 'Edad a 31/12': [60, 'C'],
+      'Curso el año pasado': [80, 'C'], 'Repetía el año pasado': [80, 'C'],
       'Repite el curso actual': [65, 'C'], 'Repeticiones en ESO': [65, 'C'],
       'Cursos repetidos en ESO': [140, 'W'], 'Rep. Primaria (calculado)': [65, 'C'],
       'Cursos repetidos en Primaria': [105, 'C'], 'Fuente Primaria': [90, 'C'],
       'Rep. sin localizar': [70, 'C'], 'Rep. Primaria (corregido)': [65, 'C'], 'Motivo de la corrección': [170, 'W'],
-      'Repeticiones totales': [65, 'C'], 'PIL': [85, 'C'], 'PIL (etapa)': [85, 'C'],
+      'Repeticiones totales': [65, 'C'], 'PIL': [85, 'C'],
+      'No podrá repetir este curso': [95, 'C'], 'Ha agotado las dos permanencias': [95, 'C'],
       'MAT NO SUP.': [200, 'W'], 'Nº pendientes': [55, 'C'], 'Asignaturas pendientes': [230, 'W'],
       'Diversificación': [95, 'C'], 'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'],
       'OPT': [60, 'C'], 'FR -> ALCT': [60, 'C'], 'MAT': [55, 'C'], 'OPC1': [55, 'C'],
@@ -335,20 +343,6 @@ function fmtColumnaDe_(titulos, titulo) {
   return 0;
 }
 
-/* El número de columna (1, 2, 3...) en letras (A, B, C... AA, AB...), sin
-   preguntarle nada a Google: hace falta para construir a mano las
-   referencias A1 que agrupan columnas con getRangeList, sin gastar una
-   llamada por columna solo para saber su letra. */
-function fmtLetraColumna_(col) {
-  let letras = '';
-  while (col > 0) {
-    const resto = (col - 1) % 26;
-    letras = String.fromCharCode(65 + resto) + letras;
-    col = Math.floor((col - 1) / 26);
-  }
-  return letras;
-}
-
 
 /*** ================= 5. FILAS ALTERNAS Y COLORES ================= ***/
 
@@ -428,12 +422,18 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     siVacia('Unidad', FMT_ROJO);
     /* Los PIL, para localizarlos de un vistazo. No es un problema: es un dato.
        Son dos columnas: la de este curso, que va al papel, y la de la etapa. */
-    siDice('PIL', 'SÍ', FMT_AZUL);
-    siDice('PIL (etapa)', 'SÍ', FMT_AZUL);
-    /* Y en ámbar el PIL que se apoya en una suposición por edad: hay que
-       comprobarlo antes de dárselo al tutor o al equipo directivo. */
-    siDice('PIL', PIL_POR_EDAD, FMT_AMBAR);
-    siDice('PIL (etapa)', PIL_POR_EDAD, FMT_AMBAR);
+    const PERMANENCIA = ['PIL', 'No podrá repetir este curso',
+                         'Ha agotado las dos permanencias'];
+    for (let q = 0; q < PERMANENCIA.length; q++) {
+      siDice(PERMANENCIA[q], 'SÍ', FMT_AZUL);
+      /* En ámbar lo que se apoya en una suposición por edad, y lo que no
+         sabemos: hay que comprobarlo antes de dárselo a nadie. */
+      siDice(PERMANENCIA[q], PIL_POR_EDAD, FMT_AMBAR);
+      siDice(PERMANENCIA[q], SIN_DATO, FMT_AMBAR);
+    }
+    /* De dónde viene el alumno: en ámbar lo que no sabemos. */
+    siDice('Curso el año pasado', SIN_DATO, FMT_AMBAR);
+    siDice('Repetía el año pasado', SIN_DATO, FMT_AMBAR);
   } else if (nombre === 'HISTORIAL') {
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
   } else if (nombre === 'PRIMARIA') {
@@ -554,15 +554,7 @@ function formatearHoja_(nombre) {
 
   /* 2. Columna a columna: ancho fijo, ajuste de texto y alineación.
         El ancho se decide por el TÍTULO de la columna, no por su posición,
-        así que reordenarlas no rompe nada.
-
-        El ancho no se puede agrupar porque cada columna suele llevar el
-        suyo. Pero el ajuste de texto y la alineación solo tienen tres
-        combinaciones posibles (C, I, W), así que en vez de tocar cada
-        columna por separado se apuntan en tres grupos y se aplican al final
-        con getRangeList: tres llamadas en total en vez de una por columna.
-        Con 20-30 columnas por pestaña y ocho pestañas, son varios cientos
-        de llamadas menos cada vez que se pulsa "Actualizar los datos". */
+        así que reordenarlas no rompe nada. */
   const titulos = hoja.getRange(filaCab, 1, 1, ancho).getValues()[0];
   const nDatos = ultimaFila - filaCab;
 
@@ -571,7 +563,6 @@ function formatearHoja_(nombre) {
      que casilla por casilla. Una columna sin explicación recibe nota vacía,
      así se borra la que hubiera de una versión anterior. */
   const notasFila = [];
-  const grupoRangos = { W: [], I: [], C: [] };
 
   for (let c = 0; c < ancho; c++) {
     const titulo = String(titulos[c] === null || titulos[c] === undefined
@@ -581,24 +572,15 @@ function formatearHoja_(nombre) {
     notasFila.push(def.notas && def.notas[titulo] ? def.notas[titulo] : '');
     if (nDatos <= 0) continue;
 
-    const tipo = grupoRangos[conf[1]] ? conf[1] : 'C';
-    const letra = fmtLetraColumna_(c + 1);
-    grupoRangos[tipo].push(letra + (filaCab + 1) + ':' + letra + (filaCab + nDatos));
-  }
-
-  if (nDatos > 0) {
-    if (grupoRangos.W.length) {
-      hoja.getRangeList(grupoRangos.W)
-          .setWrap(true).setHorizontalAlignment('left').setVerticalAlignment('top');
+    const rango = hoja.getRange(filaCab + 1, c + 1, nDatos, 1);
+    if (conf[1] === 'W') {
+      rango.setWrap(true).setHorizontalAlignment('left');
+    } else if (conf[1] === 'I') {
+      rango.setWrap(false).setHorizontalAlignment('left');
+    } else {
+      rango.setWrap(false).setHorizontalAlignment('center');
     }
-    if (grupoRangos.I.length) {
-      hoja.getRangeList(grupoRangos.I)
-          .setWrap(false).setHorizontalAlignment('left').setVerticalAlignment('top');
-    }
-    if (grupoRangos.C.length) {
-      hoja.getRangeList(grupoRangos.C)
-          .setWrap(false).setHorizontalAlignment('center').setVerticalAlignment('top');
-    }
+    rango.setVerticalAlignment('top');
   }
 
   hoja.getRange(filaCab, 1, 1, ancho).setNotes([notasFila]);

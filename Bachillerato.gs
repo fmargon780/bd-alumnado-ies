@@ -372,8 +372,18 @@ function valoresDeBachillerato_(a, man, ficha, cursosDelCenso) {
     'MODALIDAD': v['MODALIDAD'] || '',
     'ITINERARIO': v['ITINERARIO'] || '',
     'Diversificación': '',
-    'NEAE': ficha ? ficha.neae : (cursosDelCenso[a.curso] ? '' : (man[2] || '')),
-    'MEDIDAS Y RECURSOS': ficha ? ficha.medidas : (cursosDelCenso[a.curso] ? '' : (man[3] || '')),
+    /* EL CENSO MANDA, TAMBIÉN AQUÍ. La descarga del censo NEAE de Séneca es
+       una sola y trae el centro entero: no se pide por cursos ni por etapas.
+       Lo confirmó Francisco el 9-sep-2026. Por tanto, si un alumno de
+       Bachillerato no está en el censo es que no tiene NEAE, y su casilla se
+       queda vacía. No se conserva lo que hubiera escrito antes: un dato
+       equivocado que se conserva se queda escrito para siempre, y como la
+       casilla se ve llena nadie sospecha. Ya pasó una vez con dos alumnas que
+       se llamaban igual.
+       El parámetro cursosDelCenso se recibe por compatibilidad con la llamada
+       de Codigo.gs, pero aquí no se usa: en Bachillerato no hay medias tintas. */
+    'NEAE': ficha ? ficha.neae : '',
+    'MEDIDAS Y RECURSOS': ficha ? ficha.medidas : '',
     'Observaciones': man[4] || ''
   };
 }

@@ -1,5 +1,5 @@
 {
-  "version": "BD v48 — la trayectoria se lee sin adivinar nada: curso con etapa, nombre del centro entero y años académicos escritos 24-25",
+  "version": "BD v49 — los CSV de Bachillerato ya no se leen como si fueran de la ESO: se detectan, se avisan y se dejan para el cambio de etapa",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

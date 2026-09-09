@@ -606,6 +606,86 @@ function oblAnadirCursos_(nuevas) {
   return valores.length;
 }
 
+/*** ============ LAS QUE SE QUEDAN A LAS PUERTAS ============ ***/
+
+/* A partir de qué porcentaje una materia merece que Francisco decida si es
+   obligatoria, y cuántas se le llevan como mucho para no llenar AVISOS. */
+const OBL_CANDIDATA = 0.80;
+const OBL_MAX_CANDIDATAS = 15;
+
+/* Las materias que casi todo un itinerario cursa, pero no todo, y que no están
+   todavía en la pestaña.
+
+   POR QUÉ ESTO ES UN AVISO Y NO UNA LÍNEA MÁS DE LA PESTAÑA. El programa solo
+   puede ver cuánta gente cursa cada materia. Que la cursen 27 de 28 puede
+   querer decir dos cosas muy distintas: que es obligatoria y a uno le falta en
+   Séneca, o que es una elección que casi todos hacen. Eso no se deduce de los
+   datos: está en la normativa y en la documentación del centro, y lo sabe
+   Francisco. Así que el programa no decide: pregunta, y espera.
+
+   Cada una sale como una fila de AVISOS, con su columna Estado, así que se
+   contesta marcándola. Lo que se marque no se vuelve a preguntar.
+
+   Ojo: aquí también caen elecciones del alumno que casi todos hacen, como la
+   religión. Se dicen igual, porque el programa no sabe distinguirlas, y se
+   despachan marcándolas "No procede" una vez. */
+function oblCandidatasDeUnFicheroBac_(tabla, curso, modalidad, yaEnLaPestana, itinerarios) {
+  const salida = [];
+  if (!tabla || tabla.length < 2) return salida;
+  const C = oblColumnas_(tabla);
+  if (C.iNombre === -1) return salida;
+
+  const alumnos = [];
+  for (let f = 1; f < tabla.length; f++) {
+    const nombre = String(tabla[f][C.iNombre] || '').trim();
+    if (!nombre) continue;
+    if (oblEsRepetidorBac_(tabla[f])) continue;
+    alumnos.push(tabla[f]);
+  }
+  if (alumnos.length < OBL_MINIMO_ALUMNOS) return salida;
+
+  const cols = [];
+  for (let c = 0; c < C.cab.length; c++) {
+    if (c === C.iNombre || c === C.iUnidad) continue;
+    if (!C.cab[c] || pendienteDeBac_(C.cab[c])) continue;
+    cols.push(c);
+  }
+
+  /* Los grupos donde se mira: la modalidad entera, y los itinerarios que ya se
+     conocen, que son los que están declarados en la pestaña con "Solo quienes
+     cursan...". NO se prueba con todas las materias del fichero: eso sacaba
+     parejas sin sentido, como "el 92 % de quienes cursan Química cursa
+     Religión". Un itinerario es algo que existe en el centro, no cualquier
+     coincidencia entre dos materias. */
+  const grupos = [{ nombre: '', alumnos: alumnos }];
+  for (let i = 0; i < itinerarios.length; i++) {
+    const c = C.cabN.indexOf(normalizar(itinerarios[i]));
+    if (c === -1) continue;
+    const g = [];
+    for (let a = 0; a < alumnos.length; a++) if (oblCumpleBac_(alumnos[a][c])) g.push(alumnos[a]);
+    if (g.length < OBL_MINIMO_ITINERARIO) continue;
+    grupos.push({ nombre: itinerarios[i], alumnos: g });
+  }
+
+  for (let k = 0; k < grupos.length; k++) {
+    const g = grupos[k];
+    const quien = g.nombre ? OBL_CONDICION + g.nombre : (modalidad || '');
+    for (let i = 0; i < cols.length; i++) {
+      const m = C.cab[cols[i]];
+      if (m === g.nombre) continue;
+      const clave = normalizar(curso) + '|' + normalizar(m);
+      if (yaEnLaPestana[clave]) continue;
+      let n = 0;
+      for (let a = 0; a < g.alumnos.length; a++) if (oblCumpleBac_(g.alumnos[a][cols[i]])) n++;
+      const p = n / g.alumnos.length;
+      if (p < OBL_CANDIDATA || p >= 1) continue;
+      salida.push({ curso: curso, materia: m, modalidad: modalidad, itinerario: g.nombre,
+                    quien: quien, cuantos: n, total: g.alumnos.length, parte: p });
+    }
+  }
+  return salida;
+}
+
 /*** ================= LA COMPROBACIÓN ================= ***/
 
 /* Mira el CSV de un curso contra las líneas vigentes de la tabla y devuelve un
@@ -784,6 +864,52 @@ function comprobarObligatorias_() {
       avisos = avisos.concat(
         oblAvisosDeFicheroBac_(lista[j].tabla, cu, lista[j].modalidad, vigentes));
     }
+  }
+
+  /* LAS QUE SE QUEDAN A LAS PUERTAS. Se preguntan en AVISOS, una por fila, con
+     su casilla Estado. Lo que Francisco marque no se vuelve a preguntar. */
+  const yaEnLaPestana = {};
+  for (let k = 0; k < filas.length; k++) {
+    yaEnLaPestana[normalizar(filas[k].curso) + '|' + normalizar(filas[k].materia)] = true;
+  }
+  /* Los itinerarios que ya están declarados en la pestaña, con la forma
+     "Solo quienes cursan Latín". Son los que el programa conoce. */
+  const itinerariosDeclarados = [];
+  for (let k = 0; k < filas.length; k++) {
+    const cond = oblCondicion_(filas[k].quien);
+    if (cond && itinerariosDeclarados.indexOf(cond) === -1) itinerariosDeclarados.push(cond);
+  }
+
+  let candidatas = [];
+  for (let i = 0; i < cursosBac.length; i++) {
+    const cu = cursosBac[i];
+    const lista = bacPorCurso[cu];
+    for (let j = 0; j < lista.length; j++) {
+      candidatas = candidatas.concat(
+        oblCandidatasDeUnFicheroBac_(lista[j].tabla, cu, lista[j].modalidad,
+                                     yaEnLaPestana, itinerariosDeclarados));
+    }
+  }
+  /* Una misma materia puede salir por su modalidad y por un itinerario. Se
+     queda la del grupo donde más se cursa, que es la que mejor la explica. */
+  const mejor = {};
+  for (let i = 0; i < candidatas.length; i++) {
+    const c = candidatas[i];
+    const k = normalizar(c.curso) + '|' + normalizar(c.materia);
+    if (!mejor[k] || c.parte > mejor[k].parte) mejor[k] = c;
+  }
+  const unicas = [];
+  for (const k in mejor) unicas.push(mejor[k]);
+  unicas.sort(function (a, b) { return b.parte - a.parte; });
+  for (let i = 0; i < unicas.length && i < OBL_MAX_CANDIDATAS; i++) {
+    const c = unicas[i];
+    const donde = c.itinerario ? 'quienes cursan ' + c.itinerario : 'la modalidad de ' + c.modalidad;
+    avisos.push({ curso: c.curso, grupo: c.modalidad, alumno: '',
+      aviso: 'Decide si esta materia es obligatoria: ' + c.materia,
+      detalle: 'La cursan ' + c.cuantos + ' de ' + c.total + ' (' + Math.round(c.parte * 100) +
+        ' %) de ' + donde + '. Si es obligatoria, añádela a la pestaña "' + HOJA_OBLIGATORIAS +
+        '" con Curso "' + c.curso + '" y "Quién la cursa" = "' + c.quien + '". Si es una ' +
+        'elección del alumno, marca esta fila como "No procede" y no se vuelve a preguntar.' });
   }
 
   const escritos = oblAnadirAvisos_(avisos);

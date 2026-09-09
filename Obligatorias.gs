@@ -65,6 +65,24 @@ const OBL_DIVER      = 'Solo diversificación';
 const OBL_CIENCIAS   = 'Solo Ciencias y Tecnología';
 const OBL_HUMANIDADES = 'Solo Humanidades y CC. Sociales';
 
+/* Y DENTRO DE CADA MODALIDAD ESTÁN LOS ITINERARIOS. Lo señaló Francisco el
+   9-sep-2026: buscando solo por modalidad salían pocas obligatorias.
+
+   Un itinerario no viene escrito en ninguna parte del CSV de Séneca. Pero se
+   reconoce por una materia: quien cursa Latín va por el itinerario de
+   Humanidades; quien cursa Matemáticas Aplicadas a las Ciencias Sociales, por
+   el de Ciencias Sociales. Por eso la respuesta se escribe así:
+
+       Solo quienes cursan Latín
+       Solo quienes cursan Matemáticas Aplicadas a las Ciencias Sociales
+
+   Y entonces esa materia se le exige solo a quien curse la que va detrás.
+
+   Medido sobre el curso 26-27: en 1º de Humanidades, Economía la cursa el 86 %
+   del grupo entero, pero el 100 % de quienes van por Ciencias Sociales. Sin
+   los itinerarios, esa materia se quedaba fuera de la lista. */
+const OBL_CONDICION = 'Solo quienes cursan ';
+
 /* Solo para la propuesta de la primera vez: a partir de qué parte del curso se
    supone que una materia es obligatoria. No se usa para comprobar nada; para
    eso manda la pestaña. */
@@ -100,9 +118,18 @@ function oblQuien_(texto) {
   const n = normalizar(texto);
   if (n.indexOf('solo diver') === 0) return 'diver';
   if (n.indexOf('todos menos') === 0) return 'ordinario';
+  if (n.indexOf('solo quienes cursan') === 0) return 'condicion';
   if (n.indexOf('solo ciencias') === 0) return 'ciencias';
   if (n.indexOf('solo human') === 0) return 'humanidades';
   return 'todos';
+}
+
+/* De "Solo quienes cursan Latín" saca "Latín". Devuelve '' si no es una
+   respuesta de ese tipo. */
+function oblCondicion_(texto) {
+  const t = String(texto === null || texto === undefined ? '' : texto).trim();
+  if (normalizar(t).indexOf('solo quienes cursan') !== 0) return '';
+  return t.substring(OBL_CONDICION.length).trim();
 }
 
 function oblAno_(v) {
@@ -194,7 +221,11 @@ function oblEscribirTabla_(filas) {
     'La primera vez la ha rellenado él, mirando qué materias cursa casi todo el mundo en cada curso. ' +
     'Revísala y corrígela: a partir de ahora manda lo que ponga aquí, y el programa no la vuelve a tocar.\n\n' +
     'Materia: el nombre exacto que le da Séneca en el CSV de matrícula. Si no coincide, sale un aviso.\n' +
-    'Quién la cursa: el alumnado de diversificación cursa los Ámbitos en vez de las materias sueltas.\n' +
+    'Quién la cursa: en la ESO, el alumnado de diversificación cursa los Ámbitos en vez de las ' +
+    'materias sueltas. En Bachillerato hay dos cosas más: la MODALIDAD ("Solo Ciencias y ' +
+    'Tecnología", "Solo Humanidades y CC. Sociales") y el ITINERARIO, que no viene escrito en ' +
+    'Séneca y se reconoce por una materia: escribe "Solo quienes cursan Latín" y esa materia se ' +
+    'le exigirá solo a quien curse Latín.\n' +
     'Desde el año / Hasta el año: el año en que empieza el curso académico (2026 es el curso 2026-27). ' +
     'Cuando una materia deje de ser obligatoria, no borres su línea: escribe el último año en ' +
     '"Hasta el año" y así queda la historia.\n' +
@@ -213,7 +244,7 @@ function oblEscribirTabla_(filas) {
     const regla = SpreadsheetApp.newDataValidation()
       .requireValueInList([OBL_TODOS, OBL_ORDINARIO, OBL_DIVER,
                            OBL_CIENCIAS, OBL_HUMANIDADES], true)
-      .setAllowInvalid(false).build();
+      .setAllowInvalid(true).build();
     hoja.getRange(3, 3, Math.max(valores.length, 1) + 200, 1).setDataValidation(regla);
   } catch (e) { /* sin desplegable se escribe a mano */ }
 
@@ -350,6 +381,82 @@ function oblObligatoriasDeUnFicheroBac_(tabla) {
   return salida;
 }
 
+/* Cuántos alumnos hacen falta en un itinerario para tomárselo en serio, y
+   hasta qué parte del fichero puede llegar: si una materia la cursa casi todo
+   el mundo, no separa a nadie y no es un itinerario. */
+const OBL_MINIMO_ITINERARIO = 10;
+const OBL_MAXIMO_ITINERARIO = 0.85;
+
+/* Busca los itinerarios dentro de UN fichero de Bachillerato.
+
+   La idea: si al quedarse solo con quienes cursan una materia aparecen otras
+   materias que ese grupo cursa AL COMPLETO, y que en el fichero entero no lo
+   estaban, esa materia está marcando un itinerario.
+
+   Devuelve una lista de { definitoria, materias }. */
+function oblItinerariosDeUnFicheroBac_(tabla, yaObligatorias) {
+  const salida = [];
+  if (!tabla || tabla.length < 2) return salida;
+  const C = oblColumnas_(tabla);
+  if (C.iNombre === -1) return salida;
+
+  const alumnos = [];
+  for (let f = 1; f < tabla.length; f++) {
+    const nombre = String(tabla[f][C.iNombre] || '').trim();
+    if (!nombre) continue;
+    if (oblEsRepetidorBac_(tabla[f])) continue;
+    alumnos.push(tabla[f]);
+  }
+  if (alumnos.length < OBL_MINIMO_ALUMNOS) return salida;
+
+  const cols = [];
+  for (let c = 0; c < C.cab.length; c++) {
+    if (c === C.iNombre || c === C.iUnidad) continue;
+    if (!C.cab[c]) continue;
+    if (pendienteDeBac_(C.cab[c])) continue;
+    if (yaObligatorias[C.cab[c]]) continue;      // ya es de todo el mundo
+    cols.push(c);
+  }
+
+  const candidatos = [];
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    const grupo = [];
+    for (let a = 0; a < alumnos.length; a++) {
+      if (oblCumpleBac_(alumnos[a][c])) grupo.push(alumnos[a]);
+    }
+    if (grupo.length < OBL_MINIMO_ITINERARIO) continue;
+    if (grupo.length / alumnos.length > OBL_MAXIMO_ITINERARIO) continue;
+
+    const propias = [];
+    for (let j = 0; j < cols.length; j++) {
+      const c2 = cols[j];
+      if (c2 === c) continue;
+      let n = 0;
+      for (let a = 0; a < grupo.length; a++) if (oblCumpleBac_(grupo[a][c2])) n++;
+      if (n === grupo.length) propias.push(C.cab[c2]);
+    }
+    if (propias.length) {
+      candidatos.push({ definitoria: C.cab[c], materias: propias, cuantos: grupo.length });
+    }
+  }
+
+  /* Dos materias distintas pueden llevar a la MISMA lista, simplemente porque
+     las cursa la misma gente. Se queda la del grupo más grande, que es la que
+     de verdad define el itinerario. Ejemplo real: en 1º de Humanidades tanto
+     "Matemáticas Aplicadas a las Ciencias Sociales" (31 alumnos) como "Cultura
+     Emprendedora y Empresarial" (18) llevaban a Economía. */
+  const porLista = {};
+  for (let i = 0; i < candidatos.length; i++) {
+    const clave = candidatos[i].materias.slice().sort().join(' | ');
+    if (!porLista[clave] || candidatos[i].cuantos > porLista[clave].cuantos) {
+      porLista[clave] = candidatos[i];
+    }
+  }
+  for (const k in porLista) salida.push(porLista[k]);
+  return salida;
+}
+
 /* La propuesta de un curso de Bachillerato, mirando sus dos modalidades.
    Una materia que sale en las dos es de todo el alumnado del curso; una que
    sale en una sola es de esa modalidad. */
@@ -373,6 +480,22 @@ function oblProponerBachillerato_(porModalidad, curso) {
     else quien = OBL_HUMANIDADES;
     propuesta.push({ curso: curso, materia: m, quien: quien, desde: '', hasta: '' });
   }
+
+  /* Y ahora, dentro de cada modalidad, los itinerarios. */
+  const puestas = {};
+  for (let i = 0; i < porModalidad.length; i++) {
+    const its = oblItinerariosDeUnFicheroBac_(porModalidad[i].tabla, todas);
+    for (let k = 0; k < its.length; k++) {
+      const quien = OBL_CONDICION + its[k].definitoria;
+      for (let j = 0; j < its[k].materias.length; j++) {
+        const clave = its[k].materias[j] + '||' + quien;
+        if (puestas[clave]) continue;
+        puestas[clave] = true;
+        propuesta.push({ curso: curso, materia: its[k].materias[j], quien: quien,
+                         desde: '', hasta: '' });
+      }
+    }
+  }
   return propuesta;
 }
 
@@ -391,19 +514,63 @@ function oblAvisosDeFicheroBac_(tabla, curso, modalidad, vigentes) {
     if (quien === 'diver' || quien === 'ordinario') continue;   // eso es de la ESO
     const c = C.cabN.indexOf(normalizar(vigentes[i].materia));
     if (c === -1) continue;   // no está en ESTE fichero; puede estar en el de la otra modalidad
-    lista.push({ col: c, materia: vigentes[i].materia });
+
+    /* Las líneas de itinerario solo se le exigen a quien cursa la materia que
+       lo define. Si esa materia no está en este fichero, la línea es de la
+       otra modalidad y aquí no pinta nada. */
+    let colCond = -1;
+    if (quien === 'condicion') {
+      const cond = oblCondicion_(vigentes[i].quien);
+      colCond = cond ? C.cabN.indexOf(normalizar(cond)) : -1;
+      if (colCond === -1) continue;
+    }
+    lista.push({ col: c, materia: vigentes[i].materia, colCond: colCond });
   }
 
+  /* Cuántas materias cursa cada alumno. Sirve para el aviso de más abajo. */
+  const cuantas = [];
+  for (let f = 1; f < tabla.length; f++) {
+    if (!String(tabla[f][C.iNombre] || '').trim()) continue;
+    let n = 0;
+    for (let c = 0; c < C.cab.length; c++) {
+      if (c === C.iNombre || c === C.iUnidad) continue;
+      if (!C.cab[c] || pendienteDeBac_(C.cab[c])) continue;
+      if (oblCumpleBac_(tabla[f][c])) n++;
+    }
+    cuantas.push(n);
+  }
+  const ordenadas = cuantas.slice().sort(function (a, b) { return a - b; });
+  const mediana = ordenadas.length ? ordenadas[Math.floor(ordenadas.length / 2)] : 0;
+  const minimo = Math.max(3, Math.floor(mediana / 2));
+
+  let iAlumno = -1;
   for (let f = 1; f < tabla.length; f++) {
     const nombre = String(tabla[f][C.iNombre] || '').trim();
     if (!nombre) continue;
+    iAlumno++;
+    const unidad = C.iUnidad === -1 ? '' : String(tabla[f][C.iUnidad] || '').trim();
+
+    /* MATRÍCULA A MEDIAS. No es que le falte una materia obligatoria: es que
+       apenas tiene materias. Casi siempre es una matrícula que se quedó sin
+       terminar en Séneca. Sin esta comprobación no se veía, porque las cuatro
+       materias comunes sí las tenía. */
+    if (cuantas[iAlumno] < minimo) {
+      avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
+        aviso: 'Matrícula incompleta en Séneca',
+        detalle: 'Solo está matriculado en ' + cuantas[iAlumno] + ' materias, y en su grupo lo ' +
+          'normal son ' + mediana + '. Parece una matrícula sin terminar. Modalidad: ' + modalidad + '.' });
+      continue;
+    }
+
     const faltan = [];
     for (let i = 0; i < lista.length; i++) {
-      if (!oblCumpleBac_(tabla[f][lista[i].col])) faltan.push(lista[i].materia);
+      const m = lista[i];
+      if (m.colCond !== -1 && !oblCumpleBac_(tabla[f][m.colCond])) continue;
+      if (!oblCumpleBac_(tabla[f][m.col])) faltan.push(m.materia);
     }
     if (!faltan.length) continue;
-    avisos.push({ curso: curso, grupo: C.iUnidad === -1 ? '' : String(tabla[f][C.iUnidad] || '').trim(),
-      alumno: nombre, aviso: 'Le faltan materias obligatorias en Séneca',
+    avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
+      aviso: 'Le faltan materias obligatorias en Séneca',
       detalle: 'No está matriculado en: ' + faltan.join(', ') + '. Modalidad: ' + modalidad +
         '. Compruébalo en Séneca, o corrige la pestaña "' + HOJA_OBLIGATORIAS +
         '" si esa materia ya no es obligatoria.' });
@@ -433,7 +600,7 @@ function oblAnadirCursos_(nuevas) {
     const regla = SpreadsheetApp.newDataValidation()
       .requireValueInList([OBL_TODOS, OBL_ORDINARIO, OBL_DIVER,
                            OBL_CIENCIAS, OBL_HUMANIDADES], true)
-      .setAllowInvalid(false).build();
+      .setAllowInvalid(true).build();
     hoja.getRange(3, 3, hoja.getLastRow() - 2 + 200, 1).setDataValidation(regla);
   } catch (e) { /* sin desplegable se escribe a mano */ }
   return valores.length;

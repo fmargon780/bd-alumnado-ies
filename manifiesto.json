@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — Bachillerato completo: alumnado, informes, Jefatura y ahora también sus materias obligatorias, por modalidad",
+  "version": "BD v51 — las materias obligatorias de Bachillerato se buscan por modalidad Y por itinerario, y se avisa de las matrículas a medias",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

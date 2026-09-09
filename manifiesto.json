@@ -1,5 +1,5 @@
 {
-  "version": "BD v46 — una opción de menú que ordena la carpeta de Drive y deja en la carpeta de datos solo lo que se descarga de Séneca",
+  "version": "BD v48 — la trayectoria se lee sin adivinar nada: curso con etapa, nombre del centro entero y años académicos escritos 24-25",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

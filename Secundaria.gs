@@ -70,11 +70,15 @@ function partirMateriaSec_(texto) {
   return { materia: t, de: '' };
 }
 
-/* "RegDetExpEle SEC Maldonado Benítez, Abraham.csv" -> "Maldonado Benítez, Abraham" */
+/* "RegDetExpEle SEC Maldonado Benítez, Abraham.csv" -> "Maldonado Benítez, Abraham"
+   EL "SEC" ES OPCIONAL (BD v48, 9-sep-2026). Séneca no siempre lo pone, y lo
+   que de verdad dice que un expediente es de Secundaria no es su nombre: es
+   estar en la carpeta "Expedientes Secundaria". Así que
+   "RegDetExpEle Apellidos, Nombre.csv" vale igual. */
 function nombreDelFicheroSec_(nombreFichero) {
   let t = String(nombreFichero || '').replace(/\.csv$/i, '');
-  const p = normalizar(PREFIJO_EXP_SEC);
-  if (normalizar(t).indexOf(p) === 0) t = t.substring(PREFIJO_EXP_SEC.length);
+  t = t.replace(/^\s*RegDetExpEle\b\s*/i, '');
+  t = t.replace(/^\s*SEC\b\s*/i, '');
   return t.replace(/^[\s_-]+/, '').replace(/\s+/g, ' ').trim();
 }
 
@@ -162,7 +166,8 @@ function leerExpedienteSec_(archivo) {
     const lista = Object.keys(anos).sort();
     if (lista.length < 2) continue;
     repeticiones += lista.length - 1;
-    repetidos.push(curso + ' (' + lista.join(', ') + ')');
+    repetidos.push(curso + ' (' +
+      lista.map(function (a) { return anoAcademico_(a); }).join(', ') + ')');
   }
   salida.repeticiones = repeticiones;
   salida.cursosRepetidos = repetidos;
@@ -183,8 +188,8 @@ function leerExpedienteSec_(archivo) {
     }
     salida.repetiaPasado = repetia;
   } else {
-    salida.avisos.push('El expediente de ' + alumno + ' no dice en qué curso estuvo el año ' +
-      anoPasado + '. No he tocado su curso del año pasado.');
+    salida.avisos.push('El expediente de ' + alumno + ' no dice en qué curso estuvo el curso ' +
+      anoAcademico_(anoPasado) + '. No he tocado su curso del año pasado.');
   }
 
   /* Cuántas materias suspendió el año pasado. Cuentan todas las que tienen
@@ -324,7 +329,7 @@ function escribirSecundaria_(porNombre, unidadesPorNombre, enAlumnado) {
       r.suspensosPasado === '' ? '' : r.suspensosPasado,
       r.repeticiones === '' ? '' : r.repeticiones,
       (r.cursosRepetidos || []).join('; '),
-      (r.anos || []).join(', '),
+      (r.anos || []).map(function (a) { return anoAcademico_(a); }).join(', '),
       (r.centros || []).join(' · '),
       r.fichero]);
   }

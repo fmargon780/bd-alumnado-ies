@@ -146,10 +146,14 @@ function crearPestanasBachillerato_(libro, grupos, avisos) {
     }
   }
 
-  /* Las pestañas, en orden: 1º BACH A, B, C, 2º BACH A... */
-  for (let i = 0; i < grupos.length; i++) {
-    const h = libro.getSheetByName(grupos[i].grupo);
-    if (h) { libro.setActiveSheet(h); libro.moveActiveSheet(i + 1); }
+  /* Las pestañas, en orden: 1º BACH A, B, C, 2º BACH A... Solo se recolocan
+     cuando se acaba de crear alguna: si se hiciera en cada actualización, la
+     portada iría bailando de sitio sin motivo. */
+  if (creadas) {
+    for (let i = 0; i < grupos.length; i++) {
+      const h = libro.getSheetByName(grupos[i].grupo);
+      if (h) { libro.setActiveSheet(h); libro.moveActiveSheet(i + 1); }
+    }
   }
   return creadas;
 }

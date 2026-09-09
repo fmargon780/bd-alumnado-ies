@@ -66,6 +66,10 @@ function juegoJef_(v) {
 
 /* ¿Es esto el rótulo de un grupo de ESO? Devuelve "1º ESO A" o ''.
    Vale tanto para el nombre de la pestaña ("1ºESO A") como para la celda A1. */
+/* Reconoce el nombre de un grupo. Desde la BD v51 vale también para
+   Bachillerato ("1º BACH A"), por si el cuaderno de Jefatura llegara a traer
+   sus pestañas. Si no las trae, no pasa nada: más abajo solo se comparan los
+   cursos que el fichero traiga de verdad. */
 function grupoDeTexto_(v) {
   const t = String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim();
   const m = t.match(/^([1-4])\s*º\s*ESO\s+([A-Z])$/i);
@@ -196,8 +200,16 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     senPorNombre[n].push(filasAlum[f]);
   }
   const jef = {};
+  /* QUÉ CURSOS TRAE EL FICHERO DE JEFATURA. Solo se compara lo que ese fichero
+     cubre. El 9-sep-2026, al entrar el Bachillerato en la base de datos, sus
+     160 alumnos salieron TODOS como "No está en el fichero de Jefatura", que
+     es verdad y no sirve para nada: el cuaderno AGRUPAMIENTOS es de la ESO.
+     Es la misma regla que ya sigue el censo NEAE: una fuente manda en los
+     cursos que trae, y calla en los que no. */
+  const cursosDeJefatura = {};
   for (let i = 0; i < alumnosJef.length; i++) {
     jef[normalizar(alumnosJef[i].nombre) + '|' + alumnosJef[i].curso] = alumnosJef[i];
+    if (alumnosJef[i].curso) cursosDeJefatura[alumnosJef[i].curso] = true;
   }
   /* Nombres de los que ya se ha avisado como "Curso distinto", para no decir
      después que ese alumno no aparece en el fichero de Jefatura. */
@@ -251,9 +263,26 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
     }
   }
 
+  /* Los cursos que hay en Séneca y no en el fichero de Jefatura. Se dicen una
+     sola vez, en una línea, en vez de repetirlo alumno por alumno. */
+  const cursosSinJefatura = {};
+  for (let f = 0; f < filasAlum.length; f++) {
+    const cu = dame(filasAlum[f], 'Curso');
+    if (cu && !cursosDeJefatura[cu]) cursosSinJefatura[cu] = (cursosSinJefatura[cu] || 0) + 1;
+  }
+  const listaSinJefatura = Object.keys(cursosSinJefatura).sort();
+  for (let i = 0; i < listaSinJefatura.length; i++) {
+    const cu = listaSinJefatura[i];
+    mete(cu, '', '', 'El fichero de Jefatura no trae este curso',
+         cursosSinJefatura[cu] + ' alumnos en Séneca', '(no aparece)');
+  }
+
   for (let f = 0; f < filasAlum.length; f++) {
     const nombre = dame(filasAlum[f], 'Alumno/a');
     if (!nombre) continue;
+    /* Si Jefatura no trae ese curso, no se le puede reprochar que le falte
+       ningún alumno de ese curso. Ya se ha dicho arriba, una sola vez. */
+    if (!cursosDeJefatura[dame(filasAlum[f], 'Curso')]) continue;
     if (jef[normalizar(nombre) + '|' + dame(filasAlum[f], 'Curso')]) continue;
     /* Si de este alumno ya se ha avisado arriba como "Curso distinto", no hace
        falta decir además que no aparece. Ojo: se mira si SE AVISÓ, no si el

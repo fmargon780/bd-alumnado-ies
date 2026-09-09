@@ -1,5 +1,5 @@
 {
-  "version": "BD v49 — los CSV de Bachillerato ya no se leen como si fueran de la ESO: se detectan, se avisan y se dejan para el cambio de etapa",
+  "version": "BD v50 — en el informe salen todas las palabras: ni un +2 en NEAE ni medidas tiradas por no tener sigla",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

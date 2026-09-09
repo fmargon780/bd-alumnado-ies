@@ -34,9 +34,12 @@ const CATEGORIAS_NEAE = {
   'compensacion educativa': 'COM'
 };
 const ORDEN_CATEGORIAS = ['NEE', 'DIA', 'AACC', 'COM'];
-/* Cuántos detalles se escriben por categoría. Los demás se resumen con un
-   "+2", para que la columna del informe no se dispare a diez líneas. */
-const MAX_DETALLES = 2;
+/* NO HAY TOPE DE DETALLES, Y ES A PROPÓSITO (BD v50, 9-sep-2026).
+   Antes se escribían dos detalles por categoría y el resto se resumía con un
+   "+2", para que la columna del informe no se disparase. Lo quitó Francisco:
+   un "+2" no le dice al tutor NADA, y el informe está para que el tutor sepa
+   qué tiene delante. Si la columna se alarga, se estrecha otra cosa; lo que no
+   se hace es esconder información en el papel del tutor. */
 
 /* El detalle, acortado para que quepa en la columna del informe. */
 const DETALLES_NEAE = {
@@ -239,8 +242,7 @@ function resumirNecesidades_(texto, sinDiccionario) {
     if (!porCategoria[s]) continue;
     const lista = porCategoria[s];
     if (!lista.length) { bloques.push(s); continue; }
-    const sobran = lista.length - MAX_DETALLES;
-    bloques.push(s + ' ' + lista.slice(0, MAX_DETALLES).join(', ') + (sobran > 0 ? ' +' + sobran : ''));
+    bloques.push(s + ' ' + lista.join(', '));
   }
   return bloques.join(' · ');
 }
@@ -255,7 +257,14 @@ function resumirMedidas_(texto, sinDiccionario) {
     if (!x) continue;
     const d = MEDIDAS_NEAE[normalizar(x)];
     if (!d) {
+      /* Una medida que no está en el diccionario NO se tira (BD v50). Antes se
+         anotaba en AVISOS y desaparecía del papel, así que el tutor no llegaba
+         a saber que ese alumno la tiene. Ahora se escribe con sus palabras, tal
+         y como viene de Séneca, y el aviso sigue saliendo para poder darle su
+         sigla. Va con las medidas: los recursos son una lista corta y cerrada
+         (PT, AL, ATAL, PTIS...) que ya está entera en el diccionario. */
       if (sinDiccionario) sinDiccionario.push('Medida o recurso sin abreviar: ' + x);
+      if (medidas.indexOf(x) === -1) medidas.push(x);
       continue;
     }
     const lista = d.tipo === 'M' ? medidas : recursos;

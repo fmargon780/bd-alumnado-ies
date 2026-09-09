@@ -1,5 +1,5 @@
 {
-  "version": "BD v50 — en el informe salen todas las palabras: ni un +2 en NEAE ni medidas tiradas por no tener sigla",
+  "version": "BD v51 — el alumnado de Bachillerato entra en ALUMNADO, con el curso escrito 1º BACH y 2º BACH y sin las reglas de la ESO",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",
@@ -7,6 +7,7 @@
     "NEAE.gs",
     "Primaria.gs",
     "Secundaria.gs",
+    "Bachillerato.gs",
     "Jefatura.gs",
     "Obligatorias.gs",
     "Informes.gs",

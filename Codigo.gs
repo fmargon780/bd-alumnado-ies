@@ -1422,7 +1422,6 @@ function cargarHistorico() {
       'No hay ningún fichero que empiece por "RegAlum" ni en la carpeta de datos ni en la de arriba.');
     return;
   }
-
   let res;
   try {
     const tabla = textoATablaFiltrada(textoDeArchivo(archivo),

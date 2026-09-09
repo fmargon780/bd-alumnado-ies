@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v49';
+const VERSION_BD = 'BD v50';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -129,7 +129,7 @@ const FORMATO_HOJAS = {
       'Nº pendientes': 'Cuántas asignaturas arrastra de cursos anteriores.\n\nNo cuenta las materias que suspendió el año pasado y está repitiendo: esas van en MAT NO SUP.',
       'Asignaturas pendientes': 'Las materias que el alumno arrastra de cursos anteriores mientras hace el siguiente. Formato: 2: BYG 1º, GEH 1º.\n\nEn 2º, 3º y 4º salen de las columnas PEND de los CSV de matrícula de Séneca.\n\nEn 1º son las que suspendió en 6º de Primaria, y salen de su expediente de Primaria. Mientras ese expediente no esté descargado, aquí pone ? y la casilla va en ámbar.\n\nUn alumno que repite 1º no arrastra nada de Primaria: su casilla va vacía a propósito.',
       'Diversificación': 'SÍ = Séneca lo confirma.\nSÍ (solo Jefatura) = lo dice el fichero de Jefatura, pero Séneca todavía no.\nNO = no está en diversificación.\n\nSéneca lo refleja matriculando al alumno en las materias de Ámbito. En 4º, además, en Matemáticas = ÁMB.',
-      'NEAE': 'Necesidades específicas de apoyo educativo, abreviadas. Sale del censo NEAE de Séneca (RegAluNEE.csv).\n\nCategorías: NEE (necesidades educativas especiales), DIA (dificultades de aprendizaje), AACC (altas capacidades), COM (compensación educativa). Detrás van hasta dos detalles, y un +2 si hay más.\n\nCasilla vacía = ese alumno no tiene NEAE, siempre que el censo descargado incluya su curso. Si el censo no trae su curso, sale un aviso.',
+      'NEAE': 'Necesidades específicas de apoyo educativo, abreviadas. Sale del censo NEAE de Séneca (RegAluNEE.csv).\n\nCategorías: NEE (necesidades educativas especiales), DIA (dificultades de aprendizaje), AACC (altas capacidades), COM (compensación educativa). Detrás van TODOS los detalles que trae el censo, con sus palabras. Desde la BD v50 no se recorta ninguno: un "+2" no le decía nada al tutor.\n\nCasilla vacía = ese alumno no tiene NEAE, siempre que el censo descargado incluya su curso. Si el censo no trae su curso, sale un aviso.',
       'MEDIDAS Y RECURSOS': 'Lo que recibe el alumno, según el censo NEAE de Séneca. Formato: las medidas, una barra, y el profesorado o personal de apoyo. Por ejemplo: ACS, PE, PRA / PT, AL.\n\nLas siglas se explican en la leyenda de cada informe de grupo, que se genera sola con las siglas que aparecen en ese grupo.',
       'OPT': 'La optativa que cursa. Códigos: OyD (Oratoria y Debate), CyR (Computación y Robótica), MTGE (Music, theatre and games), PEPA (Proyecto de Plástica), LAB (Laboratorio de Física y Química), CC (Cultura Clásica), MUS (Música), FR (Francés).\n\nLos alumnos de diversificación de 3º llevan dos, separadas por una barra: la suya y Música.\n\nEn 4º esta columna va vacía: sus opciones están en OPC1 a OPC4.',
       'FR -> ALCT': 'Solo en 1º. Dice qué cursa el alumno de las dos opciones que hay:\n\nFR = Francés, Segundo Idioma.\nALCT = Área Lingüística de carácter transversal, que es la alternativa de quien está exento de francés.\n\nNo puede estar vacía. Si lo está, es que en Séneca no está matriculado en ninguna de las dos, y sale un aviso.',

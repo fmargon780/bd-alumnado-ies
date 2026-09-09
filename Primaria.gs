@@ -356,7 +356,8 @@ function escribirPrimaria_(porNombre, unidadesPorNombre, usados) {
   for (const clave in porNombre) {
     const r = porNombre[clave];
     filas.push([r.nombre, unidadesPorNombre[clave] || (usados[clave] ? '' : 'NO ESTÁ EN ALUMNADO'),
-      r.anoPrimero, r.anoSexto, r.pendientes.length ? r.pendientes.length : '',
+      anoAcademico_(r.anoPrimero), anoAcademico_(r.anoSexto),
+      r.pendientes.length ? r.pendientes.length : '',
       r.pendientes.join(', '), r.arrastradas.join(', '),
       r.repeticiones === '' ? 'expediente incompleto' : r.repeticiones,
       r.cursosRepetidos.join(', '), r.centro, r.fichero]);

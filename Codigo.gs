@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v48';
+const VERSION = 'BD v49';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -797,7 +797,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     /* De dónde viene el alumno. */
     let cursoPasado = '', repetiaPasado = '', suspPasado = '', repetiaCorregido = false;
     let fuenteESO = 'HISTÓRICO';
-
     if (!h) {
       fuente = 'No consta en el histórico';
       avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
@@ -1351,6 +1350,29 @@ function buscarCsv(prefijo, contiene) {
   return mejor;
 }
 
+/* Los ficheros de matrícula de BACHILLERATO que hay en la carpeta.
+   buscarCsvsMatricula() los descarta para no leerlos como si fueran de la ESO,
+   pero descartar algo en silencio es justo lo que no se debe hacer: Francisco
+   los habrá dejado ahí a propósito y tiene que ver que el programa los ha
+   encontrado y que todavía no los usa. Devuelve solo los nombres. */
+function ficherosDeBachillerato_() {
+  const nombres = [];
+  const listas = ficherosPorCarpeta_();
+  for (let c = 0; c < listas.length; c++) {
+    const ficheros = listas[c];
+    for (let i = 0; i < ficheros.length; i++) {
+      const n = ficheros[i].getName();
+      if (!/\.csv$/i.test(n)) continue;
+      if (normalizar(n).indexOf('matomcmatr') !== 0) continue;
+      if (n.indexOf(CURSO_ACTUAL) === -1) continue;
+      if (normalizar(n).indexOf('bach') === -1) continue;
+      if (nombres.indexOf(n) === -1) nombres.push(n);
+    }
+    if (nombres.length) break;
+  }
+  return nombres;
+}
+
 function buscarCsvsMatricula() {
   const encontrados = {};
   const listas = ficherosPorCarpeta_();
@@ -1362,6 +1384,20 @@ function buscarCsvsMatricula() {
       if (!/\.csv$/i.test(n)) continue;
       if (normalizar(n).indexOf('matomcmatr') !== 0) continue;
       if (n.indexOf(CURSO_ACTUAL) === -1) continue;
+      /* LOS CSV DE BACHILLERATO SE DESCARTAN AQUÍ, A PROPÓSITO.
+         Se llaman igual que los de la ESO y también llevan un "1º" o un "2º"
+         en el nombre, así que sin esta línea entrarían por el mismo filtro y
+         el programa los leería como si fueran 1º y 2º de la ESO. Peor aún:
+         abajo se guarda solo el MÁS RECIENTE de cada curso, y como los de
+         Bachillerato se descargan después, sustituirían a los de la ESO sin
+         que nadie se enterase. La ESO se quedaría sin optativas ni religión.
+         Son cuatro ficheros, dos por curso, porque van separados por
+         modalidad: MatOMCMatr1ºBACH-c-26-27.csv (Ciencias y Tecnología) y
+         MatOMCMatr1ºBACH-h-26-27.csv (Humanidades y CC. Sociales).
+         Esta línea desaparece cuando el curso lleve la etapa dentro
+         (1ºESO, 1ºBAC). Hasta entonces, el sistema solo carga la ESO.
+         Ver el punto 11.1 de CONTEXTO.md y claude/PLAN-BACHILLERATO.md. */
+      if (normalizar(n).indexOf('bach') !== -1) continue;
       const m = n.match(/([1-4])\s*º/);
       if (!m) continue;
       const curso = m[1] + 'º';
@@ -1513,6 +1549,16 @@ function construirAlumnado() {
 
   const porCurso = {}, avisos = [], resumen = [];
   const ficherosSinMaterias = [];
+
+  /* Si hay ficheros de Bachillerato en la carpeta, se dice. No se leen todavía
+     (ver buscarCsvsMatricula), pero el programa no se los calla. */
+  const bachillerato = ficherosDeBachillerato_();
+  if (bachillerato.length) {
+    avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'Ficheros de Bachillerato encontrados y todavía no leídos',
+      detalle: bachillerato.join(' · ') +
+        '. El sistema solo carga la ESO hasta que el curso lleve la etapa dentro.' });
+  }
   for (let i = 0; i < cursos.length; i++) {
     const curso = cursos[i];
     const r = leerMatricula(textoATabla(textoDeArchivo(ficheros[curso])), curso);

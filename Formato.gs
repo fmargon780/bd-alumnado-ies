@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v47';
+const VERSION_BD = 'BD v48';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -78,8 +78,8 @@ const FORMATO_HOJAS = {
       'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la fuente que diga la columna de al lado. Nunca pasa de 1: la ley solo deja repetir una vez en toda la Primaria.',
       'Fuente Primaria': 'De dónde sale ese número EN ESTA PESTAÑA: 1ºESO o EDAD.\n\nAquí nunca pone EXPEDIENTE. Esta pestaña es el volcado del histórico de Séneca, y el expediente de Primaria se aplica después, al construir la tabla ALUMNADO. Si quieres ver la fuente definitiva de un alumno, míralo en ALUMNADO.',
       'Fecha de nacimiento': 'La fecha de nacimiento. Se usa para deshacer empates en el censo NEAE, que solo trae las iniciales del alumno.',
-      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 1º (2022, 2023).',
-      'Años en la ESO': 'En qué curso estuvo cada año, en este centro. Formato: 2024:1º; 2025:2º; 2026:3º. Es de donde sale el cuadro de la Trayectoria en ALUMNADO.',
+      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 1º (22-23, 23-24).',
+      'Años en la ESO': 'En qué curso estuvo cada año, en este centro. Formato: 2024:1º; 2025:2º; 2026:3º. Esta columna es interna, la lee el programa, y por eso conserva el año largo de cuatro cifras. Es de donde sale el cuadro de la Trayectoria en ALUMNADO.',
       'Curso el año pasado': 'En qué curso de este centro estaba matriculado el año académico anterior. Vacío quiere decir que no estaba aquí.',
       'Repetía el año pasado': 'SÍ si el curso en el que estaba el año pasado ya lo había cursado antes. Es el dato del que sale la columna PIL de ALUMNADO.'
     },
@@ -112,7 +112,7 @@ const FORMATO_HOJAS = {
       'Suspensos el año pasado': 'Cuántas materias suspendió el curso pasado, contando también las que arrastraba de cursos anteriores. Son todas las materias con evaluación negativa, que es lo que cuenta para decidir si promociona.\n\nEn 2º, 3º y 4º sale de la columna "Suspensos" de la hoja EV de su curso del año pasado, en el cuaderno de notas. En 1º son las materias que suspendió en 6º de Primaria, según su expediente.\n\nEstá aquí para poder entender la columna PIL: un alumno que el año pasado ya no podía repetir, pero que suspendió dos materias o menos, promocionó por sus propios medios y NO es PIL.\n\nUn ? quiere decir que no tenemos sus notas del año pasado.',
       'Repite el curso actual': 'SÍ cuando el alumno ya estuvo matriculado antes en este mismo curso.\n\nSale del histórico de matrículas de Séneca (RegAlum.csv), que trae una línea por alumno y año. Si el mismo curso aparece en dos años distintos, es que lo repite.\n\nOjo: solo se ven las matrículas de este centro.',
       'Repeticiones en ESO': 'Cuántas veces ha repetido en la ESO, contando también el curso que está repitiendo ahora.\n\nSale del histórico de matrículas de este centro. Si repitió en otro instituto antes de llegar aquí, no aparece.',
-      'Cursos repetidos en ESO': 'Qué cursos ha repetido y en qué años. Formato: 1º (2022, 2023).\n\nEs el detalle de la columna anterior.',
+      'Cursos repetidos en ESO': 'Qué cursos ha repetido y en qué años. Formato: 1º (22-23, 23-24).\n\nEs el detalle de la columna anterior.',
       'Fuente ESO': 'De dónde sale todo lo de Secundaria de este alumno: sus repeticiones, el curso en el que estaba el año pasado y si lo repetía.\n\nHISTÓRICO = del fichero RegAlum.csv, el registro de matrículas de ESTE centro. Es lo normal, y es fiable mientras el alumno no haya estado en otro instituto.\n\nEXPEDIENTE = de su expediente académico de Secundaria, descargado de Séneca uno a uno. Ese fichero trae toda su vida en la ESO, incluidos los años en otros institutos. Manda sobre el histórico.\n\nSolo hace falta descargar el expediente del alumnado que sale avisado en AVISOS con "Hace falta su expediente de Secundaria".',
       'Rep. Primaria (calculado)': 'Cuántos cursos repitió en Primaria, según la mejor fuente que haya. La columna Fuente Primaria dice cuál es y cuánto fiarse.\n\nEN PRIMARIA SOLO SE PUEDE REPETIR UNA VEZ EN TODA LA ETAPA (artículo 15 del Real Decreto 157/2022), así que esta columna nunca pasa de 1 cuando el número sale de una cuenta de edad. Si el alumno va más años por detrás, el año que sobra no puede ser de Primaria y se recoge en Rep. sin localizar.\n\nSolo puede aparecer un número mayor que 1 si lo dice su expediente, y entonces sale un aviso: o estudió fuera del sistema educativo español, o hay un error en Séneca.\n\nSi el número no es correcto, no se corrige aquí: se escribe el bueno en Rep. Primaria (corregido), que es amarilla.',
       'Cursos repetidos en Primaria': 'Qué cursos de Primaria repitió.\n\nSolo se sabe de los alumnos de 1º que tienen su expediente de Primaria descargado. Casilla vacía = no repitió ninguno. Un ? = repitió, pero no tenemos el expediente que diga cuál. En 2º, 3º y 4º lo normal es el ?.',
@@ -243,8 +243,8 @@ const FORMATO_HOJAS = {
       'Repetía el año pasado': 'SÍ cuando ese curso ya lo había cursado antes. Es el dato que el histórico de este centro no puede ver cuando el alumno venía de otro instituto.',
       'Suspensos el año pasado': 'Cuántas materias tenía con evaluación negativa el año pasado, contando también las pendientes de cursos anteriores.',
       'Repeticiones en ESO': 'Cuántos cursos ha repetido en toda la ESO, en cualquier centro.',
-      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 2º (2024, 2025).',
-      'Años que trae': 'Los años académicos que aparecen en el expediente. Sirve para ver si el fichero está completo.',
+      'Cursos repetidos en ESO': 'Qué cursos repitió y en qué años. Formato: 2º (24-25, 25-26).',
+      'Años que trae': 'Los años académicos que aparecen en el expediente, escritos 24-25. Sirve para ver si el fichero está completo.',
       'Centros': 'Los institutos por los que ha pasado. Si hay más de uno, aquí está la explicación de por qué el histórico de este centro no cuadraba.',
       'Fichero': 'El nombre del fichero CSV del que sale todo esto.'
     },
@@ -261,8 +261,8 @@ const FORMATO_HOJAS = {
     notas: {
       'Alumno/a': 'El alumno, sacado del NOMBRE DEL FICHERO del expediente. Dentro del fichero no viene. Si el nombre del fichero no coincide con ninguno de la tabla, sale en rojo y en AVISOS.',
       'Unidad': 'Su grupo, sacado de la tabla ALUMNADO.',
-      'Año de 1º': 'El año académico en el que empezó 1º de Primaria. Si repitió 1º, el primero de los dos.\n\nSirve para descartar que el alumno se incorporara tarde al sistema educativo español: se compara con su fecha de nacimiento. Si empezó 1º de Primaria el año en que cumplía 6, estaba aquí desde el principio, y entonces los años que le falten son repeticiones de verdad.',
-      'Año de 6º': 'El año académico en el que cursó 6º de Primaria. Si repitió 6º, el más reciente.',
+      'Año de 1º': 'El año académico en el que empezó 1º de Primaria, escrito 16-17. Si repitió 1º, el primero de los dos.\n\nSirve para descartar que el alumno se incorporara tarde al sistema educativo español: se compara con su fecha de nacimiento. Si empezó 1º de Primaria el año en que cumplía 6, estaba aquí desde el principio, y entonces los años que le falten son repeticiones de verdad.',
+      'Año de 6º': 'El año académico en el que cursó 6º de Primaria, escrito 22-23. Si repitió 6º, el más reciente.',
       'Nº pendientes': 'Cuántas materias suspendió en 6º de Primaria.',
       'Pendientes de 6º': 'Las materias del propio 6º con nota menor que 5. Son las que pasan a la columna Asignaturas pendientes de ALUMNADO y al informe de papel.',
       'Arrastraba de antes': 'Materias que el alumno ya traía suspensas de cursos anteriores de Primaria. NO se llevan al informe: en algunos alumnos son diez o más y no caben en el folio.',

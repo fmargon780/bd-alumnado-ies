@@ -297,11 +297,19 @@ function leerCensoNeae_() {
              avisos: ['Al censo NEAE le faltan columnas. No se ha usado.'] };
   }
 
-  const registros = [], sinDiccionario = [];
+  const registros = [], sinDiccionario = [], descartadas = {};
   for (let f = 1; f < tabla.length; f++) {
     const fila = tabla[f];
-    const nivel = nivelESO(fila[iCur]);
-    if (!nivel) continue;                       // Bachillerato y educación especial: no van aquí
+    /* Desde la BD v51 el censo vale también para Bachillerato. Lo que no sea
+       ni ESO ni Bachillerato (educación especial, por ejemplo) no tiene sitio
+       en la tabla ALUMNADO, así que no se puede escribir en ningún lado; pero
+       tampoco se tira en silencio: se cuenta y se dice más abajo. */
+    const nivel = nivelESO(fila[iCur]) || nivelBachilleratoCenso_(fila[iCur]);
+    if (!nivel) {
+      const q = String(fila[iCur] || '').trim() || '(sin curso)';
+      descartadas[q] = (descartadas[q] || 0) + 1;
+      continue;
+    }
     const iniciales = sinTildes_(String(fila[iNom] || '').trim()).toUpperCase();
     if (!iniciales) continue;
     registros.push({
@@ -315,6 +323,17 @@ function leerCensoNeae_() {
   }
 
   const avisos = [], vistos = {};
+  const quedanFuera = Object.keys(descartadas).sort();
+  if (quedanFuera.length) {
+    const detalle = [];
+    for (let i = 0; i < quedanFuera.length; i++) {
+      detalle.push(quedanFuera[i] + ': ' + descartadas[quedanFuera[i]]);
+    }
+    avisos.push('El censo trae ' + detalle.join(' · ') +
+      '. Esas fichas no son ni de ESO ni de Bachillerato, así que no hay ' +
+      'ningún alumno de la tabla al que escribírselas. Es normal: son de ' +
+      'educación especial o de enseñanzas que este sistema no lleva.');
+  }
   for (let i = 0; i < sinDiccionario.length; i++) {
     if (vistos[sinDiccionario[i]]) continue;
     vistos[sinDiccionario[i]] = true;
@@ -454,7 +473,14 @@ function datosNeae_(historial, iNombre, iCurso, iFecha) {
                'los alumnos del mismo curso con las mismas iniciales se quedan sin NEAE.' });
   }
 
-  const R = cruzarNeae_(censo.registros, historial, iNombre, iCurso, iFecha);
+  /* EL BACHILLERATO NO ESTÁ EN EL HISTORIAL, así que se le añaden aquí sus
+     filas, sacadas de la matrícula. Si no, cada ficha de Bachillerato saldría
+     como "ficha sin alumno en el centro". Ver Bachillerato.gs. */
+  const anchoCruce = Math.max(iNombre, iCurso, iFecha) + 1;
+  const filasBac = filasBachilleratoParaCruce_(iNombre, iCurso, anchoCruce);
+  const paraCruzar = filasBac.length ? historial.concat(filasBac) : historial;
+
+  const R = cruzarNeae_(censo.registros, paraCruzar, iNombre, iCurso, iFecha);
   for (let i = 0; i < R.avisos.length; i++) avisos.push(R.avisos[i]);
   const total = R.porIniciales + R.porFecha;
   return {
@@ -462,7 +488,7 @@ function datosNeae_(historial, iNombre, iCurso, iFecha) {
     avisos: avisos,
     nombre: censo.nombre,
     total: total,
-    resumen: 'Censo NEAE: ' + censo.registros.length + ' fichas de ESO, ' + total +
-             ' asignadas (' + R.porFecha + ' por fecha de nacimiento).'
+    resumen: 'Censo NEAE: ' + censo.registros.length + ' fichas de ESO y Bachillerato, ' +
+             total + ' asignadas (' + R.porFecha + ' por fecha de nacimiento).'
   };
 }

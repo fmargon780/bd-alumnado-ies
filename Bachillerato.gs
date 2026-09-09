@@ -250,13 +250,23 @@ function leerMatriculaBac_(tabla, cursoPorDefecto, modalidad) {
 
 /*** ================= TODO EL BACHILLERATO ================= ***/
 
+/* Se lee una sola vez por ejecución. Lo piden dos sitios: Codigo.gs, para
+   meter a estos alumnos en ALUMNADO, y NEAE.gs, para saber a quién pertenece
+   cada ficha del censo. Sin esta caché se descargarían los cuatro CSV dos
+   veces y los avisos saldrían repetidos. */
+let CACHE_BACHILLERATO_ = null;
+
 /* Lee los cuatro ficheros y devuelve el alumnado agrupado por curso, con la
    misma forma que la ESO. Si no hay ficheros, devuelve vacío y no molesta. */
 function alumnadoDeBachillerato_() {
+  if (CACHE_BACHILLERATO_) return CACHE_BACHILLERATO_;
   const porCurso = {}, avisos = [], resumen = [];
   const ficheros = ficherosBachilleratoPorCurso_();
   const cursos = Object.keys(ficheros).sort();
-  if (!cursos.length) return { porCurso: porCurso, avisos: avisos, resumen: resumen };
+  if (!cursos.length) {
+    CACHE_BACHILLERATO_ = { porCurso: porCurso, avisos: avisos, resumen: resumen };
+    return CACHE_BACHILLERATO_;
+  }
 
   for (let i = 0; i < cursos.length; i++) {
     const curso = cursos[i];
@@ -293,7 +303,53 @@ function alumnadoDeBachillerato_() {
       });
     }
   }
-  return { porCurso: porCurso, avisos: avisos, resumen: resumen };
+  CACHE_BACHILLERATO_ = { porCurso: porCurso, avisos: avisos, resumen: resumen };
+  return CACHE_BACHILLERATO_;
+}
+
+/*** ================= EL CENSO NEAE Y EL BACHILLERATO ================= ***/
+
+/* Cómo escribe Séneca el curso de Bachillerato en el censo NEAE y en los
+   expedientes: "1º de Bachillerato (Ciencias y Tecnología)". Devuelve el
+   curso tal y como lo guarda el sistema, "1º BACH", o cadena vacía si eso no
+   es Bachillerato. */
+function nivelBachilleratoCenso_(texto) {
+  /* Vale tanto "1º de Bachillerato (Ciencias y Tecnología)", que es como lo
+     escribe Séneca en el censo y en los expedientes, como "1º BACH A", que es
+     como lo escribe en la Unidad de la matrícula. */
+  const m = String(texto || '').trim().match(/^([12])\s*º?\s*(de\s+)?BACH/i);
+  return m ? m[1] + 'º BACH' : '';
+}
+
+/* Filas con la forma de las del HISTORIAL, para que el censo NEAE pueda
+   cruzar también las fichas de Bachillerato.
+
+   POR QUÉ HACE FALTA ESTO. El censo no trae el nombre del alumno, solo sus
+   iniciales, así que hay que buscar a quién pertenece cada ficha. Ese cruce
+   se hace contra la pestaña HISTORIAL, y en el HISTORIAL no hay Bachillerato:
+   se construye filtrando por ESO. Sin estas filas, una ficha de Bachillerato
+   no encontraría a nadie y saldría como "ficha sin alumno en el centro".
+
+   Aquí se dan las mismas columnas que necesita el cruce, sacadas de la
+   matrícula: el nombre y el curso. La fecha de nacimiento va vacía, porque la
+   matrícula no la trae. Consecuencia, y hay que tenerla presente: si dos
+   alumnos de Bachillerato del mismo curso tuvieran las mismas iniciales, el
+   empate NO se puede deshacer, así que no se escribe nada y sale un aviso.
+   Es lo correcto: mejor una casilla vacía que el NEAE de otra persona. */
+function filasBachilleratoParaCruce_(iNombre, iCurso, ancho) {
+  const filas = [];
+  const bac = alumnadoDeBachillerato_();
+  for (const curso in bac.porCurso) {
+    const lista = bac.porCurso[curso];
+    for (let i = 0; i < lista.length; i++) {
+      const fila = [];
+      for (let c = 0; c < ancho; c++) fila.push('');
+      fila[iNombre] = lista[i].nombre;
+      fila[iCurso] = lista[i].curso;
+      filas.push(fila);
+    }
+  }
+  return filas;
 }
 
 /*** ================= LA FILA DE ALUMNADO ================= ***/

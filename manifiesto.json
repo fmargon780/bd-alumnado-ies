@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — el alumnado de Bachillerato entra en ALUMNADO, con el curso escrito 1º BACH y 2º BACH y sin las reglas de la ESO",
+  "version": "BD v51 — Bachillerato: sus alumnos entran en ALUMNADO, el panel dice de cuándo son sus ficheros, y el censo NEAE ya sabe cruzar sus fichas",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

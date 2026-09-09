@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v46';
+const VERSION_BD = 'BD v47';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -139,7 +139,7 @@ const FORMATO_HOJAS = {
       'OPC3': 'Solo en 4º. Tercera opción: DIG (Digitalización), EA (Expresión Artística) o FR (Francés).',
       'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
       'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
-      'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso, el centro, la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? susp", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
+      'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso con su etapa detrás ("2º ESO"), el centro escrito con su nombre entero ("IES Fuente Lucena"), la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? suspensas", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
     },
     cols: {

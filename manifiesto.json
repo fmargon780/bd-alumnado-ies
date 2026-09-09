@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — Bachillerato completo: sus alumnos en ALUMNADO, su censo NEAE, su fila en el panel y su propio cuaderno de informes con sus PDF",
+  "version": "BD v51 — Bachillerato completo, con su cuaderno de informes. El membrete se pone en las pestañas nuevas, la leyenda explica solo las columnas que hay, y Jefatura solo compara los cursos que trae su fichero",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

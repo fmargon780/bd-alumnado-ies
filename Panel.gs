@@ -264,8 +264,32 @@ function estadoDeLasFuentes_() {
   } else {
     notaMat = 'Están los cuatro cursos.';
   }
-  apuntar('matricula', 'Matrícula de 1º a 4º', cursos.length + ' ficheros',
+  apuntar('matricula', 'Matrícula de la ESO (1º a 4º)', cursos.length + ' ficheros',
           masReciente, cursos.length, notaMat);
+
+  /* 2 bis. Los CSV de matrícula de Bachillerato. Son CUATRO: dos por curso,
+     uno por modalidad. Van en su propia fila porque son otra etapa y porque
+     se descargan por separado. Ver Bachillerato.gs. */
+  const bac = ficherosBachilleratoPorCurso_();
+  let nBac = 0, bacReciente = null;
+  for (const cb in bac) {
+    for (let i = 0; i < bac[cb].length; i++) {
+      nBac++;
+      const fb = bac[cb][i].archivo.getLastUpdated();
+      if (!bacReciente || fb.getTime() > bacReciente.getTime()) bacReciente = fb;
+    }
+  }
+  let notaBac = '';
+  if (!nBac) {
+    notaBac = 'No hay ninguno: el Bachillerato no saldrá en la tabla.';
+  } else if (nBac < 4) {
+    notaBac = 'Solo hay ' + nBac + ' de 4. Son dos por curso, uno por modalidad.';
+    avisos.push('Faltan ficheros de matrícula de Bachillerato: solo hay ' + nBac + ' de 4.');
+  } else {
+    notaBac = 'Están los cuatro.';
+  }
+  apuntar('bachillerato', 'Matrícula de Bachillerato', nBac + ' ficheros',
+          bacReciente, nBac, notaBac);
 
   /* 3. El censo NEAE. */
   const neae = buscarCsv(PREFIJO_NEAE);

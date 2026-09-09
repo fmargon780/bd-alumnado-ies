@@ -989,6 +989,7 @@ function escribirPortada_(libro, A, resumenGrupos, etapa) {
   if (hoja.getMaxColumns() < 5) hoja.insertColumnsAfter(hoja.getMaxColumns(), 5 - hoja.getMaxColumns());
   libro.setActiveSheet(hoja);
   libro.moveActiveSheet(1);
+
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   const filas = [], bandas = [];
   let filaCabeceraTabla = 0;

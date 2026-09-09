@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v46';
+const VERSION = 'BD v47';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -43,6 +43,16 @@ const NIVELES_ESO = ['1º', '2º', '3º', '4º'];
 /* Cómo se llama este centro dentro del campo "Centro" de los expedientes de
    Séneca. Sirve para escribir "aquí" en vez del nombre largo. */
 const CENTRO_PROPIO = 'Fuente Lucena';
+
+/* Cómo se ESCRIBE el nombre de este centro en el cuadro de la trayectoria.
+   CENTRO_PROPIO es lo que se BUSCA dentro del campo "Centro" de Séneca; esto
+   es lo que se escribe para que se lea. */
+const NOMBRE_CENTRO = 'IES Fuente Lucena';
+
+/* La etapa que trae hoy el sistema. Se escribe detrás del curso, para que no
+   haya que adivinar de qué "2º" se está hablando. Cuando entren los
+   Bachilleratos habrá que saber la etapa alumno por alumno. */
+const ETAPA_ACTUAL = 'ESO';
 
 /*** ================= LA INTERROGANTE =================
  *
@@ -569,16 +579,32 @@ function notaDeAlumno_(mapa, nombre) {
  *
  * No calcula nada nuevo: junta en una casilla lo que ya está repartido por
  * seis columnas.
+ *
+ * BD v47, 9-sep-2026. Lo pidió Francisco: el cuadro ponía "2º" y "aquí", y
+ * había que adivinar que eran "2º de la ESO" y "el IES Fuente Lucena". Ahora
+ * el curso lleva siempre su etapa detrás y el centro se escribe con su nombre.
+ * Es lo mismo, escrito para que se entienda sin conocer el sistema por dentro.
  * ======================================================== ***/
 
 /* "29000517 - C.E.I.P. Carmen Arévalo" -> "C.E.I.P. Carmen Arévalo".
-   Y si es este instituto, "aquí". Una casilla vacía también es "aquí": solo
-   el histórico de este centro deja el centro sin decir. */
+   Y si es este instituto, su nombre entero. Una casilla vacía también es este
+   centro: solo el histórico de aquí deja el centro sin decir.
+   Antes se escribía "aquí" y había que saber a qué se refería. */
 function centroCorto_(centro) {
   const t = String(centro || '').trim();
-  if (!t) return 'aquí';
-  if (t.indexOf(CENTRO_PROPIO) !== -1) return 'aquí';
+  if (!t) return NOMBRE_CENTRO;
+  if (t.indexOf(CENTRO_PROPIO) !== -1) return NOMBRE_CENTRO;
   return t.replace(/^\s*\d+\s*-\s*/, '');
+}
+
+/* "2º" -> "2º ESO". El curso se escribe siempre con su etapa detrás, para que
+   nadie tenga que adivinar de qué segundo se habla. Si el texto ya trae la
+   etapa escrita, se deja como está. */
+function cursoConEtapa_(curso) {
+  const t = String(curso || '').trim();
+  if (!t) return SIN_DATO;
+  if (/eso|bachiller|primaria/i.test(t)) return t;
+  return t + ' ' + ETAPA_ACTUAL;
 }
 
 function trayectoria_(d) {
@@ -589,7 +615,7 @@ function trayectoria_(d) {
   if (exp && exp.anoPrimero && exp.anoSexto && exp.repeticiones !== '') {
     L.push(exp.anoPrimero + '-' + exp.anoSexto + '  Primaria · ' +
       ((exp.cursosRepetidos || []).length
-        ? 'repitió ' + exp.cursosRepetidos.join(', ')
+        ? 'repitió ' + exp.cursosRepetidos.join(', ') + ' de Primaria'
         : 'sin repetir') + ' · expediente');
   } else if (exp && exp.anoSexto) {
     L.push('hasta ' + exp.anoSexto + '  Primaria · expediente incompleto (?)');
@@ -628,7 +654,7 @@ function trayectoria_(d) {
   const ultimo = filas.length ? filas[filas.length - 1].ano : 0;
   for (let i = 0; i < filas.length; i++) {
     const f = filas[i];
-    const partes = [f.curso, centroCorto_(f.centro)];
+    const partes = [cursoConEtapa_(f.curso), centroCorto_(f.centro)];
     if (f.ano === ultimo) {
       partes.push('en curso');
     } else {
@@ -641,7 +667,9 @@ function trayectoria_(d) {
       partes.push(decision === 'repite' ? 'REPITE' : decision);
       let susp = f.susp;
       if (!esNumero(susp) && f.ano === ultimo - 1 && esNumero(d.suspPasado)) susp = d.suspPasado;
-      partes.push(esNumero(susp) ? (aNumero(susp) + ' susp') : '? susp');
+      partes.push(esNumero(susp)
+        ? (aNumero(susp) + (aNumero(susp) === 1 ? ' suspensa' : ' suspensas'))
+        : '? suspensas');
     }
     L.push(f.ano + '  ' + partes.join(' · '));
   }
@@ -1394,6 +1422,7 @@ function cargarHistorico() {
       'No hay ningún fichero que empiece por "RegAlum" ni en la carpeta de datos ni en la de arriba.');
     return;
   }
+
   let res;
   try {
     const tabla = textoATablaFiltrada(textoDeArchivo(archivo),

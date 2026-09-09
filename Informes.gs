@@ -83,7 +83,11 @@ const ALIAS_COLUMNAS = {
   'exento de frances': 'fr -> alct',
   'rel/atedu': 'rel/atedu',
   'mat': 'mat', 'opc1': 'opc1', 'opc2': 'opc2', 'opc3': 'opc3', 'opc4': 'opc4',
-  'veces repite primaria': 'veces repite primaria'
+  'veces repite primaria': 'veces repite primaria',
+  /* Solo Bachillerato. Se llama MATERIAS y no ITINERARIO a propósito: en 4º de
+     la ESO ya hay una columna ITINERARIO que se monta juntando otras cinco, y
+     dos columnas con el mismo rótulo se confundirían al releer la pestaña. */
+  'materias': 'materias'
 };
 
 /* El rótulo que se escribe en la fila 9. */
@@ -97,6 +101,7 @@ const ROTULOS = {
   'div': 'DIV',
   'neae': 'NEAE',
   'medidas/recursos': 'MEDIDAS Y RECURSOS',
+  'materias': 'MATERIAS',
   'itinerario': 'ITINERARIO',
   'opt': 'OPT',
   'fr -> alct': 'EXENTO FR',
@@ -114,7 +119,16 @@ const COLUMNAS_POR_NIVEL = {
   '3º': ['alumno/a:', 'rep', 'mat no sup.', 'pil', 'mat. pend.', 'div',
          'neae', 'medidas/recursos', 'opt', 'rel/atedu'],
   '4º': ['alumno/a:', 'rep', 'mat no sup.', 'pil', 'mat. pend.', 'div',
-         'neae', 'medidas/recursos', 'itinerario', 'rel/atedu']
+         'neae', 'medidas/recursos', 'itinerario', 'rel/atedu'],
+  /* BACHILLERATO. No lleva PIL ni DIV: allí no existen ni la promoción por
+     imperativo legal ni la diversificación. En 1º tampoco lleva pendientes,
+     porque para entrar en Bachillerato hace falta el título de la ESO, así
+     que nadie llega debiendo nada. En 2º sí: son las materias de 1º.
+     La modalidad no es una columna: va escrita en la cabecera del grupo, que
+     es donde se lee una sola vez en vez de 30. */
+  '1º BACH': ['alumno/a:', 'rep', 'neae', 'medidas/recursos', 'materias', 'rel/atedu'],
+  '2º BACH': ['alumno/a:', 'rep', 'mat. pend.', 'neae', 'medidas/recursos',
+              'materias', 'rel/atedu']
 };
 
 /* Columnas que ya no se usan: sus datos van ahora dentro de ITINERARIO. */
@@ -151,6 +165,9 @@ const MAPA_INFORMES = {
   'pil':        { col: 'PIL', traduce: { 'SÍ': 'SÍ' } },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
+  /* Solo Bachillerato: las materias que cursa además de las comunes de su
+     curso. Ya vienen abreviadas y seguidas desde ALUMNADO. Ver Bachillerato.gs. */
+  'materias':   { col: 'ITINERARIO' },
   'opt':        { col: 'OPT' },
   /* NEAE y MEDIDAS Y RECURSOS las rellena ahora el censo NEAE de Séneca.
      'conservaSiVacio' es la red de seguridad: si el censo no dice nada de un
@@ -179,13 +196,13 @@ const ANCHOS_MINIMOS = {
   'alumno/a:': 130, 'rep': 26, 'mat no sup.': 90, 'mat. pend.': 85,
   'mat. pend. 6º': 85, 'pil': 26, 'div': 26, 'neae': 55,
   'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 46,
-  'rel/atedu': 46, 'veces repite primaria': 45
+  'rel/atedu': 46, 'veces repite primaria': 45, 'materias': 150
 };
 const ANCHO_DESCONOCIDA = 80;
 const COLUMNAS_ELASTICAS = ['mat no sup.', 'mat. pend.', 'mat. pend. 6º', 'alumno/a:',
-                            'neae', 'medidas/recursos'];
+                            'neae', 'medidas/recursos', 'materias'];
 const CON_AJUSTE = ['alumno/a:', 'mat no sup.', 'mat. pend.', 'mat. pend. 6º',
-                    'neae', 'medidas/recursos', 'itinerario', 'opt'];
+                    'neae', 'medidas/recursos', 'itinerario', 'opt', 'materias'];
 /* Se baja de 9 a 8 al meter las columnas NEAE y MEDIDAS Y RECURSOS.
    Medido con el simulador sobre los datos reales del curso 26-27:
    con letra 9 el PDF pasaría de 27 a 33 páginas y de 3 a 9 grupos de dos
@@ -286,8 +303,21 @@ function grupoDeFila7(fila) {
   for (let c = 0; c < fila.length; c++) {
     const t = String(fila[c] === null || fila[c] === undefined ? '' : fila[c]).trim();
     if (/^[1-4]\s*º\s+ESO\s+[A-ZÑ]$/i.test(t)) return t.replace(/\s+/g, ' ');
+    /* Desde la BD v51, también los grupos de Bachillerato: "1º BACH A". */
+    if (/^[12]\s*º\s+BACH\s+[A-ZÑ]$/i.test(t)) return t.replace(/\s+/g, ' ');
   }
   return '';
+}
+
+/* El nivel al que pertenece un grupo. En la ESO son los dos primeros
+   caracteres del rótulo ("3º ESO B" -> "3º"), pero en Bachillerato el nivel
+   lleva la etapa dentro ("1º BACH A" -> "1º BACH"), porque si no chocaría con
+   1º de la ESO. Es la misma regla que en Bachillerato.gs. */
+function nivelDeGrupo_(grupo) {
+  const t = String(grupo || '').trim();
+  const m = t.match(/^([12])\s*º\s+BACH\b/i);
+  if (m) return m[1] + 'º BACH';
+  return t.substring(0, 2);
 }
 
 function indiceTitulos(titulos) {
@@ -452,7 +482,7 @@ function siglasDelBloque_(bloque, claves) {
 }
 
 /*** ================= LECTURA DE ALUMNADO ================= ***/
-function leerAlumnado_() {
+function leerAlumnado_(etapa) {
   const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_ALUMNADO);
   if (!hoja || hoja.getLastRow() < 3) {
     throw new Error('No encuentro la pestaña ALUMNADO con datos.\n\n' +
@@ -463,15 +493,16 @@ function leerAlumnado_() {
   const todasLasFilas = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
   const idx = indiceTitulos(titulos);
 
-  /* EL BACHILLERATO SE QUEDA FUERA DE ESTE CUADERNO. Este es el cuaderno de
-     informes de la ESO: sus columnas, sus 23 pestañas y su portada hablan de
-     la ESO. El alumnado de Bachillerato vive en la misma pestaña ALUMNADO,
-     pero tiene su propio cuaderno. Si no se apartara aquí, saldrían seis
-     avisos de "grupo sin pestaña" y la portada contaría 828 alumnos de ESO.
-     Ver Bachillerato.gs. */
+  /* CADA CUADERNO VE SOLO SU ETAPA. Hay dos cuadernos de informes, el de la
+     ESO y el de Bachillerato, y sus columnas, sus grupos y su portada son
+     distintos. El alumnado de los dos vive en la misma pestaña ALUMNADO, así
+     que aquí se separa. Si no se separase, en el cuaderno de la ESO saldrían
+     seis avisos de "grupo sin pestaña" y su portada contaría 828 alumnos de
+     ESO. Ver Bachillerato.gs. */
+  const queremosBac = String(etapa || 'ESO').toUpperCase() === 'BACH';
   const iCurso = idx[normalizar('Curso')];
   const datos = iCurso === undefined ? todasLasFilas : todasLasFilas.filter(function (fila) {
-    return !esBachillerato_(fila[iCurso]);
+    return esBachillerato_(fila[iCurso]) === queremosBac;
   });
   if (idx[normalizar('Alumno/a')] === undefined || idx[normalizar('Unidad')] === undefined) {
     throw new Error('La pestaña ALUMNADO no tiene las columnas Alumno/a y Unidad.');
@@ -842,7 +873,7 @@ function pdfsPorInforme_(libro, entradas, borrador) {
       }
 
       const aviso = {};
-      let blob = exportarHoja_(libro, e.hoja, token, aviso);
+      let blob = exportarHoja_(e.libro || libro, e.hoja, token, aviso);
       if (!blob) {
         fallidos.push(nombre + ' (Google respondió ' + aviso.codigo + ')');
         seguidos++;
@@ -865,7 +896,7 @@ function pdfsPorInforme_(libro, entradas, borrador) {
         e.celda.setValue(e.texto + ' · ' + paginas + ' hojas');
         SpreadsheetApp.flush();
         Utilities.sleep(1500);
-        const otro = exportarHoja_(libro, e.hoja, token, {});
+        const otro = exportarHoja_(e.libro || libro, e.hoja, token, {});
         if (otro) blob = otro;
         dobles.push(nombre + ' (' + paginas + ' hojas)');
       }
@@ -884,10 +915,13 @@ function pdfsPorInforme_(libro, entradas, borrador) {
 
 /* Qué hojas hay que exportar, mirando el cuaderno tal como está ahora.
    No hace falta haber rellenado nada en esta misma ejecución. */
-function entradasParaPdf_(libro) {
+function entradasParaPdf_(libro, sufijoPortada) {
   const entradas = [];
   const portada = libro.getSheetByName(HOJA_PORTADA);
-  if (portada) entradas.push({ hoja: portada, nombre: 'RESUMEN para el equipo directivo' });
+  /* El sufijo hace falta cuando hay dos cuadernos: las dos portadas se llaman
+     igual y sus PDF caerían en la misma carpeta con el mismo nombre. */
+  if (portada) entradas.push({ hoja: portada, libro: libro,
+    nombre: 'RESUMEN para el equipo directivo' + (sufijoPortada || '') });
 
   const hojas = libro.getSheets();
   for (let h = 0; h < hojas.length; h++) {
@@ -901,7 +935,10 @@ function entradasParaPdf_(libro) {
     /* La cabecera puede llevar ya un " · 2 hojas" de la vez anterior.
        Se le quita para no acumularlo. */
     const texto = String(celda.getValue() || '').replace(/\s*·\s*\d+\s*hojas\s*$/i, '');
-    entradas.push({ hoja: hoja, nombre: grupo, celda: celda, texto: texto });
+    /* Cada entrada se lleva SU cuaderno. Desde la BD v51 hay dos, el de la ESO
+       y el de Bachillerato, y la exportación necesita saber de cuál es cada
+       hoja: con el cuaderno equivocado Google exportaría otra cosa. */
+    entradas.push({ hoja: hoja, libro: libro, nombre: grupo, celda: celda, texto: texto });
   }
   return entradas;
 }
@@ -909,7 +946,8 @@ function entradasParaPdf_(libro) {
 /*** ================= LA PORTADA ================= ***/
 /* Primera hoja del cuaderno de informes. Es para Francisco, no para los
    tutores: dice qué falta por cuadrar en Séneca. */
-function escribirPortada_(libro, A, resumenGrupos) {
+function escribirPortada_(libro, A, resumenGrupos, etapa) {
+  const nombreEtapa = String(etapa || 'ESO').toUpperCase() === 'BACH' ? 'Bachillerato' : 'ESO';
   let hoja = libro.getSheetByName(HOJA_PORTADA);
   if (!hoja) hoja = libro.insertSheet(HOJA_PORTADA);
   hoja.clear();
@@ -944,9 +982,16 @@ function escribirPortada_(libro, A, resumenGrupos) {
         dame(fila, 'MAT NO SUP.') === SIN_DATO) nSinDato++;
   }
   banda('EL CENTRO EN CIFRAS');
-  mete('Alumnado de ESO: ' + nTot + '     Grupos con informe: ' + resumenGrupos.length +
-       '     Repetidores: ' + nRep + '     PIL: ' + nPil +
-       '     En diversificación: ' + nDiv + '     Con materias pendientes: ' + nPen);
+  /* En Bachillerato no existen ni el PIL ni la diversificación, así que sus
+     ceros no dirían nada: en vez de un dato serían una duda. */
+  if (nombreEtapa === 'ESO') {
+    mete('Alumnado de ' + nombreEtapa + ': ' + nTot + '     Grupos con informe: ' + resumenGrupos.length +
+         '     Repetidores: ' + nRep + '     PIL: ' + nPil +
+         '     En diversificación: ' + nDiv + '     Con materias pendientes: ' + nPen);
+  } else {
+    mete('Alumnado de ' + nombreEtapa + ': ' + nTot + '     Grupos con informe: ' + resumenGrupos.length +
+         '     Repetidores: ' + nRep + '     Con materias pendientes de 1º: ' + nPen);
+  }
   mete('');
 
   banda('ALUMNADO CON ALGÚN DATO TODAVÍA SIN CONFIRMAR (' + nSinDato + ')');
@@ -964,14 +1009,20 @@ function escribirPortada_(libro, A, resumenGrupos) {
   } else {
     mete('No salen en ningún informe de grupo. Hay que ponerles unidad en Séneca.');
     for (let i = 0; i < A.sinUnidad.length; i++) {
-      mete(A.sinUnidad[i][0] + '   (' + A.sinUnidad[i][1] + ' ESO)');
+      mete(A.sinUnidad[i][0] + '   (' + A.sinUnidad[i][1] +
+           (nombreEtapa === 'ESO' ? ' ESO' : '') + ')');
     }
   }
   mete('');
 
-  const pend = discrepanciasPendientes_();
-  banda('PENDIENTE DE AJUSTAR EN SÉNECA (' + pend.length + ')');
-  if (!pend.length) {
+  /* La comparación con el fichero de Jefatura es solo de la ESO: su cuaderno
+     AGRUPAMIENTOS no trae Bachillerato. Meter aquí esa lista sería enseñar en
+     la portada de Bachillerato cosas de otra etapa. */
+  const pend = nombreEtapa === 'ESO' ? discrepanciasPendientes_() : [];
+  if (nombreEtapa === 'ESO') banda('PENDIENTE DE AJUSTAR EN SÉNECA (' + pend.length + ')');
+  if (nombreEtapa !== 'ESO') {
+    /* nada que decir aquí en Bachillerato */
+  } else if (!pend.length) {
     mete('Nada pendiente. Séneca coincide con lo que quiere Jefatura de Estudios.');
   } else {
     mete('Escribe algo en la columna Estado de la pestaña DISCREPANCIAS y esa línea desaparece de aquí.');
@@ -1037,11 +1088,46 @@ function discrepanciasPendientes_() {
  * Lo llama el botón "1. Actualizar los datos", en Panel.gs.
  * Devuelve un resumen de lo hecho, para que el panel lo cuente.
  * ======================================================== ***/
+/* El botón 1 llama a esta. Rellena LOS DOS cuadernos, el de la ESO y el de
+   Bachillerato, y escribe una sola vez la pestaña AVISOS INFORMES: si cada
+   cuaderno la escribiera por su cuenta, el segundo borraría lo del primero. */
 function rellenarPestanasInformes_() {
-  const A = leerAlumnado_();
-  const libro = SpreadsheetApp.openById(ID_INFORMES);
+  const avisos = [];
+  const r = rellenarUnCuaderno_(SpreadsheetApp.openById(ID_INFORMES), 'ESO', avisos);
 
-  const avisos = [], resumen = [], usadas = {}, informes = [];
+  /* Se guardan YA los de la ESO. Si el Bachillerato se comiera el tiempo que
+     Google concede al script, la ejecución moriría sin llegar al final y los
+     avisos de la ESO de hoy se perderían, dejando en la pestaña los de la vez
+     anterior. Al terminar se vuelven a escribir, con los dos juntos. */
+  try { escribirAvisosInformes_(avisos); } catch (e) { /* se reintenta al final */ }
+
+  /* El cuaderno de Bachillerato se crea solo la primera vez. Si algo falla
+     ahí, la ESO ya está hecha y no se pierde: se anota y se sigue. */
+  try {
+    const rb = rellenarBachillerato_(avisos);
+    if (rb) {
+      r.grupos += rb.grupos;
+      r.alumnos += rb.alumnos;
+      r.membretes += rb.membretes;
+      r.sinUnidad += rb.sinUnidad;
+    }
+  } catch (e) {
+    avisos.push(['', '', 'No he podido con el cuaderno de Bachillerato', e.message]);
+  }
+
+  escribirAvisosInformes_(avisos);
+  r.avisos = avisos.length;
+  return r;
+}
+
+/* Rellena UN cuaderno de informes. etapa vale 'ESO' o 'BACH'.
+   Los avisos se van metiendo en la lista que le pasan, para que quien la haya
+   creado los escriba todos juntos al final. */
+function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
+  const A = leerAlumnado_(etapa);
+  const esBac = String(etapa || 'ESO').toUpperCase() === 'BACH';
+
+  const avisos = avisosFuera || [], resumen = [], usadas = {}, informes = [];
   let totalEscritos = 0, membretesCambiados = 0;
   let membrete = null;
   try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
@@ -1058,7 +1144,7 @@ function rellenarPestanasInformes_() {
     const grupo = grupoDeFila7(fila7);
     if (!grupo) continue;   // no es una pestaña de grupo
     limpiarRotuloDiver_(hoja, fila7);
-    const nivel = grupo.substring(0, 2);
+    const nivel = nivelDeGrupo_(grupo);
 
     const anchoViejo = hoja.getLastColumn();
     const titulosViejos = hoja.getRange(FILA_TITULOS, 1, 1, anchoViejo).getValues()[0];
@@ -1222,14 +1308,15 @@ function rellenarPestanasInformes_() {
   }
   for (let i = 0; i < A.sinUnidad.length; i++) {
     avisos.push(['', '', 'Alumno sin unidad en Séneca',
-                 A.sinUnidad[i][0] + ' (' + A.sinUnidad[i][1] + ' ESO). Sale en la portada del PDF.']);
+                 A.sinUnidad[i][0] + ' (' + A.sinUnidad[i][1] +
+                 (esBac ? '' : ' ESO') + '). Sale en la portada del PDF.']);
   }
 
   let nPend = 0;
-  try { nPend = escribirPortada_(libro, A, resumen); }
+  try { nPend = escribirPortada_(libro, A, resumen, etapa); }
   catch (e) { avisos.push(['', '', 'No he podido hacer la portada', e.message]); }
 
-  escribirAvisosInformes_(avisos);
+  if (!avisosFuera) escribirAvisosInformes_(avisos);
 
   return { grupos: resumen.length, alumnos: totalEscritos, avisos: avisos.length,
            membretes: membretesCambiados, sinUnidad: A.sinUnidad.length,
@@ -1274,6 +1361,16 @@ function generarLosPdf_(borrador) {
     return;
   }
 
+  /* El cuaderno de Bachillerato se suma al de la ESO. Sus PDF van a la misma
+     carpeta: los nombres no chocan, porque un grupo se llama "1º A" y el otro
+     "1º BACH A". Si ese cuaderno todavía no existe, no pasa nada: se hace la
+     ESO y ya está. */
+  let falloBac = '';
+  try {
+    const libroBac = libroDeBachillerato_(false);
+    if (libroBac) entradas = entradas.concat(entradasParaPdf_(libroBac, ' de Bachillerato'));
+  } catch (e) { falloBac = e.message; }
+
   if (!entradas.length) {
     avisar_('No hay nada que exportar',
       'No he encontrado ninguna pestaña de grupo en el cuaderno de informes.\n\n' +
@@ -1282,6 +1379,10 @@ function generarLosPdf_(borrador) {
   }
 
   const avisos = [];
+  if (falloBac) {
+    avisos.push(['', '', 'No he podido abrir el cuaderno de Bachillerato',
+                 falloBac + '. Los PDF de la ESO sí se han hecho.']);
+  }
   let sueltos = null;
   try {
     sueltos = pdfsPorInforme_(libro, entradas, borrador);

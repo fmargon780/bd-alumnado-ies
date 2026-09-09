@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — Bachillerato: sus alumnos entran en ALUMNADO, el panel dice de cuándo son sus ficheros, y el censo NEAE ya sabe cruzar sus fichas",
+  "version": "BD v51 — Bachillerato completo: sus alumnos en ALUMNADO, su censo NEAE, su fila en el panel y su propio cuaderno de informes con sus PDF",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",
@@ -11,6 +11,7 @@
     "Jefatura.gs",
     "Obligatorias.gs",
     "Informes.gs",
+    "InformesBac.gs",
     "Orden.gs",
     "Panel.gs"
   ],

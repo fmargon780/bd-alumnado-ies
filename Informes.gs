@@ -460,8 +460,19 @@ function leerAlumnado_() {
   }
   const ancho = hoja.getLastColumn();
   const titulos = hoja.getRange(2, 1, 1, ancho).getValues()[0];
-  const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
+  const todasLasFilas = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
   const idx = indiceTitulos(titulos);
+
+  /* EL BACHILLERATO SE QUEDA FUERA DE ESTE CUADERNO. Este es el cuaderno de
+     informes de la ESO: sus columnas, sus 23 pestañas y su portada hablan de
+     la ESO. El alumnado de Bachillerato vive en la misma pestaña ALUMNADO,
+     pero tiene su propio cuaderno. Si no se apartara aquí, saldrían seis
+     avisos de "grupo sin pestaña" y la portada contaría 828 alumnos de ESO.
+     Ver Bachillerato.gs. */
+  const iCurso = idx[normalizar('Curso')];
+  const datos = iCurso === undefined ? todasLasFilas : todasLasFilas.filter(function (fila) {
+    return !esBachillerato_(fila[iCurso]);
+  });
   if (idx[normalizar('Alumno/a')] === undefined || idx[normalizar('Unidad')] === undefined) {
     throw new Error('La pestaña ALUMNADO no tiene las columnas Alumno/a y Unidad.');
   }

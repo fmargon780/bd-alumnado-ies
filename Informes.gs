@@ -237,10 +237,28 @@ const ALTO_LINEA = 12;
 /* El trozo que explica la interrogante va aparte: en los PDF definitivos no
    hay ninguna interrogante, así que esa explicación se quita de la leyenda. */
 const LEYENDA_INTERROGANTE = '  ?: aún sin dato.';
-const LEYENDA_FIJA = [
-  'NO SUPERADAS: del curso que repite.  PENDIENTES: de antes.  DIV: diversificación.' +
-  LEYENDA_INTERROGANTE
-];
+/* La parte fija de la leyenda SE ARMA CON LAS COLUMNAS QUE TIENE ESA PESTAÑA.
+   Antes era un texto fijo que explicaba siempre lo mismo, así que en 1º y en 2º
+   de la ESO se leía "DIV: diversificación" aunque esos informes no llevan
+   columna DIV, y en Bachillerato explicaba tres columnas que allí no existen.
+   Lo vio Francisco el 9-sep-2026. Regla de siempre en esta casa: no explicar lo
+   que no está, igual que no se escribe una sigla sin explicarla. */
+const EXPLICACIONES_COLUMNA = {
+  'mat no sup.':     'NO SUPERADAS: del curso que repite.',
+  'mat. pend.':      'PENDIENTES: de antes.',
+  'mat. pend. 6º':   'PENDIENTES: suspensas en 6º de Primaria.',
+  'div':             'DIV: diversificación.',
+  'materias':        'MATERIAS: las que cursa además de las comunes.'
+};
+
+function leyendaFijaDe_(claves) {
+  const trozos = [];
+  for (let i = 0; i < claves.length; i++) {
+    const t = EXPLICACIONES_COLUMNA[claves[i]];
+    if (t && trozos.indexOf(t) === -1) trozos.push(t);
+  }
+  return [trozos.join('  ') + LEYENDA_INTERROGANTE];
+}
 const SEPARADOR_LEYENDA = '  ';   // entre dos explicaciones del mismo renglón
 const LETRA_LEYENDA = 6;
 const ALTO_LINEA_LEYENDA = 7.2;   // puntos que ocupa una línea a esa letra
@@ -556,17 +574,32 @@ function blobMembrete_() {
 function ponerMembrete_(hoja, blob) {
   let imagenes;
   try { imagenes = hoja.getImages(); } catch (e) { return false; }
-  let cambiada = false;
+  let cambiada = false, habia = false;
   for (let i = 0; i < imagenes.length; i++) {
     const img = imagenes[i];
     let fila;
     try { fila = img.getAnchorCell().getRow(); } catch (e) { continue; }
     if (fila > FILAS_CABECERA) continue;
+    habia = true;
     /* El ancho se ajusta siempre, haya o no una imagen nueva: si el membrete
        se quedara ancho, taparía la leyenda que va a su derecha. */
     if (blob) { img.replace(blob); cambiada = true; }
     img.setWidth(ANCHO_MEMBRETE);
     img.setHeight(Math.round(ANCHO_MEMBRETE / RATIO_MEMBRETE));
+  }
+
+  /* UNA PESTAÑA NUEVA NO TIENE NINGUNA IMAGEN QUE SUSTITUIR. Las 23 pestañas
+     de la ESO se hicieron a mano y ya traían el membrete puesto, así que
+     bastaba con cambiarlo. Las de Bachillerato las crea el programa y nacen
+     vacías: si aquí solo se sustituyera, se quedarían para siempre sin
+     membrete. Pasó el 9-sep-2026, en cuanto se creó su cuaderno. */
+  if (!habia && blob) {
+    try {
+      const img = hoja.insertImage(blob, 1, 1);
+      img.setWidth(ANCHO_MEMBRETE);
+      img.setHeight(Math.round(ANCHO_MEMBRETE / RATIO_MEMBRETE));
+      cambiada = true;
+    } catch (e) { /* sin membrete se puede vivir; el resto del informe sale igual */ }
   }
   return cambiada;
 }
@@ -608,9 +641,10 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
 
   const lineas = [];
   let usadas = 0;
-  for (let i = 0; i < LEYENDA_FIJA.length; i++) {
-    lineas.push(LEYENDA_FIJA[i]);
-    usadas += Math.ceil(LEYENDA_FIJA[i].length / porLinea);
+  const fija = leyendaFijaDe_(claves);
+  for (let i = 0; i < fija.length; i++) {
+    lineas.push(fija[i]);
+    usadas += Math.ceil(fija[i].length / porLinea);
   }
 
   /* Las explicaciones se van juntando en renglones de lo ancho que haya. */
@@ -667,8 +701,9 @@ function ajustarFilasDelLogo_(hoja) {
   const total = necesita + AIRE_BAJO_LOGO;
   let actual = 0;
   for (let r = 1; r <= FILAS_CABECERA; r++) actual += hoja.getRowHeight(r);
-  if (actual <= total) return 0;
 
+  /* Antes esto solo encogía. En una pestaña nueva las filas nacen bajitas y el
+     membrete no cabía: se salía por encima de la tabla. Ahora también crece. */
   const arriba = ALTO_MINIMO_FILA * (FILAS_CABECERA - 1);
   hoja.setRowHeights(1, FILAS_CABECERA - 1, ALTO_MINIMO_FILA);
   hoja.setRowHeight(FILAS_CABECERA, Math.max(ALTO_MINIMO_FILA, total - arriba));
@@ -954,7 +989,6 @@ function escribirPortada_(libro, A, resumenGrupos, etapa) {
   if (hoja.getMaxColumns() < 5) hoja.insertColumnsAfter(hoja.getMaxColumns(), 5 - hoja.getMaxColumns());
   libro.setActiveSheet(hoja);
   libro.moveActiveSheet(1);
-
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   const filas = [], bandas = [];
   let filaCabeceraTabla = 0;

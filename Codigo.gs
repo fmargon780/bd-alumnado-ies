@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v49';
+const VERSION = 'BD v50';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -797,7 +797,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     /* De dónde viene el alumno. */
     let cursoPasado = '', repetiaPasado = '', suspPasado = '', repetiaCorregido = false;
     let fuenteESO = 'HISTÓRICO';
-
     if (!h) {
       fuente = 'No consta en el histórico';
       avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,

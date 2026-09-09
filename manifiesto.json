@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — Bachillerato completo, con su cuaderno de informes. El membrete se pone en las pestañas nuevas, la leyenda explica solo las columnas que hay, y Jefatura solo compara los cursos que trae su fichero",
+  "version": "BD v51 — Bachillerato completo. Jefatura lee también sus pestañas de grupo y dice cuáles no ha leído",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

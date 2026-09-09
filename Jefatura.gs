@@ -66,14 +66,35 @@ function juegoJef_(v) {
 
 /* ¿Es esto el rótulo de un grupo de ESO? Devuelve "1º ESO A" o ''.
    Vale tanto para el nombre de la pestaña ("1ºESO A") como para la celda A1. */
-/* Reconoce el nombre de un grupo. Desde la BD v51 vale también para
-   Bachillerato ("1º BACH A"), por si el cuaderno de Jefatura llegara a traer
-   sus pestañas. Si no las trae, no pasa nada: más abajo solo se comparan los
-   cursos que el fichero traiga de verdad. */
+/* Reconoce el nombre de un grupo en el cuaderno de Jefatura.
+
+   Vale para la ESO ("3º ESO B") y, desde el 9-sep-2026, también para
+   Bachillerato. La palabra de la etapa se acepta escrita de varias maneras
+   —BACH, BACHILLERATO, BTO— porque el nombre de la pestaña lo escribe una
+   persona a mano y no siempre lo escribe igual.
+
+   LO QUE DEVUELVE SE ESCRIBE SIEMPRE "1º BACH A", que es como Séneca escribe
+   la unidad. Si se devolviera tal cual estaba en la pestaña, un "1º
+   BACHILLERATO A" no casaría con el "1º BACH A" de Séneca y saldrían todos
+   los alumnos del grupo como "Grupo distinto". */
 function grupoDeTexto_(v) {
   const t = String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim();
-  const m = t.match(/^([1-4])\s*º\s*ESO\s+([A-Z])$/i);
-  return m ? m[1] + 'º ESO ' + m[2].toUpperCase() : '';
+  const eso = t.match(/^([1-4])\s*º\s*ESO\s+([A-Z])$/i);
+  if (eso) return eso[1] + 'º ESO ' + eso[2].toUpperCase();
+  const bac = t.match(/^([12])\s*º\s*(?:BACH(?:ILLERATO)?|BTO)\.?\s+([A-Z])$/i);
+  if (bac) return bac[1] + 'º BACH ' + bac[2].toUpperCase();
+  return '';
+}
+
+/* El nivel al que pertenece un grupo. En la ESO son los dos primeros
+   caracteres ("3º ESO B" -> "3º"). En Bachillerato el nivel lleva la etapa
+   dentro ("1º BACH A" -> "1º BACH"), porque si no chocaría con 1º de la ESO y
+   dos alumnos distintos con el mismo nombre se confundirían. */
+function nivelDeGrupoJef_(grupo) {
+  const t = String(grupo || '').trim();
+  const m = t.match(/^([12])\s*º\s+BACH\b/i);
+  if (m) return m[1] + 'º BACH';
+  return t.substring(0, 2);
 }
 
 /* Coloca cada título de la fila 1 en el hueco que le toca. */
@@ -105,7 +126,7 @@ function huecosJefatura_(titulos, nivel) {
    'valores' incluye la fila 1 (títulos) y todo lo que hay debajo. */
 function leerPestanaJefatura_(grupo, valores) {
   if (!grupo || !valores || !valores.length) return [];
-  const nivel = grupo.substring(0, 2);
+  const nivel = nivelDeGrupoJef_(grupo);
   const titulos = valores[0];
   const h = huecosJefatura_(titulos, nivel);
   const alumnos = [];
@@ -163,6 +184,14 @@ function filaJefatura_(a) {
 
 /* Qué columnas de ALUMNADO se comparan con qué campo de Jefatura, por nivel. */
 function comparablesJefatura_(nivel, esDiver) {
+  /* EN BACHILLERATO, POR AHORA, SOLO SE COMPARA EL GRUPO. Las columnas del
+     cuaderno de Jefatura para Bachillerato todavía no se han mirado una por
+     una, y comparar contra una columna que allí no existe daría un "no
+     coincide" a todo el mundo. Lo que sí vale desde el primer día es lo
+     importante: si el alumno está, y si está en el mismo grupo que dice
+     Jefatura. Eso se compara siempre, más arriba, y no depende de esta lista. */
+  if (nivel === '1º BACH' || nivel === '2º BACH') return [];
+
   const lista = [{ col: 'REL/Atedu', campo: 'rel', nombre: 'Religión / At. educativa' }];
   if (nivel === '4º') {
     if (!esDiver) {
@@ -335,7 +364,7 @@ function leerJefatura_() {
   const r = buscarLibroJefatura_();
   if (!r.libro) return { alumnos: [], nombre: '', avisos: [r.aviso] };
 
-  const alumnos = [], avisos = [], vistos = {};
+  const alumnos = [], avisos = [], vistos = {}, saltadas = [];
   const hojas = r.libro.getSheets();
   let grupos = 0;
   for (let h = 0; h < hojas.length; h++) {
@@ -345,11 +374,11 @@ function leerJefatura_() {
        tiene además pestañas de resumen ("TODO 1º", "1º ESO CON OPT.") que
        llevan el mismo rótulo en A1 y repetirían a todos los alumnos. */
     const grupo = grupoDeTexto_(hoja.getName());
-    if (!grupo) continue;
+    if (!grupo) { saltadas.push(hoja.getName()); continue; }
     if (hoja.getLastRow() < 2 || hoja.getLastColumn() < 2) continue;
     const enA1 = grupoDeTexto_(hoja.getRange(1, 1).getValue());
     if (enA1 && enA1 !== grupo) {
-      avisos.push({ curso: grupo.substring(0, 2), grupo: grupo, alumno: '',
+      avisos.push({ curso: nivelDeGrupoJef_(grupo), grupo: grupo, alumno: '',
         aviso: 'Pestaña de Jefatura con dos nombres distintos',
         detalle: 'La pestaña se llama "' + hoja.getName() + '" pero en A1 pone "' + enA1 + '". No la he leído.' });
       continue;
@@ -371,6 +400,16 @@ function leerJefatura_() {
       alumnos.push(leidos[i]);
     }
   }
+  /* Qué pestañas no se han leído. Casi siempre son las de resumen ("TODO 1º",
+     "1º ESO CON OPT."), y está bien que no se lean. Pero si alguna pestaña de
+     grupo tiene el nombre escrito de otra manera, aquí es donde se ve. */
+  if (saltadas.length) {
+    avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'Pestañas del cuaderno de Jefatura que no he leído',
+      detalle: saltadas.join(' · ') + '. Solo se leen las que se llaman como un grupo, ' +
+        'tipo "3º ESO B" o "1º BACH A". Si alguna de estas es un grupo, dime cómo se llama.' });
+  }
+
   if (!grupos) {
     avisos.push({ curso: '', grupo: '', alumno: '', aviso: 'El cuaderno de Jefatura no tiene grupos',
       detalle: 'Ninguna pestaña de "' + r.nombre + '" se llama como un grupo, tipo "3º ESO B".' });

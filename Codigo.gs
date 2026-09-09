@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v50';
+const VERSION = 'BD v51';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -195,8 +195,10 @@ const TITULOS_ALUMNADO = [
   'MAT NO SUP.', 'Nº pendientes', 'Asignaturas pendientes',
   /* Los apoyos que recibe */
   'Diversificación', 'NEAE', 'MEDIDAS Y RECURSOS',
-  /* Lo que cursa este año */
+  /* Lo que cursa este año. Las dos últimas son solo de Bachillerato: en la
+     ESO se quedan vacías, y al revés con las de la ESO. Ver Bachillerato.gs. */
   'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu',
+  'MODALIDAD', 'ITINERARIO',
   /* Lo tuyo */
   'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */
@@ -743,6 +745,9 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
   if (cursosConCenso.length) {
     const sinCenso = [];
     for (const cc in alumnosPorCurso) {
+      /* Bachillerato no entra en esta cuenta: el censo NEAE todavía no se lee
+         para Bachillerato, así que decir que "le falta" sería ruido. */
+      if (esBachillerato_(cc)) continue;
       if (!cursosDelCenso[cc]) sinCenso.push(cc);
     }
     if (sinCenso.length) {
@@ -787,6 +792,21 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       enOtroCurso.push(a.nombre + ' (' + a.curso + ')');
     }
     const man = (manuales && manuales[clave]) || ['', '', '', '', '', '', ''];
+
+    /* BACHILLERATO SE VA POR SU CAMINO. Todo lo que viene debajo es la
+       maquinaria de la ESO: repeticiones de Primaria, edad teórica, PIL y las
+       dos permanencias de la enseñanza obligatoria. En Bachillerato nada de
+       eso existe, así que aplicárselo daría números inventados. Sus casillas
+       se quedan vacías, que quiere decir "aquí no aplica". Ver
+       Bachillerato.gs. */
+    if (esBachillerato_(a.curso)) {
+      const vb = valoresDeBachillerato_(a, man, censo[clave], cursosDelCenso);
+      filas.push(TITULOS_ALUMNADO.map(function (t) {
+        return vb[t] === undefined ? '' : vb[t];
+      }));
+      continue;
+    }
+
     const exp = prim[clave];                     // su expediente de Primaria, si lo hay
     const expSec = sec[clave];                   // su expediente de Secundaria, si lo hay
     let edad = '', repite = '', repESO = '', repPrim = '', fuente = '', total = '', mns = '';
@@ -1551,15 +1571,14 @@ function construirAlumnado() {
   const porCurso = {}, avisos = [], resumen = [];
   const ficherosSinMaterias = [];
 
-  /* Si hay ficheros de Bachillerato en la carpeta, se dice. No se leen todavía
-     (ver buscarCsvsMatricula), pero el programa no se los calla. */
-  const bachillerato = ficherosDeBachillerato_();
-  if (bachillerato.length) {
-    avisos.push({ curso: '', grupo: '', alumno: '',
-      aviso: 'Ficheros de Bachillerato encontrados y todavía no leídos',
-      detalle: bachillerato.join(' · ') +
-        '. El sistema solo carga la ESO hasta que el curso lleve la etapa dentro.' });
-  }
+  /* EL BACHILLERATO. Va por su cuenta, en Bachillerato.gs, porque sus reglas
+     no son las de la ESO. Sus alumnos entran en el mismo montón, con el curso
+     escrito "1º BACH" y "2º BACH", así que no pueden confundirse con los de
+     1º y 2º de la ESO. */
+  const bac = alumnadoDeBachillerato_();
+  for (const cb in bac.porCurso) porCurso[cb] = bac.porCurso[cb];
+  bac.avisos.forEach(function (x) { avisos.push(x); });
+  bac.resumen.forEach(function (x) { resumen.push(x); });
   for (let i = 0; i < cursos.length; i++) {
     const curso = cursos[i];
     const r = leerMatricula(textoATabla(textoDeArchivo(ficheros[curso])), curso);

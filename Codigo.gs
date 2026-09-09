@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v47';
+const VERSION = 'BD v48';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -229,6 +229,16 @@ function normalizar(v) {
     .trim().toLowerCase();
 }
 
+/* 2024 -> "24-25". Un año académico escrito con cuatro cifras obliga al lector
+   a acordarse de que "2024" quiere decir el curso 2024-2025. Escrito así se
+   entiende de un vistazo. Si lo que llega no es un año, se devuelve igual. */
+function anoAcademico_(ano) {
+  const n = parseInt(ano, 10);
+  if (!n) return '';
+  if (n < 1900 || n > 2200) return String(ano);
+  return String(n).slice(-2) + '-' + String(n + 1).slice(-2);
+}
+
 function nivelESO(texto) {
   const m = String(texto || '').trim().match(/^([1-4])\s*º?\s*(de\s+)?E\.?\s*S\.?\s*O\.?/i);
   return m ? m[1] + 'º' : '';
@@ -380,7 +390,8 @@ function calcularHistorial(tabla) {
       if (!anosNivel) continue;
       const lista = Object.keys(anosNivel).sort();
       if (lista.length < 2) continue;
-      repetidos.push(NIVELES_ESO[k] + ' (' + lista.join(', ') + ')');
+      repetidos.push(NIVELES_ESO[k] + ' (' +
+        lista.map(function (a) { return anoAcademico_(a); }).join(', ') + ')');
     }
     const cursosESO = repetidos.join('; ');
 
@@ -613,12 +624,12 @@ function trayectoria_(d) {
   /* 1. Primaria. Va primero porque es lo primero en el tiempo. */
   const exp = d.exp;
   if (exp && exp.anoPrimero && exp.anoSexto && exp.repeticiones !== '') {
-    L.push(exp.anoPrimero + '-' + exp.anoSexto + '  Primaria · ' +
+    L.push(anoAcademico_(exp.anoPrimero) + ' a ' + anoAcademico_(exp.anoSexto) + '  Primaria · ' +
       ((exp.cursosRepetidos || []).length
         ? 'repitió ' + exp.cursosRepetidos.join(', ') + ' de Primaria'
         : 'sin repetir') + ' · expediente');
   } else if (exp && exp.anoSexto) {
-    L.push('hasta ' + exp.anoSexto + '  Primaria · expediente incompleto (?)');
+    L.push('hasta ' + anoAcademico_(exp.anoSexto) + '  Primaria · expediente incompleto (?)');
   } else if (esNumero(d.repPrim)) {
     const n = aNumero(d.repPrim);
     L.push('Primaria  ' + (n > 0 ? (n + (n === 1 ? ' repetición' : ' repeticiones'))
@@ -647,7 +658,7 @@ function trayectoria_(d) {
   /* 3. El hueco que no explica nadie, delante del primer año que conocemos. */
   if (filas.length && esNumero(d.sinLocalizar) && aNumero(d.sinLocalizar) > 0) {
     const n = aNumero(d.sinLocalizar);
-    L.push('antes de ' + filas[0].ano + '  ? · falta ' + n +
+    L.push('antes de ' + anoAcademico_(filas[0].ano) + '  ? · falta ' + n +
            (n === 1 ? ' año' : ' años') + ' que nada explica');
   }
 
@@ -671,7 +682,7 @@ function trayectoria_(d) {
         ? (aNumero(susp) + (aNumero(susp) === 1 ? ' suspensa' : ' suspensas'))
         : '? suspensas');
     }
-    L.push(f.ano + '  ' + partes.join(' · '));
+    L.push(anoAcademico_(f.ano) + '  ' + partes.join(' · '));
   }
 
   /* 4. El veredicto, en la última línea. */

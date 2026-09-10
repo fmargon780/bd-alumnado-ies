@@ -132,7 +132,11 @@ function huecosJefatura_(titulos, nivel) {
        "OPT1" ya significa otra cosa en 4º. */
     else if (esNivelBachillerato_(nivel) && t === 'mod1') h.mod1 = c;
     else if (esNivelBachillerato_(nivel) && t === 'mod2') h.mod2 = c;
-    else if (esNivelBachillerato_(nivel) && t === 'opt2') h.opt2 = c;
+    /* Jefatura escribe "OPT 2" con espacio (visto el 10-sep-2026 en 2º BACH B).
+       Hasta la BD v62 solo se reconocía "OPT2" y esa columna se perdía. */
+    else if (esNivelBachillerato_(nivel) && (t === 'opt2' || t === 'opt 2')) h.opt2 = c;
+    /* En Humanidades, la materia de modalidad obligatoria a elegir: "MCS/LAT". */
+    else if (esNivelBachillerato_(nivel) && /^(mcs|lat|mat)\s*\/\s*(mcs|lat|mat)$/.test(t)) h.mod0 = c;
   }
   return h;
 }
@@ -189,12 +193,13 @@ function leerPestanaJefatura_(grupo, valores) {
          o ALCT. Aquí se hace lo mismo para poder compararlas: en 1º, quien no
          está marcado como exento es que cursa francés. */
       alct: marcas.alct ? 'ALCT' : (nivel === '1º' ? 'FR' : ''),
-      /* Las cuatro columnas de Bachillerato, TAL Y COMO LAS ESCRIBE JEFATURA,
-         sin traducir: dos de modalidad y dos de optativas. Las traduce
-         Matricula.gs con la pestaña OFERTA.
+      /* Las columnas de materias de Bachillerato, TAL Y COMO LAS ESCRIBE
+         JEFATURA, sin traducir: la de modalidad obligatoria (MCS/LAT), dos de
+         modalidad y dos de optativas. Las traduce Matricula.gs con la pestaña
+         OFERTA. La de religión no se mira: se comprueba contando.
          SOLO EN BACHILLERATO. En la ESO esta lista va vacía a propósito. */
       bac: !esNivelBachillerato_(nivel) ? [] :
-        [h.mod1, h.mod2, h.opt, h.opt2].map(function (col) {
+        [h.mod0, h.mod1, h.mod2, h.opt, h.opt2].map(function (col) {
           return col === undefined ? '' : String(fila[col] === null || fila[col] === undefined ? '' : fila[col]).trim();
         }),
       repite: marcas.repite ? 'SÍ' : '',

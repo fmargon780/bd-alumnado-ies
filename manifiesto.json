@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — se leen las columnas MOD1, MOD2, OPT1 y OPT2 de las pestañas de Bachillerato de Jefatura, y se preguntan sus códigos",
+  "version": "BD v51 — las materias de Bachillerato salen del documento de oferta educativa del centro: qué es obligatorio y de qué grupo se elige",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

@@ -559,14 +559,9 @@ const OFERTA_BACHILLERATO = {
     /* CIENCIAS: una pareja, y dos a elegir entre seis. */
     { quien: OBL_CIENCIAS, grupo: 'Modalidad: Matemáticas o Mat. CCSS', materias: [
       'Matemáticas', 'Matemáticas Aplicadas a las Ciencias Sociales'] },
-    { quien: OBL_CIENCIAS, grupo: 'Modalidad: dos a elegir (elegir 2)', materias: [
+    { quien: OBL_CIENCIAS, grupo: 'Modalidad de Ciencias (elegir 2)', materias: [
       'Biología', 'Dibujo Técnico', 'Física', 'Geología y Ciencias Ambientales',
       'Química', 'Tecnología e Ingeniería'] },
-    { quien: OBL_CIENCIAS, grupo: 'Optativas (elegir 2)', materias: [
-      'Programación y Computación', 'Estadística',
-      'Tecnologías de la Información y la Comunicación', 'Francés (Segundo Idioma)',
-      'Actividad Física, Salud y Sociedad', 'Psicología',
-      'Educación para la Convivencia Democrática'] },
 
     /* HUMANIDADES: tres cuadros, uno de cada. */
     { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Latín o Mat. CCSS', materias: [
@@ -575,13 +570,22 @@ const OFERTA_BACHILLERATO = {
       'Empresa y Diseño de Modelos de Negocio', 'Griego'] },
     { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Geografía o Historia del Arte', materias: [
       'Geografía', 'Historia del Arte'] },
-    { quien: OBL_HUMANIDADES, grupo: 'Optativas (elegir 2)', materias: [
+
+    /* OPTATIVAS: DOS BLOQUES, UNA DE CADA UNO, igual que en 1º.
+       El primero depende de la modalidad: el folleto lo presenta en dos
+       columnas, la de Ciencias y la de Humanidades, y las dos últimas líneas
+       (TIC y Francés) cruzan las dos columnas, así que valen para todos.
+       El segundo bloque es común a las dos modalidades. */
+    { quien: OBL_CIENCIAS, grupo: 'Optativa del primer bloque', materias: [
+      'Programación y Computación', 'Electrotecnia', 'Estadística',
+      'Introducción a las Ciencias de la Salud',
+      'Tecnologías de la Información y la Comunicación', 'Francés (Segundo Idioma)'] },
+    { quien: OBL_HUMANIDADES, grupo: 'Optativa del primer bloque', materias: [
       'Finanzas y Economía', 'Fundamentos de Administración y Gestión', 'Mitología Clásica',
-      'Francés (Segundo Idioma)', 'Actividad Física, Salud y Sociedad', 'Psicología',
-      'Educación para la Convivencia Democrática',
-      /* El folleto no la ofrece en Humanidades, pero el fichero de matrícula de
-         Séneca sí trae su columna y hay alumnado cursándola. */
-      'Tecnologías de la Información y la Comunicación'] },
+      'Tecnologías de la Información y la Comunicación', 'Francés (Segundo Idioma)'] },
+    { quien: OBL_TODOS, grupo: 'Optativa del segundo bloque', materias: [
+      'Actividad Física, Salud y Sociedad', 'Educación para la Convivencia Democrática',
+      'Imagen y Sonido', 'Psicología', 'Ciencias de la Tierra y del Medio Ambiente'] },
 
     { quien: OBL_TODOS, grupo: 'Religión o Proyecto transversal', materias: [
       'Religión Católica', 'Proyectos Transversales de Educación en Valores'] }

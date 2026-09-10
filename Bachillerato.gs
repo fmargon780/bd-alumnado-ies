@@ -221,10 +221,12 @@ function diagnosticoMatricula_(reglas, modalidad, tiene, existe) {
       continue;
     }
     if (!grupos[r.grupo]) {
-      grupos[r.grupo] = { cuantas: oblCuantasDelGrupo_(r.grupo), n: 0, total: 0, bloque: r.bloque };
+      grupos[r.grupo] = { cuantas: oblCuantasDelGrupo_(r.grupo), n: 0, total: 0,
+                          bloque: r.bloque, materias: [] };
       orden.push(r.grupo);
     }
     grupos[r.grupo].total++;
+    grupos[r.grupo].materias.push(r.materia);
     if (tiene[normalizar(r.materia)]) grupos[r.grupo].n++;
   }
 
@@ -237,11 +239,22 @@ function diagnosticoMatricula_(reglas, modalidad, tiene, existe) {
   for (let i = 0; i < orden.length; i++) {
     const g = orden[i], G = grupos[g];
     if (!G.total || G.n === G.cuantas) continue;
-    const nombre = G.bloque === BLOQUE_RELIGION ? 'Religión' : String(g).split('(')[0].trim();
+    /* EL NOMBRE DEL GRUPO SE DICE ENTERO. Antes el de religión se acortaba a
+       "Religión" a secas, y leyendo "falta 1 de Religión" no había forma de
+       saber que el Proyecto transversal también valía. Lo dijo Francisco el
+       10-sep-2026. Lo único que se quita es el "(elegir 2)", que es sintaxis
+       de la pestaña y no dice nada al que lee el aviso. */
+    /* En el papel la casilla es estrecha, así que se quita el "Modalidad:" de
+       delante: "sobra 1 de Economía o Griego" se entiende igual de bien y
+       ocupa dos renglones menos. El aviso sí lleva el nombre entero. */
+    const nombre = String(g).split('(')[0].trim().replace(/^Modalidad:\s*/i, '');
     const d = G.cuantas - G.n;
     if (d > 0) corto.push(d === 1 ? 'falta 1 de ' + nombre : 'faltan ' + d + ' de ' + nombre);
     else corto.push(-d === 1 ? 'sobra 1 de ' + nombre : 'sobran ' + (-d) + ' de ' + nombre);
-    largo.push('De "' + g + '" tiene ' + G.n + ' y hay que cursar ' + G.cuantas + '.');
+    /* Y el aviso, además, dice cuáles son las materias de ese grupo: sin eso
+       hay que ir a la pestaña a mirarlo. */
+    largo.push('De "' + g + '" (' + G.materias.join(', ') + ') tiene ' + G.n +
+               ' y hay que cursar ' + G.cuantas + '.');
   }
 
   return { corto: corto.length ? corto.join(' · ') : MATRICULA_OK, largo: largo.join(' ') };

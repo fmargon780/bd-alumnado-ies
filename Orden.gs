@@ -5,47 +5,46 @@
  * Me gustaría poder limpiar lo que sobra y estructurar bien lo que debe
  * quedarse."
  *
+ * Y REHECHO EN LA BD v54, el 10-sep-2026, también a petición suya: "los
+ * archivos que sí son necesarios están casi todos juntos y sin una estructura
+ * lógica. Me gustaría que crearas dicha estructura diferenciando las de
+ * descarga y las de trabajo, pero que sea muy intuitivo el uso de este
+ * aplicativo."
+ *
  * POR QUÉ LO HACE EL PROGRAMA Y NO SE ARRASTRA A MANO. Los ficheros son de la
  * cuenta del instituto, así que solo puede moverlos alguien que entre con esa
  * cuenta. El script se ejecuta con ella, así que puede hacerlo él solo.
  *
- * QUÉ HACE. Deja las dos carpetas así:
+ * CÓMO DEJA LA CARPETA. La estructura entera está en el mapa de Carpetas.gs.
+ * Aquí solo se dice a qué carpeta va cada fichero:
  *
- *   Carpeta de arriba (la que contiene a "Datos de matrícula")
- *     · los cuadernos de Google: la base de datos, los informes, las notas
- *     · la carpeta "Datos de matrícula"
- *     · la carpeta "Archivo (el programa no lo mira)"
+ *   GESTIÓN DE ALUMNADO                 <- la raíz: lo que Francisco abre
+ *   │   los cuadernos de Google y el manual
+ *   ├── 1. Descargas de Séneca          <- TODO lo que se baja de Séneca
+ *   │   ├── Matrícula del curso             los MatOMCMatr de este curso
+ *   │   ├── Histórico y censo               RegAlum.csv y RegAluNEE.csv
+ *   │   ├── Expedientes Primaria
+ *   │   └── Expedientes Secundaria
+ *   ├── 2. Ficheros del centro          <- lo que NO viene de Séneca
+ *   │       AGRUPAMIENTOS · PROPUESTA MATRÍCULA · MEMBRETE
+ *   ├── 3. Informes por unidad          <- LA QUE COMPARTE EL DIRECTOR
+ *   ├── 4. Borradores (no compartir)
+ *   └── 5. Archivo (el programa no lo mira)
  *
- *   Datos de matrícula   ->  SOLO lo que se descarga de Séneca
- *     · RegAlum.csv · RegAluNEE.csv · los cuatro MatOMCMatr del curso actual
- *     · el cuaderno AGRUPAMIENTOS de Jefatura
- *     · la imagen MEMBRETE
- *     · las tres subcarpetas: Expedientes Primaria, Expedientes Secundaria,
- *       Informes por unidad
+ * Los números fuerzan el orden en Drive, y ese orden es el del trabajo:
+ * primero se descarga, después el programa produce.
  *
- *   Archivo (el programa no lo mira)  ->  todo lo demás
- *     · los CSV de matrícula de cursos anteriores
- *     · los Excel originales de los que salieron los cuadernos
- *     · cualquier otro fichero suelto
- *
- * TRES REGLAS DE SEGURIDAD:
+ * CUATRO REGLAS DE SEGURIDAD:
  *
  *   1. NO BORRA NADA. Solo mueve. Todo sigue estando a un clic.
- *   2. NO TOCA NINGÚN CUADERNO DE GOOGLE. Si un cuaderno estuviera donde no
- *      debe, lo dice, pero no lo mueve: puede tener enlaces y marcadores.
- *   3. NO ENTRA EN LAS SUBCARPETAS. Los expedientes y los PDF se quedan
- *      exactamente donde están.
- *
- * Si un fichero no se deja mover (porque es de otra cuenta), lo anota y sigue
- * con los demás.
+ *   2. NO ENTRA EN LAS SUBCARPETAS de expedientes, informes ni borradores. Lo
+ *      que hay dentro se queda exactamente donde está.
+ *   3. LOS CUADERNOS DE GOOGLE se mueven, pero solo entre las carpetas del
+ *      sistema, y nunca al archivo. Mover un cuaderno no rompe ningún enlace:
+ *      un enlace de Drive lleva el identificador dentro, no la ruta.
+ *   4. SI ALGO NO SE DEJA MOVER, se anota y se sigue con lo demás.
  *
  * ======================================================== ***/
-
-const CARPETA_ARCHIVO = 'Archivo (el programa no lo mira)';
-
-/* Las subcarpetas del sistema, que no se tocan nunca. */
-const SUBCARPETAS_DEL_SISTEMA = ['Expedientes Primaria', 'Expedientes Secundaria',
-                                 'Informes por unidad'];
 
 /*** ================= QUÉ ES CADA FICHERO ================= ***/
 
@@ -76,6 +75,43 @@ function papelDelFichero_(archivo) {
   return 'otro';
 }
 
+/* Los cuadernos que son una FUENTE del programa viven con los ficheros del
+   centro. Los demás (la base de datos, los informes, el manual) se quedan
+   arriba, a la vista. Se reconocen por el nombre, que es como los busca el
+   resto del programa. */
+function cuadernoDelCentro_(nombre) {
+  const n = normalizar(nombre);
+  if (n.indexOf('agrupamientos') !== -1) return true;
+  /* "propuesta" a secas es demasiado poco: en la carpeta puede haber una
+     "PROPUESTA de actividades extraescolares" que no tiene nada que ver. El
+     cuaderno de notas se llama "PROPUESTA MATRÍCULA". */
+  return n.indexOf('propuesta') !== -1 && n.indexOf('matricula') !== -1;
+}
+
+/* A qué carpeta del mapa le toca ir a este fichero. Devuelve la clave de
+   Carpetas.gs, o '' si hay que dejarlo donde está.
+
+   EN LA CARPETA DE ARRIBA SOLO SE TOCA LO QUE ES NUESTRO, y esto importa: esa
+   carpeta puede ser una carpeta general del centro, con cosas que no tienen
+   nada que ver con este programa. Un fichero que no se reconoce como una
+   descarga de Séneca ni como el membrete se queda donde está. Dentro de la
+   carpeta de descargas sí se barre todo, porque esa carpeta es solo nuestra. */
+function destinoDelFichero_(archivo, yaHayMembrete, esLaRaiz, barrerLaRaiz) {
+  const papel = papelDelFichero_(archivo);
+  if (papel === 'historico' || papel === 'neae') return 'historico';
+  if (papel === 'matricula') return 'matricula';
+  if (papel === 'matricula-vieja') return 'archivo';
+  if (papel === 'membrete') return yaHayMembrete ? 'archivo' : 'centro';
+  if (papel === 'cuaderno') {
+    /* Un cuaderno de Google nunca se saca de la carpeta de arriba: es donde
+       tienen que estar la base de datos, los informes y el manual. */
+    if (esLaRaiz) return '';
+    return cuadernoDelCentro_(archivo.getName()) ? 'centro' : 'raiz';
+  }
+  if (esLaRaiz && !barrerLaRaiz) return '';
+  return 'archivo';
+}
+
 /*** ================= MOVER, CON RED ================= ***/
 
 /* Mueve un fichero y devuelve '' si ha podido, o el motivo si no.
@@ -99,123 +135,200 @@ function moverArchivo_(archivo, destino) {
   }
 }
 
+/* Lo mismo con una carpeta. Se usa para colocar en su sitio las carpetas del
+   sistema que estuvieran donde no toca. */
+function moverCarpeta_(carpeta, destino) {
+  try { carpeta.moveTo(destino); return ''; }
+  catch (e) { return e.message; }
+}
+
+/* ¿Está esta carpeta dentro de esa otra? */
+function cuelgaDe_(carpeta, padre) {
+  try {
+    const padres = carpeta.getParents();
+    while (padres.hasNext()) {
+      if (padres.next().getId() === padre.getId()) return true;
+    }
+  } catch (e) { /* si no se puede mirar, mejor no moverla */ return true; }
+  return false;
+}
+
 /*** ================= LA OPCIÓN DE MENÚ ================= ***/
 
 function ordenarCarpeta() {
-  let datos, arriba;
-  try {
-    datos = DriveApp.getFolderById(CARPETA_ID);
-    const padres = datos.getParents();
-    arriba = padres.hasNext() ? padres.next() : null;
-  } catch (e) {
-    avisar_('No he podido abrir la carpeta de datos', e.message);
-    return;
-  }
-  if (!arriba) {
+  const raiz = carpetaDe_('raiz', false);
+  const descargas = carpetaDe_('descargas', false);
+  if (!raiz || !descargas) {
     avisar_('No he podido ordenar la carpeta',
-      'La carpeta "' + datos.getName() + '" no está dentro de ninguna otra, ' +
-      'así que no sé dónde poner el archivo.');
+      'No he podido abrir la carpeta de trabajo en Drive. Vuelve a intentarlo dentro de un rato.');
+    return;
+  }
+  if (raiz.getId() === descargas.getId()) {
+    avisar_('No he podido ordenar la carpeta',
+      'La carpeta "' + descargas.getName() + '" no está dentro de ninguna otra, así que no ' +
+      'tengo dónde crear la estructura. Métela dentro de una carpeta y vuelve a pulsar.');
     return;
   }
 
-  /* La carpeta del archivo, dentro de la de arriba. */
-  let archivo;
-  try {
-    const hay = arriba.getFoldersByName(CARPETA_ARCHIVO);
-    archivo = hay.hasNext() ? hay.next() : arriba.createFolder(CARPETA_ARCHIVO);
-  } catch (e) {
-    avisar_('No he podido crear la carpeta del archivo', e.message);
-    return;
+  const noSePueden = [], creadas = [], recolocadas = [], repetidas = [];
+  let informesMovida = false;
+
+  /* ¿SE PUEDE BARRER LA CARPETA DE ARRIBA? Solo si es una carpeta de verdad,
+     dentro de otra. Si la carpeta de descargas colgara directamente de "Mi
+     unidad", la de arriba sería la unidad entera de Francisco, y ahí no se
+     toca ni un fichero: no son nuestros. */
+  let barrerLaRaiz = false;
+  try { barrerLaRaiz = raiz.getParents().hasNext(); } catch (e) { barrerLaRaiz = false; }
+
+  /* ---------- 1. La carpeta de descargas, con su nombre ---------- */
+  if (descargas.getName() !== nombreDeCarpeta_('descargas')) {
+    try {
+      recolocadas.push('"' + descargas.getName() + '" pasa a llamarse "' +
+                       nombreDeCarpeta_('descargas') + '"');
+      descargas.setName(nombreDeCarpeta_('descargas'));
+    } catch (e) { noSePueden.push('renombrar la carpeta de descargas (' + e.message + ')'); }
   }
 
-  const aArchivo = [], aDatos = [], noSePueden = [], cuadernos = [];
+  /* ---------- 2. Las carpetas del sistema, cada una en su sitio ---------- */
+  const claves = ['matricula', 'historico', 'primaria', 'secundaria',
+                  'centro', 'informes', 'borradores', 'archivo'];
+  const carpetas = {};
+  for (let i = 0; i < claves.length; i++) {
+    const clave = claves[i];
+    const antes = carpetaDe_(clave, false);
+    const carpeta = carpetaDe_(clave, true);
+    if (!carpeta) { noSePueden.push('crear la carpeta "' + nombreDeCarpeta_(clave) + '"'); continue; }
+    carpetas[clave] = carpeta;
+    if (!antes) { creadas.push(carpeta.getName()); continue; }
 
-  /* ---------- 1. La carpeta de datos ---------- */
+    /* Estaba, pero puede que en otro sitio o con el nombre de antes. */
+    const padre = carpetaDe_(CARPETAS[clave].padre, true);
+    if (padre && !cuelgaDe_(carpeta, padre)) {
+      const fallo = moverCarpeta_(carpeta, padre);
+      if (fallo) noSePueden.push('mover la carpeta "' + carpeta.getName() + '" (' + fallo + ')');
+      else {
+        recolocadas.push('"' + carpeta.getName() + '" se va a "' + padre.getName() + '"');
+        if (clave === 'informes') informesMovida = true;
+      }
+    }
+    if (carpeta.getName() !== nombreDeCarpeta_(clave)) {
+      try {
+        recolocadas.push('"' + carpeta.getName() + '" pasa a llamarse "' +
+                         nombreDeCarpeta_(clave) + '"');
+        carpeta.setName(nombreDeCarpeta_(clave));
+      } catch (e) { noSePueden.push('renombrar "' + carpeta.getName() + '" (' + e.message + ')'); }
+    }
+  }
+
+  /* ---------- 2 bis. ¿Hay dos carpetas que se llaman igual? ----------
+     Si las hay, el programa usa una y la otra se queda ahí, con lo que tenga
+     dentro, sin que nadie lo mire. No se tocan: solo se dicen. Elegir por su
+     cuenta cuál es la buena es justo lo que no debe hacer un programa que
+     mueve ficheros ajenos. */
+  const elegidas = {};
+  elegidas[descargas.getId()] = true;
+  for (const k in carpetas) elegidas[carpetas[k].getId()] = true;
+  const nombresDelSistema = {};
+  for (const clave in CARPETAS) {
+    const def = CARPETAS[clave];
+    if (!def.nombre) continue;
+    nombresDelSistema[normalizar(def.nombre)] = true;
+    const antes = def.antes || [];
+    for (let a = 0; a < antes.length; a++) nombresDelSistema[normalizar(antes[a])] = true;
+  }
+  const miradas = [raiz, descargas];
+  for (let i = 0; i < miradas.length; i++) {
+    try {
+      const it = miradas[i].getFolders();
+      while (it.hasNext()) {
+        const c = it.next();
+        if (elegidas[c.getId()]) continue;
+        if (!nombresDelSistema[normalizar(c.getName())]) continue;
+        repetidas.push('"' + c.getName() + '" dentro de "' + miradas[i].getName() + '"');
+      }
+    } catch (e) { /* si no se deja mirar, se sigue */ }
+  }
+
+  /* ---------- 3. Cada fichero, a su carpeta ---------- */
+  /* Se miran las carpetas donde puede haber ficheros sueltos. NO se entra en
+     los expedientes, ni en los informes, ni en los borradores: lo que hay ahí
+     dentro no se toca. */
+  /* El orden importa por el MEMBRETE: si hubiera dos, gana el que esté en la
+     carpeta del centro, y después el de descargas. La raíz va la última. */
+  const dondeMirar = ['centro', 'descargas', 'matricula', 'historico', 'raiz'];
+  const movidos = {}, sinTocar = [];
   let yaHayMembrete = false;
-  const enDatos = datos.getFiles();
-  while (enDatos.hasNext()) {
-    const f = enDatos.next();
-    const papel = papelDelFichero_(f);
-    if (papel === 'cuaderno') {
-      /* El cuaderno de Jefatura SÍ vive aquí: es una de las fuentes. Los
-         demás cuadernos que aparezcan solo se nombran, para que Francisco
-         decida si los sube a la carpeta de arriba. */
-      if (normalizar(f.getName()).indexOf('agrupamientos') === -1) cuadernos.push(f.getName());
-      continue;
-    }
-    if (papel === 'historico' || papel === 'neae' || papel === 'matricula') continue;
-    if (papel === 'membrete') {
-      /* El membrete bueno es uno solo. Si hubiera más de uno, el programa no
-         sabría cuál coge, así que los de más se archivan. */
-      if (!yaHayMembrete) { yaHayMembrete = true; continue; }
-    }
-    const fallo = moverArchivo_(f, archivo);
-    if (fallo) noSePueden.push(f.getName() + ' (' + fallo + ')');
-    else aArchivo.push(f.getName());
-  }
 
-  /* ---------- 2. La carpeta de arriba ---------- */
-  const enArriba = arriba.getFiles();
-  while (enArriba.hasNext()) {
-    const f = enArriba.next();
-    const papel = papelDelFichero_(f);
-    if (papel === 'cuaderno') continue;      // los cuadernos viven aquí: es su sitio
-    if (papel === 'historico' || papel === 'neae' || papel === 'matricula') {
-      /* Los ficheros de Séneca van todos juntos, en la carpeta de datos. */
-      const fallo = moverArchivo_(f, datos);
-      if (fallo) noSePueden.push(f.getName() + ' (' + fallo + ')');
-      else aDatos.push(f.getName());
-      continue;
-    }
-    if (papel === 'membrete' && !yaHayMembrete) {
-      const fallo = moverArchivo_(f, datos);
-      if (fallo) noSePueden.push(f.getName() + ' (' + fallo + ')');
-      else { aDatos.push(f.getName()); yaHayMembrete = true; }
-      continue;
-    }
-    const fallo = moverArchivo_(f, archivo);
-    if (fallo) noSePueden.push(f.getName() + ' (' + fallo + ')');
-    else aArchivo.push(f.getName());
-  }
+  for (let i = 0; i < dondeMirar.length; i++) {
+    const origen = carpetaDe_(dondeMirar[i], false);
+    if (!origen) continue;
+    /* La lista se saca entera ANTES de mover nada: si se fuera moviendo
+       mientras se recorre, Drive podría saltarse ficheros. */
+    const lista = [];
+    try {
+      const it = origen.getFiles();
+      while (it.hasNext()) lista.push(it.next());
+    } catch (e) { noSePueden.push('mirar la carpeta "' + origen.getName() + '" (' + e.message + ')'); }
 
-  /* ---------- 3. Qué ha quedado ---------- */
-  const quedan = [];
-  const finales = datos.getFiles();
-  while (finales.hasNext()) quedan.push(finales.next().getName());
-  quedan.sort();
-
-  const faltan = [];
-  const carpetasDentro = {};
-  const subs = datos.getFolders();
-  while (subs.hasNext()) carpetasDentro[subs.next().getName()] = true;
-  for (let i = 0; i < SUBCARPETAS_DEL_SISTEMA.length; i++) {
-    if (!carpetasDentro[SUBCARPETAS_DEL_SISTEMA[i]]) faltan.push(SUBCARPETAS_DEL_SISTEMA[i]);
+    const esLaRaiz = origen.getId() === raiz.getId();
+    for (let k = 0; k < lista.length; k++) {
+      const f = lista[k];
+      const clave = destinoDelFichero_(f, yaHayMembrete, esLaRaiz, barrerLaRaiz);
+      if (!clave) continue;                     // ni es nuestro ni se toca
+      const destino = clave === 'raiz' ? raiz : carpetas[clave];
+      if (!destino) continue;
+      const esMembrete = papelDelFichero_(f) === 'membrete';
+      if (destino.getId() === origen.getId()) {
+        sinTocar.push(f.getName());
+        if (esMembrete && clave === 'centro') yaHayMembrete = true;
+        continue;
+      }
+      const fallo = moverArchivo_(f, destino);
+      if (fallo) { noSePueden.push(f.getName() + ' (' + fallo + ')'); continue; }
+      if (esMembrete && clave === 'centro') yaHayMembrete = true;
+      if (!movidos[destino.getName()]) movidos[destino.getName()] = [];
+      movidos[destino.getName()].push(f.getName());
+    }
   }
 
   /* ---------- 4. Contarlo ---------- */
   const lineas = [];
-  lineas.push('Carpeta de datos: "' + datos.getName() + '".');
-  lineas.push('Carpeta de arriba: "' + arriba.getName() + '".');
+  lineas.push('Carpeta de trabajo: "' + raiz.getName() + '".');
   lineas.push('');
-  lineas.push('MOVIDOS AL ARCHIVO: ' + aArchivo.length +
-              (aArchivo.length ? ' → ' + aArchivo.join(', ') : ''));
-  lineas.push('TRAÍDOS A LA CARPETA DE DATOS: ' + aDatos.length +
-              (aDatos.length ? ' → ' + aDatos.join(', ') : ''));
+  if (creadas.length) lineas.push('CARPETAS NUEVAS: ' + creadas.join(' · '));
+  if (recolocadas.length) lineas.push('CARPETAS COLOCADAS: ' + recolocadas.join(' · '));
+  if (creadas.length || recolocadas.length) lineas.push('');
+
+  let total = 0;
+  for (const nombre in movidos) {
+    lineas.push('A "' + nombre + '" (' + movidos[nombre].length + '): ' +
+                movidos[nombre].join(', '));
+    total += movidos[nombre].length;
+  }
+  if (!total) lineas.push('No he tenido que mover ningún fichero: ya estaba todo en su sitio.');
+  lineas.push('');
+  if (sinTocar.length) lineas.push('YA ESTABAN EN SU SITIO: ' + sinTocar.length + ' ficheros.');
   if (noSePueden.length) {
-    lineas.push('NO HE PODIDO MOVER: ' + noSePueden.join(' · ') +
-                '. Suelen ser ficheros de otra cuenta: muévelos tú a mano.');
+    lineas.push('NO HE PODIDO: ' + noSePueden.join(' · ') +
+                '. Suele ser porque el fichero es de otra cuenta: muévelo tú a mano.');
+  }
+  if (repetidas.length) {
+    lineas.push('');
+    lineas.push('OJO, CARPETAS REPETIDAS: ' + repetidas.join(' · ') + '. Hay dos que se ' +
+                'llaman igual, y el programa solo usa una. No las he tocado: mira qué tienen ' +
+                'dentro y déjalo en una sola.');
+  }
+  if (informesMovida) {
+    lineas.push('');
+    lineas.push('AVISO SOBRE LA CARPETA QUE SE COMPARTE: he movido "' +
+                nombreDeCarpeta_('informes') + '" a "' + raiz.getName() + '". Si el director ' +
+                'la había compartido, el enlace sigue valiendo, porque un enlace de Drive no ' +
+                'lleva la ruta dentro. Pero si lo que compartió fue la carpeta de arriba, ' +
+                'tendrá que volver a compartir esta. Compruébalo con él.');
   }
   lineas.push('');
-  lineas.push('EN LA CARPETA DE DATOS SE QUEDAN: ' + quedan.join(', '));
-  if (faltan.length) {
-    lineas.push('OJO, faltan estas subcarpetas: ' + faltan.join(', ') + '.');
-  }
-  if (cuadernos.length) {
-    lineas.push('');
-    lineas.push('Cuadernos de Google que están en la carpeta de datos: ' +
-                cuadernos.join(' · ') + '. No los muevo yo, por si tienes enlaces ' +
-                'guardados. Si quieres, arrástralos tú a la carpeta de arriba.');
-  }
+  lineas.push('No he borrado nada: solo he movido. Y no he mirado lo que hay DENTRO de las ' +
+              'carpetas de expedientes, de informes ni de borradores: eso se queda como está.');
 
   avisar_('Carpeta ordenada (' + VERSION + ')', lineas.join('\n'));
 }

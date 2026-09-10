@@ -523,19 +523,28 @@ const OFERTA_BACHILLERATO = {
     { quien: OBL_TODOS, grupo: '', materias: [
       'Educación Física', 'Filosofía', 'Lengua Castellana y Literatura', 'Inglés'] },
 
+    /* CIENCIAS Y TECNOLOGÍA. Dos obligatorias y una a elegir entre tres. */
     { quien: OBL_CIENCIAS, grupo: '', materias: ['Matemáticas', 'Física y Química'] },
-    { quien: OBL_CIENCIAS, grupo: 'Modalidad', materias: [
+    { quien: OBL_CIENCIAS, grupo: 'Modalidad: Biología, Dibujo Técnico o Tecnología', materias: [
       'Biología, Geología y Ciencias Ambientales', 'Dibujo Técnico', 'Tecnología e Ingeniería'] },
 
-    { quien: OBL_HUMANIDADES, grupo: 'Modalidad (elegir 3)', materias: [
-      'Matemáticas Aplicadas a las Ciencias Sociales', 'Latín', 'Economía', 'Griego',
+    /* HUMANIDADES. TRES CUADROS, Y DE CADA UNO SE ELIGE UNA. No es un montón
+       de seis del que se cogen tres: cada pareja va unida por una "o". */
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Mat. CCSS o Latín', materias: [
+      'Matemáticas Aplicadas a las Ciencias Sociales', 'Latín'] },
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Economía o Griego', materias: [
+      'Economía', 'Griego'] },
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Hª del Mundo Cont. o Literatura Universal', materias: [
       'Historia del Mundo Contemporáneo', 'Literatura Universal'] },
 
-    { quien: OBL_TODOS, grupo: 'Optativas (elegir 2)', materias: [
+    /* OPTATIVAS: DOS BLOQUES, UNA DE CADA UNO. */
+    { quien: OBL_TODOS, grupo: 'Optativa del primer bloque', materias: [
       'Anatomía Aplicada', 'Cultura Emprendedora y Empresarial', 'Francés (Segundo Idioma)',
       'Patrimonio Cultural y Artístico de Andalucía', 'Iniciación al Comentario de Texto',
-      'Tecnologías de la Información y la Comunicación', 'Antropología y Sociología',
-      'Fisiología Humana', 'Olimpismo', 'Creación Digital y Pensamiento Computacional',
+      'Tecnologías de la Información y la Comunicación'] },
+    { quien: OBL_TODOS, grupo: 'Optativa del segundo bloque', materias: [
+      'Antropología y Sociología', 'Fisiología Humana', 'Olimpismo',
+      'Creación Digital y Pensamiento Computacional',
       'Educación para la Convivencia Democrática'] },
 
     { quien: OBL_TODOS, grupo: 'Religión o Proyecto transversal', materias: [
@@ -547,18 +556,25 @@ const OFERTA_BACHILLERATO = {
       'Historia de España', 'Historia de la Filosofía', 'Lengua Castellana y Literatura',
       'Inglés'] },
 
-    { quien: OBL_CIENCIAS, grupo: 'Modalidad (elegir 3)', materias: [
-      'Matemáticas', 'Matemáticas Aplicadas a las Ciencias Sociales', 'Biología',
-      'Dibujo Técnico', 'Física', 'Química', 'Tecnología e Ingeniería'] },
+    /* CIENCIAS: una pareja, y dos a elegir entre seis. */
+    { quien: OBL_CIENCIAS, grupo: 'Modalidad: Matemáticas o Mat. CCSS', materias: [
+      'Matemáticas', 'Matemáticas Aplicadas a las Ciencias Sociales'] },
+    { quien: OBL_CIENCIAS, grupo: 'Modalidad: dos a elegir (elegir 2)', materias: [
+      'Biología', 'Dibujo Técnico', 'Física', 'Geología y Ciencias Ambientales',
+      'Química', 'Tecnología e Ingeniería'] },
     { quien: OBL_CIENCIAS, grupo: 'Optativas (elegir 2)', materias: [
       'Programación y Computación', 'Estadística',
       'Tecnologías de la Información y la Comunicación', 'Francés (Segundo Idioma)',
       'Actividad Física, Salud y Sociedad', 'Psicología',
       'Educación para la Convivencia Democrática'] },
 
-    { quien: OBL_HUMANIDADES, grupo: 'Modalidad (elegir 3)', materias: [
-      'Latín', 'Matemáticas Aplicadas a las Ciencias Sociales',
-      'Empresa y Diseño de Modelos de Negocio', 'Griego', 'Geografía', 'Historia del Arte'] },
+    /* HUMANIDADES: tres cuadros, uno de cada. */
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Latín o Mat. CCSS', materias: [
+      'Latín', 'Matemáticas Aplicadas a las Ciencias Sociales'] },
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Empresa y Diseño o Griego', materias: [
+      'Empresa y Diseño de Modelos de Negocio', 'Griego'] },
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad: Geografía o Historia del Arte', materias: [
+      'Geografía', 'Historia del Arte'] },
     { quien: OBL_HUMANIDADES, grupo: 'Optativas (elegir 2)', materias: [
       'Finanzas y Economía', 'Fundamentos de Administración y Gestión', 'Mitología Clásica',
       'Francés (Segundo Idioma)', 'Actividad Física, Salud y Sociedad', 'Psicología',
@@ -572,16 +588,26 @@ const OFERTA_BACHILLERATO = {
   ]
 };
 
-/* POR QUÉ LOS GRUPOS NO SON EXACTAMENTE LOS DEL FOLLETO. El documento del
-   centro presenta las optativas en dos columnas, "Optativas propias de
-   Andalucía" y "Optativas", y dice elegir una de cada. Mirando la matrícula de
-   verdad del curso 26-27, eso no es lo que pasa: hay alumnos con las dos de la
-   primera columna y ninguna de la segunda, y al revés. Las dos columnas son la
-   forma de ofrecerlas, no una regla. Lo que sí se cumple siempre es el número:
-   dos optativas. Por eso aquí van juntas, con "(elegir 2)".
-   Lo mismo con la modalidad de Humanidades: el folleto la presenta como tres
-   parejas, pero hay alumnos que combinan de otra manera y cursan igualmente
-   tres materias de modalidad. */
+/* LOS CUADROS CON UNA "o" SON PAREJAS, Y ESO CAMBIA LA COMPROBACIÓN
+   (10-sep-2026). Lo vio Francisco: "a una alumna le da por bueno estar
+   matriculada en Economía y en Griego, pero en el cuadro pone Economía O
+   Griego, o sea que hay que elegir una de las dos".
+
+   Hasta hoy la modalidad de Humanidades era un solo grupo de seis materias con
+   "elegir 3". Con esa regla, tres cualesquiera valían: dos del mismo cuadro y
+   ninguna de otro pasaban por buenas. Ahora cada cuadro es su propio grupo, con
+   "elegir 1", así que se comprueba lo que de verdad dice el folleto.
+
+   Lo mismo con las optativas de 1º: son dos bloques y se elige una de cada uno,
+   no dos de un montón de once.
+
+   ESTO CORRIGE UNA DECISIÓN ANTERIOR. El 9-sep-2026 se juntaron los cuadros a
+   propósito, porque mirando la matrícula había alumnos con las dos de un cuadro
+   y ninguna del otro, y se dio por hecho que las parejas eran solo la forma de
+   presentarlas. Era al revés: esos alumnos son justo las matrículas mal puestas
+   que había que encontrar.
+   Regla: cuando los datos contradicen al documento del centro, lo primero que
+   hay que preguntarse es si los datos están mal. */
 
 /* La propuesta de un curso de Bachillerato, sacada de la oferta del centro. */
 function oblOfertaDeCurso_(curso) {

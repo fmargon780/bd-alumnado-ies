@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v61';
+const VERSION_BD = 'BD v62';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -141,8 +141,8 @@ const FORMATO_HOJAS = {
       'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica), ATEDU (Atención Educativa, en la ESO) o PTEV (Proyectos Transversales de Educación en Valores, en Bachillerato).\n\nEn la ESO la alternativa a la Religión es Atención Educativa; en Bachillerato es el Proyecto transversal. Son dos materias distintas y por eso llevan códigos distintos.',
       'MODALIDAD': 'SOLO BACHILLERATO. La modalidad que cursa: Ciencias y Tecnología, o Humanidades y CC. Sociales.\n\nSale del fichero de matrícula en el que aparece el alumno, y por tanto de su grupo: el grupo A es de Ciencias y los grupos B y C son de Humanidades.\n\nEn la ESO esta casilla va vacía, porque allí no hay modalidades.',
       'MAT. MODALIDAD': 'SOLO BACHILLERATO. Las materias de MODALIDAD que cursa, abreviadas.\n\nSon la obligatoria de su modalidad (Matemáticas en Ciencias, Latín en Humanidades) y las que ha elegido del grupo de modalidad.\n\nSi el alumno repite curso, aquí solo salen las que está cursando de verdad: las que ya aprobó no aparecen.\n\nEn la ESO esta casilla va vacía.',
-      'OPTATIVAS': 'SOLO BACHILLERATO. Las optativas que ha elegido, abreviadas. En 1º y en 2º se eligen dos.\n\nSi aquí aparece una materia que no está en la pestaña MATERIAS OBLIGATORIAS, es que la oferta del centro no la recoge: sale también en AVISOS.\n\nEn la ESO esta casilla va vacía: allí la optativa está en la columna OPT.',
-      'MATRÍCULA': 'SOLO BACHILLERATO. Dice si el alumno está bien matriculado en Séneca.\n\nPone OK cuando tiene todas las materias que le tocan. En 1º son diez: 4 comunes, la obligatoria de su modalidad, 2 de modalidad a elegir, 2 optativas y Religión o el Proyecto transversal.\n\nSi no, dice en pocas palabras qué falta o qué sobra: "falta MAT", "faltan 2 de Optativas".\n\nEl reparto sale de la pestaña MATERIAS OBLIGATORIAS, de sus columnas Quién la cursa y Elegir de este grupo. Si una materia deja de ser obligatoria, se corrige allí.\n\nCada alumno con algo que falte deja además una línea en AVISOS.',
+      'OPTATIVAS': 'SOLO BACHILLERATO. Las optativas que ha elegido, abreviadas. En 1º y en 2º se eligen dos.\n\nSi aquí aparece una materia que no está en la pestaña OFERTA, se escribe igualmente para que no se pierda, y sale como "sobra" en la pestaña MATRÍCULA.\n\nEn la ESO esta casilla va vacía: allí la optativa está en la columna OPT.',
+      'MATRÍCULA': 'Dice si la matrícula del alumno en Séneca es la que tiene que ser: las obligatorias de su curso (según la pestaña OFERTA) más lo que ha escrito Jefatura para él, ni una más ni una menos.\n\nPone OK cuando cuadra. Si no, un resumen corto: "falta MAT · sobra CC". Pone "DIV pendiente" cuando la diversificación no cuadra con Jefatura, y "?" cuando no se ha podido comprobar.\n\nEl detalle, con los nombres enteros y el porqué de cada materia, está en la pestaña MATRÍCULA.',
       'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso con su etapa detrás ("2º ESO"), el centro escrito con su nombre entero ("IES Fuente Lucena"), la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? suspensas", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
     },
@@ -216,6 +216,26 @@ const FORMATO_HOJAS = {
       'Curso': [50, 'C'], 'Grupo': [65, 'C'], 'Alumno/a': [200, 'I'],
       'Qué no cuadra': [190, 'W'], 'Séneca dice': [115, 'W'],
       'Jefatura quiere': [115, 'W'], 'Estado': [130, 'C'], 'Observaciones': [220, 'W']
+    }
+  },
+
+  'MATRÍCULA': {
+    cabecera: 2, congelar: 3, manuales: ['Estado', 'Observaciones'], noProteger: [],
+    estado: { columna: 'Estado', opciones: ['Corregido en Séneca', 'No procede'] },
+    notas: {
+      'Curso': 'El nivel del alumno. Las filas van ordenadas por curso, grupo y alumno.',
+      'Grupo': 'Su unidad en Séneca.',
+      'Alumno/a': 'El alumno cuya matrícula no cuadra. Quien cuadra no sale aquí.',
+      'FALTAN en Séneca': 'Materias que el alumno debería tener y no están en Séneca. Hay que darlas de alta.\n\nEntre paréntesis, por qué: "obligatoria" (la cursa todo su curso), "Jefatura, Optativa" (lo ha escrito Jefatura en AGRUPAMIENTOS), o "cuadro de elección" (tiene que elegir una del cuadro y no tiene ninguna).',
+      'SOBRAN en Séneca': 'Materias que el alumno tiene en Séneca y no debería tener. Hay que darlas de baja.\n\nEntre paréntesis, por qué: "Jefatura dice X" (Jefatura ha elegido otra), "cuadro ...: tiene 2 y hay que cursar 1", "no le corresponde" (es de diversificación, o de la otra modalidad) o "no está en la oferta" (no aparece en la pestaña OFERTA para su curso).',
+      'Nota': 'Lo que conviene saber antes de tocar Séneca: si el alumno no está en el fichero de Jefatura, si Jefatura escribe un código que el programa no sabe leer, o si la diversificación no cuadra y hay que resolverla antes.',
+      'Estado': 'AQUÍ ESCRIBES TÚ. Elige del desplegable cuando lo hayas resuelto.\n\nDejarlo en blanco quiere decir que sigue pendiente, y es lo que cuentan el panel y la portada del PDF. La fila se reconoce por curso y alumno, así que la marca no se pierde aunque cambie el detalle.',
+      'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar. No se pierde al actualizar.'
+    },
+    cols: {
+      'Curso': [55, 'C'], 'Grupo': [70, 'C'], 'Alumno/a': [200, 'I'],
+      'FALTAN en Séneca': [260, 'W'], 'SOBRAN en Séneca': [260, 'W'],
+      'Nota': [220, 'W'], 'Estado': [130, 'C'], 'Observaciones': [220, 'W']
     }
   },
 
@@ -331,14 +351,14 @@ const FORMATO_HOJAS = {
 
 /* El orden de las pestañas: primero las de trabajo, después las de consulta.
    Y el color de cada solapa, para distinguir los dos grupos de un vistazo. */
-const FMT_ORDEN = ['RESUMEN', 'ALUMNADO', 'AVISOS', 'AVISOS INFORMES', 'DISCREPANCIAS',
-                   'PRIMARIA', 'SECUNDARIA', 'NEAE', 'JEFATURA', 'HISTORIAL'];
+const FMT_ORDEN = ['RESUMEN', 'ALUMNADO', 'MATRÍCULA', 'AVISOS', 'AVISOS INFORMES', 'DISCREPANCIAS',
+                   'PRIMARIA', 'SECUNDARIA', 'NEAE', 'JEFATURA', 'OFERTA', 'HISTORIAL'];
 const FMT_COLOR_SOLAPA = {
   'RESUMEN': '#1F4E79',                                            // el panel, azul oscuro
   'ALUMNADO': '#2E7D32', 'AVISOS': '#2E7D32',                      // trabajo, verde
-  'AVISOS INFORMES': '#2E7D32', 'DISCREPANCIAS': '#2E7D32',
+  'AVISOS INFORMES': '#2E7D32', 'DISCREPANCIAS': '#2E7D32', 'MATRÍCULA': '#2E7D32',
   'PRIMARIA': '#9E9E9E', 'SECUNDARIA': '#9E9E9E', 'NEAE': '#9E9E9E',
-  'JEFATURA': '#9E9E9E', 'HISTORIAL': '#9E9E9E'                    // consulta, gris
+  'JEFATURA': '#9E9E9E', 'OFERTA': '#9E9E9E', 'HISTORIAL': '#9E9E9E'    // consulta, gris
 };
 
 
@@ -463,9 +483,8 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     siDice('Cursos repetidos en ESO', SIN_DATO, FMT_AMBAR);
     /* Repeticiones de Primaria estimadas por edad: hay que revisarlas a mano. */
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
-    /* BACHILLERATO: la matrícula que no cuadra, en ámbar. Es justo lo que hay
-       que arreglar en Séneca. Una casilla vacía es un alumno de la ESO, y esa
-       no se pinta: si no, se pintarían las 668 filas de la ESO. */
+    /* La matrícula que no cuadra, en ámbar. Es justo lo que hay que arreglar
+       en Séneca. Una casilla vacía no se pinta. */
     const cMatri = fmtColumnaDe_(titulos, 'MATRÍCULA');
     if (cMatri) {
       const letraM = hoja.getRange(1, cMatri).getA1Notation().replace(/[0-9]/g, '');
@@ -509,7 +528,7 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     siDice('Rep. Primaria (expediente)', 'expediente incompleto', FMT_AMBAR);
     siDice('Unidad', 'NO ESTÁ EN ALUMNADO', FMT_ROJO);
   } else if (nombre === 'DISCREPANCIAS' || nombre === 'AVISOS' ||
-             nombre === 'AVISOS INFORMES') {
+             nombre === 'AVISOS INFORMES' || nombre === 'MATRÍCULA') {
     /* En verde lo que ya has marcado. Lo que queda en blanco es lo que falta,
        y es justo lo que cuenta el panel. */
     filaSiMarcada('Estado', FMT_VERDE);
@@ -716,7 +735,7 @@ function formatearHoja_(nombre) {
    Si una pestaña falla, se anota y se sigue con las demás: el formato nunca
    debe tumbar una actualización que ya ha salido bien. */
 function arreglarFormatoDeTodo_() {
-  const orden = ['HISTORIAL', 'ALUMNADO', 'JEFATURA', 'DISCREPANCIAS',
+  const orden = ['HISTORIAL', 'ALUMNADO', 'JEFATURA', 'DISCREPANCIAS', 'MATRÍCULA',
                  'NEAE', 'PRIMARIA', 'SECUNDARIA', 'AVISOS', 'AVISOS INFORMES'];
   let hojas = 0;
   const fallos = [];

@@ -283,6 +283,9 @@ const ABREVIATURAS_BAC = {
   'Psicología': 'PSI', 'Estadística': 'EST',
   'Empresa y Diseño de Modelos de Negocio': 'EDMN', 'Geografía': 'GEO',
   'Historia del Arte': 'HAR', 'Finanzas y Economía': 'FYE',
+  'Electrotecnia': 'ELE', 'Introducción a las Ciencias de la Salud': 'ICS',
+  'Imagen y Sonido': 'IMS', 'Ciencias de la Tierra y del Medio Ambiente': 'CTMA',
+  'Geología y Ciencias Ambientales': 'GEOA',
   'Fundamentos de Administración y Gestión': 'FAG', 'Mitología Clásica': 'MIC'
 };
 

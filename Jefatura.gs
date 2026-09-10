@@ -360,18 +360,24 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
    vuelve a listar Drive si ya se ha mirado antes en esta misma ejecución. */
 function buscarLibroJefatura_() {
   const listas = ficherosPorCarpeta_();
-  let sinConvertir = '';
+  let sinConvertir = '', mejor = null;
   for (let c = 0; c < listas.length; c++) {
     const ficheros = listas[c];
     for (let i = 0; i < ficheros.length; i++) {
       const f = ficheros[i];
       if (normalizar(f.getName()).indexOf(NOMBRE_JEFATURA) === -1) continue;
       if (f.getMimeType() === MimeType.GOOGLE_SHEETS) {
-        return { libro: SpreadsheetApp.openById(f.getId()), nombre: f.getName() };
+        /* SE MIRAN TODOS Y GANA EL MÁS RECIENTE. Antes se cogía el primero que
+           apareciera, y desde que la carpeta tiene estructura (BD v54) eso
+           podía ser la versión vieja, ya ordenada, en vez de la que Jefatura
+           acaba de pasar y todavía está suelta en la carpeta de descargas. */
+        if (!mejor || f.getLastUpdated().getTime() > mejor.getLastUpdated().getTime()) mejor = f;
+        continue;
       }
       sinConvertir = f.getName();
     }
   }
+  if (mejor) return { libro: SpreadsheetApp.openById(mejor.getId()), nombre: mejor.getName() };
   if (sinConvertir) {
     return { aviso: 'He encontrado "' + sinConvertir + '", pero es un Excel sin convertir. ' +
       'Ábrelo en Drive y usa Archivo > Guardar como Hojas de cálculo de Google.' };

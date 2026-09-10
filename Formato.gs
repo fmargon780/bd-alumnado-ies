@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v54';
+const VERSION_BD = 'BD v55';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -138,11 +138,11 @@ const FORMATO_HOJAS = {
       'OPC2': 'Solo en 4º. Segunda opción: FOPP (Formación y Orientación Personal y Profesional), FQ (Física y Química) o LAT (Latín).\n\nLos alumnos de diversificación no cursan esta columna.',
       'OPC3': 'Solo en 4º. Tercera opción: DIG (Digitalización), EA (Expresión Artística) o FR (Francés).',
       'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
-      'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
+      'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica), ATEDU (Atención Educativa, en la ESO) o PTEV (Proyectos Transversales de Educación en Valores, en Bachillerato).\n\nEn la ESO la alternativa a la Religión es Atención Educativa; en Bachillerato es el Proyecto transversal. Son dos materias distintas y por eso llevan códigos distintos.',
       'MODALIDAD': 'SOLO BACHILLERATO. La modalidad que cursa: Ciencias y Tecnología, o Humanidades y CC. Sociales.\n\nSale del fichero de matrícula en el que aparece el alumno, y por tanto de su grupo: el grupo A es de Ciencias y los grupos B y C son de Humanidades.\n\nEn la ESO esta casilla va vacía, porque allí no hay modalidades.',
       'MAT. MODALIDAD': 'SOLO BACHILLERATO. Las materias de MODALIDAD que cursa, abreviadas.\n\nSon la obligatoria de su modalidad (Matemáticas en Ciencias, Latín en Humanidades) y las que ha elegido del grupo de modalidad.\n\nSi el alumno repite curso, aquí solo salen las que está cursando de verdad: las que ya aprobó no aparecen.\n\nEn la ESO esta casilla va vacía.',
       'OPTATIVAS': 'SOLO BACHILLERATO. Las optativas que ha elegido, abreviadas. En 1º y en 2º se eligen dos.\n\nSi aquí aparece una materia que no está en la pestaña MATERIAS OBLIGATORIAS, es que la oferta del centro no la recoge: sale también en AVISOS.\n\nEn la ESO esta casilla va vacía: allí la optativa está en la columna OPT.',
-      'MATRÍCULA': 'SOLO BACHILLERATO. Dice si el alumno está bien matriculado en Séneca.\n\nPone OK cuando tiene todas las materias que le tocan. En 1º son diez: 4 comunes, la obligatoria de su modalidad, 2 de modalidad a elegir, 2 optativas y Religión o Atención Educativa.\n\nSi no, dice en pocas palabras qué falta o qué sobra: "falta MAT", "faltan 2 de Optativas".\n\nEl reparto sale de la pestaña MATERIAS OBLIGATORIAS, de sus columnas Quién la cursa y Elegir de este grupo. Si una materia deja de ser obligatoria, se corrige allí.\n\nCada alumno con algo que falte deja además una línea en AVISOS.',
+      'MATRÍCULA': 'SOLO BACHILLERATO. Dice si el alumno está bien matriculado en Séneca.\n\nPone OK cuando tiene todas las materias que le tocan. En 1º son diez: 4 comunes, la obligatoria de su modalidad, 2 de modalidad a elegir, 2 optativas y Religión o el Proyecto transversal.\n\nSi no, dice en pocas palabras qué falta o qué sobra: "falta MAT", "faltan 2 de Optativas".\n\nEl reparto sale de la pestaña MATERIAS OBLIGATORIAS, de sus columnas Quién la cursa y Elegir de este grupo. Si una materia deja de ser obligatoria, se corrige allí.\n\nCada alumno con algo que falte deja además una línea en AVISOS.',
       'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso con su etapa detrás ("2º ESO"), el centro escrito con su nombre entero ("IES Fuente Lucena"), la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? suspensas", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
     },

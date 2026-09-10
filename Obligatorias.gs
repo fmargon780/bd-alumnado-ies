@@ -233,6 +233,21 @@ function oblLeerTabla_() {
 
 /* Las líneas de un curso que están vigentes este año. */
 function oblVigentes_(filas, curso, ano) {
+  /* LA OFERTA DEL CENTRO MANDA. Si este curso está en las hojas de oferta que
+     publica el centro, se comprueba contra ellas y no contra la pestaña. Lo
+     autorizó Francisco el 10-sep-2026, con el plazo de solicitudes de cambio
+     encima: "si te resulta más sencillo programar toda la lógica de las
+     asignaturas de cada curso sin la pestaña, adelante".
+     La pestaña se sigue escribiendo y se puede seguir mirando, pero ya no es
+     la que decide. Cuando haya tiempo se volverá a juntar todo en un sitio. */
+  const oficial = oblOfertaDeCurso_(curso);
+  if (oficial.length) {
+    return oficial.map(function (o) {
+      return { curso: o.curso, materia: o.materia, quien: o.quien,
+               grupo: o.grupo || '', desde: 0, hasta: 0 };
+    });
+  }
+
   const salida = [];
   for (let i = 0; i < filas.length; i++) {
     const f = filas[i];
@@ -501,6 +516,117 @@ function oblItinerariosDeUnFicheroBac_(tabla, yaObligatorias) {
   return salida;
 }
 
+/*** ========== LA OFERTA DEL CENTRO, CURSO POR CURSO ==========
+ *
+ * DE DÓNDE SALE: de las hojas "OFERTA EDUCATIVA PARA EL CURSO 2026-27" que el
+ * centro publica, una por curso. Francisco las mandó todas el 10-sep-2026.
+ *
+ * POR QUÉ ESTÁ EN EL CÓDIGO Y NO SOLO EN LA PESTAÑA. Hasta hoy la lista de la
+ * ESO no salía de ningún documento: la hizo el programa CONTANDO alumnos, y lo
+ * que cursaba más del 85 % lo daba por obligatorio. Eso no ve los cuadros: un
+ * cuadro donde se elige una de tres no tiene ninguna materia al 85 %, así que
+ * no se comprobaba nada. En 4º nadie se enteraba de si a un alumno le faltaba
+ * la optativa de Andalucía o llevaba dos de OPT 1.
+ * Lo autorizó Francisco: "si te resulta más sencillo programar toda la lógica
+ * de las asignaturas de cada curso sin la pestaña, adelante".
+ *
+ * LOS NOMBRES SON LOS DE SÉNECA, no los del folleto. El folleto escribe
+ * "Formación y Or. PyP" y Séneca "Formación y Orientación Personal y
+ * Profesional"; el folleto pone "PI: Música" y Séneca solo "Música". Se han
+ * tomado del diccionario ABREVIATURAS de Codigo.gs, que se construyó leyendo
+ * los CSV de verdad. Si alguno no cuadra, el programa lo dice en un aviso y no
+ * lo comprueba: nunca se inventa una equivalencia.
+ *
+ * CÓMO SE LEE UNA LÍNEA:
+ *   grupo vacío      -> materia obligatoria.
+ *   grupo con texto  -> de ese grupo se cursa UNA, o las que diga "(elegir N)".
+ *
+ * ======================================================== ***/
+
+/* Las tres respuestas de "Quién la cursa" que se usan en la ESO están arriba:
+   OBL_TODOS, OBL_ORDINARIO (todos menos diversificación) y OBL_DIVER. */
+
+const OPTATIVAS_3 = [
+  'Computación y Robótica', 'Cultura Clásica', 'Cultura del Flamenco',
+  'Filosofía y Argumentación', 'Iniciación a la Actividad Emprendedora',
+  'Oratoria y Debate', 'Francés (Segundo Idioma)',
+  'Laboratorio de Física y Química', 'Música'];
+
+const OPTATIVAS_ANDALUCIA_4 = [
+  'Ampliación de Cultura Clásica', 'Aprendizaje Social y Emocional',
+  'Artes Escénicas y Danza', 'Cultura Científica', 'Dibujo Técnico', 'Filosofía',
+  'Nutrición, Salud y Deporte', 'Prácticas Biológicas'];
+
+const RELIGION_ESO = ['Religión Católica', 'Religión Evangélica', 'Atención Educativa'];
+
+const OFERTA_ESO = {
+  '1º': [
+    { quien: OBL_TODOS, grupo: '', materias: [
+      'Biología y Geología', 'Educación Física', 'Educación Plástica, Visual y Audiovisual',
+      'Geografía e Historia', 'Lengua Castellana y Literatura', 'Matemáticas', 'Música',
+      'Inglés'] },
+    /* El francés es común, salvo para quien da el Área Lingüística de carácter
+       transversal por sus dificultades de comunicación lingüística. Es el mismo
+       par que ya vive en la columna FR -> ALCT de ALUMNADO. */
+    { quien: OBL_TODOS, grupo: 'Francés o Área Lingüística', materias: [
+      'Francés (Segundo Idioma)', 'Área Lingüística de carácter transversal'] },
+    { quien: OBL_TODOS, grupo: 'Optativa', materias: [
+      'Computación y Robótica', 'Cultura Clásica', 'Oratoria y Debate',
+      'Music, theatre and games for English'] },
+    { quien: OBL_TODOS, grupo: 'Religión o Atención Educativa', materias: RELIGION_ESO }
+  ],
+
+  '2º': [
+    { quien: OBL_TODOS, grupo: '', materias: [
+      'Educación Física', 'Física y Química', 'Geografía e Historia',
+      'Lengua Castellana y Literatura', 'Matemáticas', 'Música', 'Inglés',
+      'Tecnología y Digitalización', 'Educación en Valores Cívicos y Éticos'] },
+    { quien: OBL_TODOS, grupo: 'Optativa', materias: [
+      'Computación y Robótica', 'Cultura Clásica', 'Oratoria y Debate',
+      'Proyecto de Educación Plástica y Audiovisual', 'Francés (Segundo Idioma)',
+      'Matemáticas en acción'] },
+    { quien: OBL_TODOS, grupo: 'Religión o Atención Educativa', materias: RELIGION_ESO }
+  ],
+
+  '3º': [
+    { quien: OBL_ORDINARIO, grupo: '', materias: [
+      'Biología y Geología', 'Educación Física', 'Educación Plástica, Visual y Audiovisual',
+      'Física y Química', 'Geografía e Historia', 'Lengua Castellana y Literatura',
+      'Matemáticas', 'Inglés', 'Tecnología y Digitalización'] },
+    /* La diversificación no cursa las materias sueltas: cursa los dos Ámbitos. */
+    { quien: OBL_DIVER, grupo: '', materias: [
+      'Ámbito Científico-Tecnológico', 'Ámbito Lingüístico y Social', 'Educación Física',
+      'Educación Plástica, Visual y Audiovisual', 'Tecnología y Digitalización'] },
+    { quien: OBL_ORDINARIO, grupo: 'Optativa', materias: OPTATIVAS_3 },
+    { quien: OBL_DIVER, grupo: 'Optativas de diversificación (elegir 2)', materias: OPTATIVAS_3 },
+    { quien: OBL_TODOS, grupo: 'Religión o Atención Educativa', materias: RELIGION_ESO }
+  ],
+
+  '4º': [
+    { quien: OBL_ORDINARIO, grupo: '', materias: [
+      'Educación Física', 'Geografía e Historia', 'Lengua Castellana y Literatura', 'Inglés'] },
+    { quien: OBL_ORDINARIO, grupo: 'Matemáticas A o Matemáticas B', materias: [
+      'Matemáticas A', 'Matemáticas B'] },
+    { quien: OBL_ORDINARIO, grupo: 'OPT 1', materias: [
+      'Física y Química', 'Latín', 'Formación y Orientación Personal y Profesional'] },
+    { quien: OBL_ORDINARIO, grupo: 'OPT 2', materias: [
+      'Biología y Geología', 'Economía y Emprendimiento', 'Tecnología'] },
+    { quien: OBL_ORDINARIO, grupo: 'Optativa 3', materias: [
+      'Digitalización', 'Expresión Artística', 'Música', 'Francés (Segundo Idioma)'] },
+
+    { quien: OBL_DIVER, grupo: '', materias: [
+      'Ámbito Científico-Tecnológico', 'Ámbito Lingüístico y Social', 'Educación Física'] },
+    { quien: OBL_DIVER, grupo: 'Optativas de diversificación (elegir 2)', materias: [
+      'Digitalización', 'Economía y Emprendimiento', 'Expresión Artística',
+      'Formación y Orientación Personal y Profesional', 'Latín', 'Música',
+      'Francés (Segundo Idioma)', 'Tecnología'] },
+
+    /* La optativa de Andalucía la eligen todos, de diversificación o no. */
+    { quien: OBL_TODOS, grupo: 'Optativa de Andalucía', materias: OPTATIVAS_ANDALUCIA_4 },
+    { quien: OBL_TODOS, grupo: 'Religión o Atención Educativa', materias: RELIGION_ESO }
+  ]
+};
+
 /*** ========== LA OFERTA DE BACHILLERATO DEL CENTRO ========== ***/
 
 /* De dónde sale esto: del documento "Oferta educativa para el curso 2026-27"
@@ -615,7 +741,7 @@ const OFERTA_BACHILLERATO = {
 
 /* La propuesta de un curso de Bachillerato, sacada de la oferta del centro. */
 function oblOfertaDeCurso_(curso) {
-  const bloques = OFERTA_BACHILLERATO[curso];
+  const bloques = OFERTA_ESO[curso] || OFERTA_BACHILLERATO[curso];
   if (!bloques) return [];
   const propuesta = [];
   for (let i = 0; i < bloques.length; i++) {
@@ -751,41 +877,71 @@ function oblAvisosDeCurso_(tabla, curso, vigentes) {
   const G = oblAlumnos_(tabla, C);
   const todos = G.orden.concat(G.diver);
 
-  /* Cada línea de la tabla, con la columna del CSV donde se mira. */
+  /* Cada línea de la oferta, con la columna del CSV donde se mira. */
   const lista = [], sinColumna = [];
   for (let i = 0; i < vigentes.length; i++) {
     const v = vigentes[i];
     const c = C.cabN.indexOf(normalizar(v.materia));
-    if (c === -1) { sinColumna.push(v.materia); continue; }
-    lista.push({ col: c, materia: v.materia, quien: oblQuien_(v.quien) });
+    if (c === -1) { if (sinColumna.indexOf(v.materia) === -1) sinColumna.push(v.materia); continue; }
+    lista.push({ col: c, materia: v.materia, quien: oblQuien_(v.quien), grupo: v.grupo || '' });
   }
 
-  /* Si una materia de la tabla no está en el CSV, casi siempre es que Séneca le
-     ha cambiado el nombre. Se avisa una vez, no una por alumno. */
+  /* Una materia que la oferta nombra y el CSV no trae no se comprueba. Casi
+     siempre es que Séneca la escribe de otra manera. Se dice una vez por curso,
+     con los nombres tal y como están, para poder corregirlos. */
   if (sinColumna.length) {
     avisos.push({ curso: curso, grupo: '', alumno: '',
-      aviso: 'Materia obligatoria que Séneca no trae',
-      detalle: 'En la pestaña "' + HOJA_OBLIGATORIAS + '", el curso ' + curso + ' tiene: ' +
-        sinColumna.join(', ') + '. El fichero de matrícula no trae ninguna columna que se llame ' +
-        'exactamente así, y por eso no se ha comprobado. Corrige el nombre en la pestaña.' });
+      aviso: 'Materias que la oferta nombra y Séneca no trae',
+      detalle: 'En ' + curso + ': ' + sinColumna.join(', ') + '. El fichero de matrícula no ' +
+        'tiene ninguna columna que se llame exactamente así, y por eso no se comprueban. ' +
+        'Si alguna de estas la cursa alguien de verdad, dime cómo la llama Séneca.' });
   }
 
+  /* UNA SOLA LÍNEA POR ALUMNO. Antes salía una por cada materia obligatoria que
+     faltara, y además no se miraban los cuadros de elección. Ahora se cuenta lo
+     mismo que en Bachillerato: las obligatorias una a una, y de cada cuadro las
+     que diga, ni más ni menos. */
   for (let a = 0; a < todos.length; a++) {
     const alumno = todos[a];
-    const faltan = [];
+    const faltan = [], grupos = {}, orden = [];
     for (let i = 0; i < lista.length; i++) {
       const m = lista[i];
       if (alumno.diver && m.quien === 'ordinario') continue;
       if (!alumno.diver && m.quien === 'diver') continue;
-      if (!oblMatriculado_(alumno.fila[m.col])) faltan.push(m.materia);
+      if (!m.grupo) {
+        if (!oblMatriculado_(alumno.fila[m.col])) faltan.push(m.materia);
+        continue;
+      }
+      if (!grupos[m.grupo]) {
+        grupos[m.grupo] = { cuantas: oblCuantasDelGrupo_(m.grupo), n: 0, materias: [] };
+        orden.push(m.grupo);
+      }
+      grupos[m.grupo].materias.push(m.materia);
+      if (oblMatriculado_(alumno.fila[m.col])) grupos[m.grupo].n++;
     }
-    if (!faltan.length) continue;
+
+    const corto = [], largo = [];
+    if (faltan.length) {
+      corto.push((faltan.length === 1 ? 'falta ' : 'faltan ') +
+                 faltan.map(function (x) { return abreviar(x); }).join(', '));
+      largo.push('No está matriculado en: ' + faltan.join(', ') + '.');
+    }
+    for (let k = 0; k < orden.length; k++) {
+      const g = orden[k], Gr = grupos[g];
+      if (!Gr.materias.length || Gr.n === Gr.cuantas) continue;
+      const nombre = String(g).split('(')[0].trim();
+      const d = Gr.cuantas - Gr.n;
+      if (d > 0) corto.push(d === 1 ? 'falta 1 de ' + nombre : 'faltan ' + d + ' de ' + nombre);
+      else corto.push(-d === 1 ? 'sobra 1 de ' + nombre : 'sobran ' + (-d) + ' de ' + nombre);
+      largo.push('De "' + g + '" (' + Gr.materias.join(', ') + ') tiene ' + Gr.n +
+                 ' y hay que cursar ' + Gr.cuantas + '.');
+    }
+    if (!corto.length) continue;
+
     avisos.push({ curso: curso, grupo: alumno.unidad, alumno: alumno.nombre,
-      aviso: 'Le faltan materias obligatorias en Séneca',
-      detalle: 'No está matriculado en: ' + faltan.join(', ') + '. ' +
-        (alumno.diver ? 'Es alumnado de diversificación. ' : '') +
-        'Compruébalo en Séneca, o corrige la pestaña "' + HOJA_OBLIGATORIAS +
-        '" si esa materia ya no es obligatoria.' });
+      aviso: 'Matrícula incompleta en Séneca: ' + corto.join(' · '),
+      detalle: largo.join(' ') + (alumno.diver ? ' Es alumnado de diversificación.' : '') +
+        ' Compruébalo en Séneca.' });
   }
   return avisos;
 }

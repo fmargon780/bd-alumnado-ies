@@ -1,5 +1,0 @@
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-  texto = texto.replace(/^﻿/, '');
-  if (texto.indexOf('�') !== -1) texto = blob.getDataAsString('ISO-8859-1');
-  texto = texto.replace(/^﻿/, '');
-  if (texto.indexOf('�') !== -1) texto = blob.getDataAsString('ISO-8859-1');

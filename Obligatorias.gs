@@ -907,6 +907,38 @@ function comprobarObligatorias_() {
 
   const ano = oblAnoActual_();
   let avisos = [];
+
+  /* EL VOCABULARIO DE SÉNECA, TAL CUAL (10-sep-2026).
+
+     Para escribir la pestaña MATERIAS OBLIGATORIAS desde las hojas de oferta
+     del centro hace falta saber cómo llama SÉNECA a cada materia, que no es
+     como las llama el folleto: el folleto dice "PI: Música" y Séneca escribirá
+     otra cosa. Adivinarlo es justo lo que no se debe hacer.
+
+     Así que el programa lo dice: una línea por curso con los títulos de las
+     columnas de su CSV, tal y como vienen. Es una fila de AVISOS con su casilla
+     Estado, así que se marca "No procede" y no vuelve a molestar. */
+  const vocabulario = function (curso, tabla, apellido) {
+    if (!tabla || !tabla.length) return;
+    const C = oblColumnas_(tabla);
+    const nombres = [];
+    for (let c = 0; c < tabla[0].length; c++) {
+      if (c === C.iNombre || c === C.iUnidad) continue;
+      const t = String(tabla[0][c] || '').trim();
+      if (t && nombres.indexOf(t) === -1) nombres.push(t);
+    }
+    if (!nombres.length) return;
+    avisos.push({ curso: curso, grupo: apellido || '', alumno: '',
+      aviso: 'Materias que trae el fichero de ' + curso + (apellido ? ' (' + apellido + ')' : ''),
+      detalle: nombres.length + ' columnas · ' + nombres.join(' · ') });
+  };
+  for (let i = 0; i < cursos.length; i++) vocabulario(cursos[i], tablas[cursos[i]], '');
+  for (let i = 0; i < cursosBac.length; i++) {
+    const lista = bacPorCurso[cursosBac[i]];
+    for (let j = 0; j < lista.length; j++) {
+      vocabulario(cursosBac[i], lista[j].tabla, lista[j].modalidad);
+    }
+  }
   if (avisosViejos.length) {
     avisos.push({ curso: '', grupo: '', alumno: '',
       aviso: 'Hay que rehacer las materias de Bachillerato de la pestaña',

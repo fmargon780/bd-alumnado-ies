@@ -243,7 +243,7 @@ function leerMatriculaBac_(tabla, cursoPorDefecto, modalidad) {
     if (!unidad) sinUnidad.push(nombre);
     const curso = cursoDeUnidadBac_(unidad, cursoPorDefecto);
 
-    const columnas = {}, tiene = {}, pend = [], aprobadas = [];
+    const columnas = {}, tiene = {}, aprobada = {}, pend = [], aprobadas = [];
     for (let c = 0; c < C.clase.length; c++) {
       const k = C.clase[c];
       if (!k) continue;
@@ -257,11 +257,16 @@ function leerMatriculaBac_(tabla, cursoPorDefecto, modalidad) {
       }
       if (!celdaMatriculada_(valor)) continue;
       const l = k.lineas.length ? k.lineas[0] : null;
-      tiene[l ? normalizar(l.materia) : normalizar(k.titulo)] = l ? l.materia : k.titulo;
+      const nm = l ? normalizar(l.materia) : normalizar(k.titulo);
+      tiene[nm] = l ? l.materia : k.titulo;
       /* Una materia APRO ya la tiene aprobada de cuando repitió: cuenta para
-         comprobar la matrícula, pero este año no la cursa, así que no se
-         escribe en el papel. */
-      if (valor === MARCA_APROBADA) { aprobadas.push(l ? l.abrev : abreviarBac_(k.titulo)); continue; }
+         comprobar la matrícula (nunca "falta" ni "sobra"), pero este año no
+         la cursa, así que no se escribe en el papel. */
+      if (valor === MARCA_APROBADA) {
+        aprobada[nm] = true;
+        aprobadas.push(l ? l.abrev : abreviarBac_(k.titulo));
+        continue;
+      }
       const columna = l ? (l.columna || '') : 'OPTATIVAS';
       if (!columna) continue;
       if (!columnas[columna]) columnas[columna] = [];
@@ -278,7 +283,7 @@ function leerMatriculaBac_(tabla, cursoPorDefecto, modalidad) {
       valores: { 'REL/Atedu': (columnas['REL/Atedu'] || []).join(' / '), 'MODALIDAD': modalidad,
                  'MAT. MODALIDAD': (columnas['MAT. MODALIDAD'] || []).join(' '),
                  'OPTATIVAS': (columnas['OPTATIVAS'] || []).join(' ') },
-      pend: pend, repiteBac: repite, tiene: tiene, existe: existe, modalidad: modalidad
+      pend: pend, repiteBac: repite, tiene: tiene, aprobada: aprobada, existe: existe, modalidad: modalidad
     });
   }
   const avisoNombres = avisoNombresDeMaterias_(cursoPorDefecto, modalidad, C, tabla, celdaMatriculada_);

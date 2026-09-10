@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v61';
+const VERSION = 'BD v62';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -79,47 +79,12 @@ const ETAPA_ACTUAL = 'ESO';
  * ======================================================== ***/
 const SIN_DATO = '?';
 
-const REGLAS = {
-  '1º': [
-    { titulo: 'OPT', codigos: { 'Oratoria y Debate': 'OyD', 'Computación y Robótica': 'CyR',
-        'Music, theatre and games for English': 'MTGE' } },
-    /* En 1º todo el alumnado cursa una de las dos: o Francés (Segundo Idioma),
-       o el Área Lingüística de carácter transversal, que es la alternativa de
-       quien está exento de francés. Se leen las dos columnas del CSV, así que
-       la casilla deja de poder quedarse vacía: si se queda, es un aviso. */
-    { titulo: 'FR -> ALCT', codigos: { 'Francés (Segundo Idioma)': 'FR',
-        'Área Lingüística de carácter transversal': 'ALCT' } },
-    { titulo: 'REL/Atedu', codigos: { 'Religión Católica': 'CAT', 'Religión Evangélica': 'EVA',
-        'Atención Educativa': 'ATEDU' } }
-  ],
-  '2º': [
-    { titulo: 'OPT', codigos: { 'Oratoria y Debate': 'OyD', 'Computación y Robótica': 'CyR',
-        'Proyecto de Educación Plástica y Audiovisual': 'PEPA', 'Francés (Segundo Idioma)': 'FR' } },
-    { titulo: 'REL/Atedu', codigos: { 'Religión Católica': 'CAT', 'Religión Evangélica': 'EVA',
-        'Atención Educativa': 'ATEDU' } }
-  ],
-  '3º': [
-    { titulo: 'OPT', codigos: { 'Computación y Robótica': 'CyR', 'Francés (Segundo Idioma)': 'FR',
-        'Oratoria y Debate': 'OyD', 'Laboratorio de Física y Química': 'LAB', 'Cultura Clásica': 'CC',
-        'Música': 'MUS' } },
-    { titulo: 'REL/Atedu', codigos: { 'Religión Católica': 'CAT', 'Religión Evangélica': 'EVA',
-        'Atención Educativa': 'ATEDU' } }
-  ],
-  '4º': [
-    { titulo: 'MAT', codigos: { 'Matemáticas A': 'MatA', 'Matemáticas B': 'MatB',
-        'Ámbito Científico-Tecnológico': 'ÁMB' } },
-    { titulo: 'OPC1', sinAmbitos: true, codigos: { 'Economía y Emprendimiento': 'ECO',
-        'Tecnología': 'TEC', 'Biología y Geología': 'BYG' } },
-    { titulo: 'OPC2', sinAmbitos: true, codigos: { 'Formación y Orientación Personal y Profesional': 'FOPP',
-        'Física y Química': 'FQ', 'Latín': 'LAT' } },
-    { titulo: 'OPC3', codigos: { 'Digitalización': 'DIG', 'Expresión Artística': 'EA',
-        'Francés (Segundo Idioma)': 'FR' } },
-    { titulo: 'OPC4', codigos: { 'Nutrición, Salud y Deporte': 'NSD', 'Prácticas Biológicas': 'PB',
-        'Dibujo Técnico': 'DT', 'Aprendizaje Social y Emocional': 'ASE' } },
-    { titulo: 'REL/Atedu', codigos: { 'Religión Católica': 'CAT', 'Religión Evangélica': 'EVA',
-        'Atención Educativa': 'ATEDU' } }
-  ]
-};
+/* LAS REGLAS DE LAS MATERIAS ELEGIBLES YA NO ESTÁN AQUÍ (BD v62). Hasta la
+   BD v61 había aquí una lista REGLAS, escrita a mano, con las optativas de
+   cada curso y en qué columna de ALUMNADO iban. Era la tercera lista de
+   materias del programa, y ya no coincidía con las otras dos. Ahora hay una
+   sola: la pestaña OFERTA, que lee Matricula.gs. Ver leerMatricula. */
+
 
 const ABREVIATURAS = {
   'Biología y Geología': 'BYG', 'Educación Física': 'EFI',
@@ -449,20 +414,23 @@ function calcularHistorial(tabla) {
 
 /*** ================= LÓGICA: MATRÍCULA ================= ***/
 function leerMatricula(tabla, curso) {
-  const reglas = REGLAS[curso];
   const cab = tabla[0].map(function (t) { return String(t).trim(); });
   const cabN = cab.map(normalizar);
-  const faltan = [];
+  const iNombre = cabN.indexOf(normalizar('Alumno/a'));
+  const iUnidad = cabN.indexOf(normalizar('Unidad'));
+  const iAmb = cabN.indexOf(normalizar(COL_AMBITOS));
 
-  const columnas = reglas.map(function (regla) {
-    const pares = [];
-    for (const asig in regla.codigos) {
-      const i = cabN.indexOf(normalizar(asig));
-      if (i === -1) faltan.push(regla.titulo + ' / ' + asig);
-      else pares.push({ i: i, codigo: regla.codigos[asig] });
-    }
-    return pares;
-  });
+  /* Qué es cada columna: una materia de este curso (con su línea de la
+     pestaña OFERTA, si la tiene), una pendiente de un curso anterior, o nada.
+     Ver clasificarColumnas_ en Matricula.gs. */
+  const C = clasificarColumnas_(cab, curso, iNombre, iUnidad);
+  const existe = {};
+  let conColumna = 0;
+  for (let c = 0; c < C.clase.length; c++) {
+    const k = C.clase[c];
+    if (!k || k.tipo !== 'MATERIA') continue;
+    if (k.lineas.length) { existe[normalizar(k.lineas[0].materia)] = true; conColumna++; }
+  }
 
   const pendCols = [];
   for (let c = 0; c < cab.length; c++) {
@@ -470,11 +438,7 @@ function leerMatricula(tabla, curso) {
     if (m) pendCols.push({ i: c, asig: m[1].trim(), niv: m[2] });
   }
 
-  const iNombre = cabN.indexOf(normalizar('Alumno/a'));
-  const iUnidad = cabN.indexOf(normalizar('Unidad'));
-  const iAmb = cabN.indexOf(normalizar(COL_AMBITOS));
-  const alumnos = [], sinUnidad = [], dobles = [];
-
+  const alumnos = [], sinUnidad = [];
   for (let f = 1; f < tabla.length; f++) {
     const fila = tabla[f];
     const nombre = String(fila[iNombre] || '').trim();
@@ -483,16 +447,20 @@ function leerMatricula(tabla, curso) {
     if (!unidad) sinUnidad.push(nombre);
     const esAmb = iAmb !== -1 && String(fila[iAmb] || '').trim().toUpperCase() === MARCA;
 
-    const valores = {};
-    for (let k = 0; k < reglas.length; k++) {
-      if (reglas[k].sinAmbitos && esAmb) { valores[reglas[k].titulo] = ''; continue; }
-      const cods = [];
-      for (let p = 0; p < columnas[k].length; p++) {
-        const par = columnas[k][p];
-        if (String(fila[par.i] || '').trim().toUpperCase() === MARCA) cods.push(par.codigo);
+    /* Lo que tiene en Séneca, y en qué columna de ALUMNADO se enseña cada
+       cosa. 'tiene' guarda el título del CSV, para poder escribirlo si la
+       materia no está en la oferta. */
+    const valores = {}, tiene = {};
+    for (let c = 0; c < C.clase.length; c++) {
+      const k = C.clase[c];
+      if (!k || k.tipo !== 'MATERIA') continue;
+      if (!celdaMatriculada_(fila[c])) continue;
+      const l = k.lineas.length ? k.lineas[0] : null;
+      const clave = l ? normalizar(l.materia) : normalizar(k.titulo);
+      tiene[clave] = l ? l.materia : k.titulo;
+      if (l && l.columna) {
+        valores[l.columna] = valores[l.columna] ? valores[l.columna] + ' / ' + l.abrev : l.abrev;
       }
-      if (cods.length > 1) dobles.push(nombre + ' (' + unidad + ') ' + reglas[k].titulo + ' = ' + cods.join(' / '));
-      valores[reglas[k].titulo] = cods.join(' / ');
     }
 
     const pend = [];
@@ -503,9 +471,11 @@ function leerMatricula(tabla, curso) {
       }
     }
     alumnos.push({ nombre: nombre, unidad: unidad, curso: curso, valores: valores,
-                   pend: pend, diver: esAmb });
+                   pend: pend, diver: esAmb, tiene: tiene, existe: existe, modalidad: '' });
   }
-  return { alumnos: alumnos, sinUnidad: sinUnidad, dobles: dobles, faltan: faltan };
+  const avisoNombres = avisoNombresDeMaterias_(curso, '', C, tabla, celdaMatriculada_);
+  return { alumnos: alumnos, sinUnidad: sinUnidad, conColumna: conColumna,
+           avisoNombres: avisoNombres };
 }
 
 /*** ================= LÓGICA: NOTAS ================= ***/
@@ -768,18 +738,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
     const ka = a.unidad + ' ' + normalizar(a.nombre), kb = b.unidad + ' ' + normalizar(b.nombre);
     return ka < kb ? -1 : (ka > kb ? 1 : 0);
   });
-
-  /* En 1º nadie puede quedarse sin idioma: o Francés o el Área Lingüística.
-     Si esa columna faltara en el CSV, todos saldrían vacíos y AVISOS se
-     llenaría de ruido. Por eso solo se avisa cuando al menos un alumno de 1º
-     sí lo tiene puesto, que es la señal de que la columna se ha leído bien. */
-  let hayIdiomaEn1 = false;
-  for (let i = 0; i < todos.length; i++) {
-    if (todos[i].curso === '1º' && (todos[i].valores['FR -> ALCT'] || '') !== '') {
-      hayIdiomaEn1 = true;
-      break;
-    }
-  }
 
   for (let i = 0; i < todos.length; i++) {
     const a = todos[i];
@@ -1132,12 +1090,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       avisos.push({ curso: a.curso, grupo: '', alumno: a.nombre, aviso: 'Sin unidad asignada',
         detalle: 'No aparecerá en ningún informe de grupo' });
     }
-    if (a.curso === '1º' && hayIdiomaEn1 && !(v['FR -> ALCT'] || '')) {
-      avisos.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
-        aviso: 'Sin Francés ni Área Lingüística',
-        detalle: 'En 1º todo el alumnado tiene que estar matriculado en Francés (Segundo Idioma) ' +
-                 'o en Área Lingüística de carácter transversal. En Séneca no tiene ninguna de las dos.' });
-    }
 
     /* Las pendientes. En 2º, 3º y 4º salen de las columnas PEND del CSV de
        Séneca, que están siempre: una casilla vacía ahí quiere decir que el
@@ -1241,6 +1193,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'OPC3': v['OPC3'] || '',
       'OPC4': v['OPC4'] || '',
       'REL/Atedu': v['REL/Atedu'] || '',
+      'MATRÍCULA': v['MATRÍCULA'] || '',
       'Nº pendientes': pend.length ? pend.length : '',
       'Asignaturas pendientes': pendTexto,
       'Edad a 31/12': edad,
@@ -1599,23 +1552,12 @@ function construirAlumnado() {
     porCurso[curso] = r.alumnos;
     resumen.push(curso + ' ESO: ' + r.alumnos.length + ' alumnos (' + ficheros[curso].getName() + ')');
 
-    /* Cuántas asignaturas esperábamos encontrar en el CSV de este curso, y
-       cuántas hemos encontrado de verdad. */
-    let esperadas = 0;
-    const reglasCurso = REGLAS[curso] || [];
-    for (let k = 0; k < reglasCurso.length; k++) {
-      esperadas += Object.keys(reglasCurso[k].codigos).length;
-    }
-    if (esperadas > 0 && r.faltan.length >= esperadas) {
+    /* Si en el CSV no aparece NINGUNA materia de la oferta de este curso, ese
+       fichero no es el informe de matrícula. */
+    if (!r.conColumna) {
       ficherosSinMaterias.push(curso + ' ESO (' + ficheros[curso].getName() + ')');
     }
-
-    r.faltan.forEach(function (t) {
-      avisos.push({ curso: curso, grupo: '', alumno: '', aviso: 'Asignatura no encontrada en el CSV', detalle: t });
-    });
-    r.dobles.forEach(function (t) {
-      avisos.push({ curso: curso, grupo: '', alumno: '', aviso: 'Dos opciones a la vez', detalle: t });
-    });
+    if (r.avisoNombres) avisos.push(r.avisoNombres);
   }
 
   /* PARADA DE SEGURIDAD. Si en el CSV de un curso no aparece NINGUNA de sus
@@ -1691,6 +1633,25 @@ function construirAlumnado() {
   for (let i = 0; i < S.avisos.length; i++) avisos.push(S.avisos[i]);
   for (let i = 0; i < P.avisos.length; i++) avisos.push(P.avisos[i]);
 
+  /* LA MATRÍCULA, COMPROBADA. Una sola cuenta por alumno: lo que debe tener
+     según la oferta del centro y lo que quiere Jefatura, contra lo que tiene
+     en Séneca. Deja en cada alumno su columna MATRÍCULA y devuelve las filas
+     de la pestaña MATRÍCULA. Ver Matricula.gs. */
+  const cursosJef = {};
+  for (let i = 0; i < J.alumnos.length; i++) if (J.alumnos[i].curso) cursosJef[J.alumnos[i].curso] = true;
+  let M = { filas: [], eso: 0, bac: 0 };
+  try { M = comprobarMatriculas_(porCurso, jefPorNombre, cursosJef); }
+  catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
+    aviso: 'No he podido comprobar las matrículas', detalle: e.message }); }
+  try {
+    if (leerOferta_().sembrada) {
+      avisos.push({ curso: '', grupo: '', alumno: '', aviso: 'He escrito la pestaña OFERTA',
+        detalle: 'Es la única lista de materias del sistema, sacada de las hojas de oferta educativa ' +
+          'del centro. Repásala: a partir de ahora manda lo que ponga ahí. La pestaña MATERIAS ' +
+          'OBLIGATORIAS ya no se usa y se puede borrar.' });
+    }
+  } catch (e) { /* si no se puede mirar, no pasa nada */ }
+
   const manuales = leerManualesAlumnado(libro);
   const R = componerAlumnado(porCurso, historial, notas, manuales, jefPorNombre, N.porNombre,
                              P.porNombre, S.porNombre);
@@ -1763,6 +1724,9 @@ function construirAlumnado() {
   for (let c = 0; c < TITULOS_ALUMNADO.length; c++) idxAlum[normalizar(TITULOS_ALUMNADO[c])] = c;
   const discrepancias = J.alumnos.length ? compararJefatura_(R.filas, idxAlum, J.alumnos) : [];
   const nDiscrep = escribirDiscrepancias_(discrepancias, J.nombre);
+  let nMatric = 0;
+  try { nMatric = escribirMatricula_(M.filas); }
+  catch (e) { /* la pestaña se queda como estaba; el aviso ya está arriba */ }
 
   const iPil = TITULOS_ALUMNADO.indexOf('PIL');
   const iNoPodra = TITULOS_ALUMNADO.indexOf('No podrá repetir este curso');
@@ -1866,8 +1830,11 @@ function construirAlumnado() {
                 '" porque no aparecen en las notas: ' + sinNotas : '') +
     '\n\nFichero de Jefatura: ' + (J.nombre || 'no encontrado') +
     '\nAlumnos leídos de Jefatura: ' + J.alumnos.length +
-    '\nDiferencias con Séneca: ' + nDiscrep +
+    '\nDiferencias de personas y grupos con Séneca: ' + nDiscrep +
     (nDiscrep ? '\nMíralas en la pestaña "' + HOJA_DISCREP + '".' : '') +
+    '\n\nMATRÍCULAS QUE NO CUADRAN EN SÉNECA: ' + nMatric +
+    ' (ESO ' + M.eso + ' · Bachillerato ' + M.bac + ')' +
+    (nMatric ? '\nMíralas en la pestaña "' + HOJA_MATRICULA + '": qué falta y qué sobra, alumno por alumno.' : '') +
     '\n\nAvisos anotados: ' + avisos.length);
 
   /* Se ha llegado al final: las pestañas están escritas. Quien la llama

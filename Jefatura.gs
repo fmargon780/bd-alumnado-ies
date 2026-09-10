@@ -9,7 +9,9 @@
  *
  * Este fichero hace dos cosas:
  *   1. Lee ese cuaderno y lo vuelca en la pestaña JEFATURA.
- *   2. Lo compara con lo que dice Séneca y escribe la pestaña DISCREPANCIAS.
+ *   2. Compara PERSONAS Y GRUPOS con Séneca y escribe la pestaña DISCREPANCIAS.
+ *      Las materias (optativa, religión, modalidad...) las compara Matricula.gs
+ *      desde la BD v62, en la pestaña MATRÍCULA.
  *
  * El cuaderno se localiza POR SU NOMBRE: tiene que ser un cuaderno de
  * Google Sheets cuyo nombre contenga la palabra AGRUPAMIENTOS.
@@ -24,18 +26,32 @@ const TITULOS_JEFATURA = ['Alumno/a', 'Unidad', 'Curso', 'Grupo de origen', 'REL
   'OPT 2 (DIV)', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'FR -> ALCT',
   'Repite', 'PIL', 'Conflictivo', 'NEAE', 'Diversificación'];
 
-/* Los códigos de Jefatura no son los mismos que los nuestros. */
-const TRAD_JEFATURA = {
-  'REL': 'CAT', 'REV': 'EVA', 'ATEDU': 'ATEDU',
-  'CYR': 'CyR', 'OYD': 'OyD', 'MTGE': 'MTGE', 'FR2': 'FR', 'FRA2': 'FR',
-  'PEPA': 'PEPA', 'LFQ': 'LAB', 'MUS': 'MUS', 'CC': 'CC',
-  'MATA': 'MatA', 'MATB': 'MatB',
-  'ECE': 'ECO', 'TEC': 'TEC', 'BYG': 'BYG',
-  'FOP': 'FOPP', 'FYQ': 'FQ', 'LAT': 'LAT',
-  'DIG': 'DIG', 'EAR': 'EA',
-  'NSD': 'NSD', 'PB': 'PB', 'DBT': 'DT', 'ASE': 'ASE',
-  'ALCT': 'ALCT'
-};
+/* LOS CÓDIGOS DE JEFATURA NO SON LOS NUESTROS, y la tabla que los traduce ya
+   no está escrita aquí (BD v62): sale de la pestaña OFERTA, columnas
+   "Código de Jefatura" y "Abreviatura". Así hay una sola lista de materias
+   en todo el programa. Se construye una vez por ejecución. */
+let CACHE_TRAD_JEFATURA_ = null;
+function tablaTraduccionJefatura_() {
+  if (CACHE_TRAD_JEFATURA_) return CACHE_TRAD_JEFATURA_;
+  const tabla = {};
+  try {
+    const O = leerOferta_();
+    for (const curso in O.porCurso) {
+      const lineas = O.porCurso[curso];
+      for (let i = 0; i < lineas.length; i++) {
+        const abrev = lineas[i].abrev;
+        if (!abrev) continue;
+        tabla[codigoJef_(abrev)] = abrev;
+        for (let k = 0; k < lineas[i].jef.length; k++) {
+          const c = codigoJef_(lineas[i].jef[k]);
+          if (c && tabla[c] === undefined) tabla[c] = abrev;
+        }
+      }
+    }
+  } catch (e) { /* sin oferta, los códigos se dejan como vienen */ }
+  CACHE_TRAD_JEFATURA_ = tabla;
+  return tabla;
+}
 
 /* Texto suelto que Jefatura escribe en cualquier celda de la fila. */
 const MARCAS_JEFATURA = { 'REP': 'repite', 'PIL': 'pil', 'CONF': 'conflictivo',
@@ -53,15 +69,8 @@ function codigoJef_(v) {
 function traducirJef_(v) {
   const c = codigoJef_(v);
   if (!c) return '';
-  return TRAD_JEFATURA[c] === undefined ? c : TRAD_JEFATURA[c];
-}
-
-/* Compara códigos sin que importe el orden ni los espacios: "CYR / MUS" y
-   "MUS / CYR" son lo mismo. Hace falta para los alumnos de diversificación de
-   3º, que llevan dos optativas en la misma casilla. */
-function juegoJef_(v) {
-  return codigoJef_(v).split('/').map(function (x) { return x.trim(); })
-    .filter(function (x) { return x; }).sort().join(' / ');
+  const tabla = tablaTraduccionJefatura_();
+  return tabla[c] === undefined ? c : tabla[c];
 }
 
 /* ¿Es esto el rótulo de un grupo de ESO? Devuelve "1º ESO A" o ''.
@@ -128,46 +137,6 @@ function huecosJefatura_(titulos, nivel) {
   return h;
 }
 
-/*** ========== LOS CÓDIGOS DE BACHILLERATO DE JEFATURA ========== ***/
-
-/* Qué materia de Séneca es cada código que Jefatura escribe en las columnas
-   MOD1, MOD2, OPT1 y OPT2 de sus pestañas de Bachillerato.
-
-   LOS DICTÓ FRANCISCO EL 10-SEP-2026, leyéndolos del aviso que el propio
-   programa había juntado. No están adivinados: son los que aparecen de verdad
-   en el cuaderno de este curso.
-
-   El nombre de la derecha tiene que ser EXACTAMENTE el que usa Séneca en el
-   CSV de matrícula, porque es por ahí por donde casan las dos fuentes.
-
-   SI APARECE UN CÓDIGO QUE NO ESTÁ AQUÍ, no se inventa nada: ese código no se
-   compara y sale en el aviso "Códigos de Bachillerato" para que Francisco diga
-   qué materia es. Y del alumno que lo tenga no se dice que le sobre nada en
-   Séneca, porque a lo mejor le sobra justo eso que no sabemos leer. */
-const MATERIAS_BAC_JEF = {
-  'AAPL': 'Anatomía Aplicada',
-  'BGCA': 'Biología, Geología y Ciencias Ambientales',
-  'CDPC': 'Creación Digital y Pensamiento Computacional',
-  'CEE':  'Cultura Emprendedora y Empresarial',
-  'DIBT': 'Dibujo Técnico',
-  'ECON': 'Economía',
-  'FISQ': 'Física y Química',
-  'FRA2': 'Francés (Segundo Idioma)',
-  'GRIE': 'Griego',
-  'HMCO': 'Historia del Mundo Contemporáneo',
-  'ICT':  'Iniciación al Comentario de Texto',
-  'OLI':  'Olimpismo',
-  'BIOL': 'Biología',
-  'EST':  'Estadística',
-  'EYDI': 'Empresa y Diseño de Modelos de Negocio',
-  'FISI': 'Física',
-  'FYEC': 'Finanzas y Economía',
-  'GEOG': 'Geografía',
-  'HART': 'Historia del Arte',
-  'QUIM': 'Química',
-  'TECI': 'Tecnología e Ingeniería'
-};
-
 /* ¿Este nivel es de Bachillerato? El nivel de un grupo de Bachillerato se
    escribe con la etapa dentro: "1º BACH". */
 function esNivelBachillerato_(nivel) {
@@ -221,11 +190,9 @@ function leerPestanaJefatura_(grupo, valores) {
          está marcado como exento es que cursa francés. */
       alct: marcas.alct ? 'ALCT' : (nivel === '1º' ? 'FR' : ''),
       /* Las cuatro columnas de Bachillerato, TAL Y COMO LAS ESCRIBE JEFATURA,
-         sin traducir: dos de modalidad y dos de optativas. Se traducen al
-         comparar, con MATERIAS_BAC_JEF.
-         SOLO EN BACHILLERATO. En la ESO esta lista va vacía a propósito: allí
-         la columna OPT ya se compara por su cuenta, y meterla aquí hacía que
-         los códigos de la ESO salieran en el aviso de los de Bachillerato. */
+         sin traducir: dos de modalidad y dos de optativas. Las traduce
+         Matricula.gs con la pestaña OFERTA.
+         SOLO EN BACHILLERATO. En la ESO esta lista va vacía a propósito. */
       bac: !esNivelBachillerato_(nivel) ? [] :
         [h.mod1, h.mod2, h.opt, h.opt2].map(function (col) {
           return col === undefined ? '' : String(fila[col] === null || fila[col] === undefined ? '' : fila[col]).trim();
@@ -245,104 +212,14 @@ function filaJefatura_(a) {
           a.opc1, a.opc2, a.opc3, a.opc4, a.alct, a.repite, a.pil, a.conf, a.neae, a.div];
 }
 
-/* Qué columnas de ALUMNADO se comparan con qué campo de Jefatura, por nivel. */
-function comparablesJefatura_(nivel, esDiver) {
-  /* BACHILLERATO NO PASA POR AQUÍ. Sus materias sí se comparan desde la
-     BD v56, pero de otra manera: como conjuntos, en compararMateriasBac_. Esta
-     lista es para las comparaciones columna a columna de la ESO. */
-  if (nivel === '1º BACH' || nivel === '2º BACH') return [];
-
-  const lista = [{ col: 'REL/Atedu', campo: 'rel', nombre: 'Religión / At. educativa' }];
-  if (nivel === '4º') {
-    if (!esDiver) {
-      lista.push({ col: 'MAT', campo: 'mat', nombre: 'Matemáticas A/B' });
-      lista.push({ col: 'OPC1', campo: 'opc1', nombre: 'Opción 1' });
-      lista.push({ col: 'OPC2', campo: 'opc2', nombre: 'Opción 2' });
-    }
-    lista.push({ col: 'OPC3', campo: 'opc3', nombre: 'Opción 3' });
-    lista.push({ col: 'OPC4', campo: 'opc4', nombre: 'Opción 4' });
-  } else {
-    lista.push({ col: 'OPT', campo: 'opt', nombre: 'Optativa' });
-    if (nivel === '1º') lista.push({ col: 'FR -> ALCT', campo: 'alct', nombre: 'Exención de francés' });
-  }
-  return lista;
-}
-
-/*** ========== LAS MATERIAS DE BACHILLERATO, COMPARADAS ========== ***/
-
-/* Compara las materias que Jefatura quiere para un alumno de Bachillerato con
-   las que tiene en Séneca. Devuelve [] si todo cuadra.
-
-   POR QUÉ NO ES UNA COMPARACIÓN COLUMNA A COLUMNA, como en la ESO. Jefatura
-   escribe cuatro casillas sueltas (MOD1, MOD2, OPT1, OPT2) y Séneca no tiene
-   esas cuatro columnas: tiene la lista de materias de modalidad y la lista de
-   optativas. Además el orden no es el mismo. Así que se comparan como
-   CONJUNTOS: qué materias quiere Jefatura y qué materias tiene el alumno.
-
-   Y LA COMPARACIÓN NO ES SIMÉTRICA, a propósito:
-
-     · Lo que Jefatura escribe y en Séneca no está  -> siempre se dice.
-     · Lo que está en Séneca y Jefatura no escribe  -> solo se dice de las
-       OPTATIVAS, nunca de las materias de modalidad.
-
-   El motivo lo destapan los propios datos. Jefatura tiene dos casillas de
-   modalidad (MOD1 y MOD2), pero el alumno cursa TRES materias de modalidad:
-   en Ciencias, Matemáticas y Física y Química más la que elige; en
-   Humanidades, tres a elegir. O sea que en esas dos casillas nunca cabe todo,
-   y por eso lo que sobra en Séneca por ese lado no significa nada. En las
-   optativas sí: son dos casillas y dos materias, así que ahí la cuenta cuadra
-   y un sobrante es un sobrante de verdad.
-
-   Lo confirmó Francisco: en su cuaderno no aparecen ni Matemáticas ni Latín,
-   que son justo las obligatorias de cada modalidad. */
-function compararMateriasBac_(j, dameSen) {
-  const bac = j.bac || [];
-  const crudos = bac.map(function (v) { return String(v || '').trim().toUpperCase(); });
-  if (!crudos.filter(function (v) { return !!v; }).length) return [];   // sin rellenar
-
-  /* Se traduce lo que se sabe. Un código desconocido no se compara y hace que
-     tampoco se hable de sobrantes: a lo mejor sobra justo eso que no sé leer. */
-  const quiere = [], sinTraducir = [];
-  const traduce = function (cod) {
-    if (!cod) return '';
-    const materia = MATERIAS_BAC_JEF[cod];
-    if (!materia) { if (sinTraducir.indexOf(cod) === -1) sinTraducir.push(cod); return ''; }
-    return abreviarBac_(materia);
-  };
-  for (let i = 0; i < crudos.length; i++) {
-    const ab = traduce(crudos[i]);
-    if (ab && quiere.indexOf(ab) === -1) quiere.push(ab);
-  }
-
-  /* Lo que tiene en Séneca, ya abreviado desde ALUMNADO. Ver Bachillerato.gs. */
-  const parte = function (t) {
-    return String(dameSen(t) || '').split(/\s+/).filter(function (v) { return !!v; });
-  };
-  const senMod = parte('MAT. MODALIDAD'), senOpt = parte('OPTATIVAS');
-  const todasSen = senMod.concat(senOpt);
-
-  /* Falta: lo que Jefatura quiere y no está en NINGUNA de las dos listas de
-     Séneca. Se miran las dos juntas a propósito: si Jefatura escribió una
-     optativa en la casilla de modalidad, o al revés, el alumno la cursa
-     igualmente y no hay nada que corregir. */
-  const faltan = quiere.filter(function (m) { return todasSen.indexOf(m) === -1; });
-  /* Sobra: solo entre las optativas, y solo si se han entendido todos los
-     códigos. */
-  const sobran = sinTraducir.length ? [] : senOpt.filter(function (m) {
-    return quiere.indexOf(m) === -1;
-  });
-  if (!faltan.length && !sobran.length) return [];
-
-  const que = [];
-  if (faltan.length) que.push('falta ' + faltan.join(', '));
-  if (sobran.length) que.push('sobra ' + sobran.join(', '));
-  return [{
-    tipo: 'Materias de Bachillerato: ' + que.join(' · '),
-    seneca: todasSen.length ? todasSen.join(' ') : '(vacío)',
-    jefatura: (quiere.length ? quiere.join(' ') : '(vacío)') +
-      (sinTraducir.length ? ' + ' + sinTraducir.join(' ') + ' (código sin traducir)' : '')
-  }];
-}
+/* LAS MATERIAS YA NO SE COMPARAN AQUÍ (BD v62). Hasta la BD v61 esta pestaña
+   comparaba también la religión, la optativa, las matemáticas y las opciones,
+   casilla a casilla en la ESO y como conjunto en Bachillerato. Eso lo hace
+   ahora Matricula.gs, en una sola cuenta por alumno que junta lo que quiere
+   Jefatura con las obligatorias del curso, y lo escribe en la pestaña
+   MATRÍCULA. Aquí quedan solo las diferencias de PERSONAS Y GRUPOS: quién
+   falta en un sitio o en otro, quién está en otro grupo o en otro curso, y la
+   diversificación. */
 
 /* Compara la tabla ALUMNADO (Séneca) con lo que quiere Jefatura.
    Devuelve una lista de discrepancias, cada una con su clave estable. */
@@ -417,22 +294,6 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
       mete(j.curso, j.unidad, j.nombre, 'Diversificación no cargada en Séneca', 'NO', 'SÍ');
     } else if (j.div !== 'SÍ' && divSen === 'SÍ') {
       mete(j.curso, j.unidad, j.nombre, 'Diversificación solo en Séneca', 'SÍ', 'NO');
-    }
-    const comps = comparablesJefatura_(j.curso, j.div === 'SÍ');
-    for (let k = 0; k < comps.length; k++) {
-      const c = comps[k];
-      const vs = dame(s, c.col), vj = j[c.campo] || '';
-      if (juegoJef_(vs) !== juegoJef_(vj)) {
-        mete(j.curso, j.unidad, j.nombre, c.nombre + ': no coincide', vs || '(vacío)', vj || '(vacío)');
-      }
-    }
-    /* BACHILLERATO: sus materias se comparan como conjuntos, no columna a
-       columna. Ver compararMateriasBac_. */
-    if (esNivelBachillerato_(j.curso)) {
-      const difs = compararMateriasBac_(j, function (t) { return dame(s, t); });
-      for (let k = 0; k < difs.length; k++) {
-        mete(j.curso, j.unidad, j.nombre, difs[k].tipo, difs[k].seneca, difs[k].jefatura);
-      }
     }
   }
 
@@ -515,9 +376,9 @@ function leerJefatura_() {
   if (!r.libro) return { alumnos: [], nombre: '', avisos: [r.aviso] };
 
   const alumnos = [], avisos = [], vistos = {}, saltadas = [];
-  /* Los códigos que Jefatura escribe en las columnas de Bachillerato, sin
-     repetir. Se preguntan al final, en un solo aviso. */
-  const codigosBac = {};
+  /* Los códigos que Jefatura escribe y que la pestaña OFERTA no sabe leer, sin
+     repetir. Se dicen al final, en un solo aviso. */
+  const codigosSinLeer = {};
   const hojas = r.libro.getSheets();
   let grupos = 0;
   for (let h = 0; h < hojas.length; h++) {
@@ -550,27 +411,24 @@ function leerJefatura_() {
         continue;
       }
       vistos[clave] = leidos[i].unidad;
-      if (leidos[i].bac) {
-        for (let b = 0; b < leidos[i].bac.length; b++) {
-          const cod = String(leidos[i].bac[b] || '').trim().toUpperCase();
-          if (cod && !MATERIAS_BAC_JEF[cod]) codigosBac[leidos[i].curso + ' · ' + cod] = true;
+      try {
+        const lineasCurso = ofertaDeCurso_(leidos[i].curso);
+        const cods = codigosDeJefatura_(leidos[i]);
+        for (let b = 0; b < cods.length; b++) {
+          if (!lineaDeCodigoJef_(lineasCurso, cods[b])) codigosSinLeer[leidos[i].curso + ' · ' + cods[b]] = true;
         }
-      }
+      } catch (e) { /* sin oferta no se puede comprobar */ }
       alumnos.push(leidos[i]);
     }
   }
-  /* LOS CÓDIGOS DE BACHILLERATO QUE TODAVÍA NO SABEMOS LEER. Los conocidos
-     están en MATERIAS_BAC_JEF y ya se comparan. Aquí solo salen los que no
-     están en esa tabla, para que Francisco diga qué materia es cada uno. Un
-     código que no se sabe leer no se compara, y del alumno que lo tenga
-     tampoco se dice que le sobre nada en Séneca. */
-  const listaCodigos = Object.keys(codigosBac).sort();
+  /* LOS CÓDIGOS QUE LA PESTAÑA OFERTA NO SABE LEER. Un código que no se sabe
+     leer no se compara, y en MATRÍCULA ese cuadro se comprueba contando. */
+  const listaCodigos = Object.keys(codigosSinLeer).sort();
   if (listaCodigos.length) {
     avisos.push({ curso: '', grupo: '', alumno: '',
-      aviso: 'Códigos de Bachillerato que no sé leer',
-      detalle: listaCodigos.join(' · ') + '. Son los que Jefatura escribe en las columnas ' +
-        'MOD1, MOD2, OPT1 y OPT2 y que no están todavía en la tabla de traducción. ' +
-        'Dime qué materia es cada uno y se comparan también.' });
+      aviso: 'Códigos de Jefatura que no sé leer',
+      detalle: listaCodigos.join(' · ') + '. Escríbelos en la columna "Código de Jefatura" de la ' +
+        'pestaña OFERTA, en la línea de la materia que es cada uno, y se comparan también.' });
   }
 
   /* Qué pestañas no se han leído. Casi siempre son las de resumen ("TODO 1º",

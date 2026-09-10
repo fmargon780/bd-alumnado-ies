@@ -137,7 +137,7 @@ const COLUMNAS_POR_NIVEL = {
      y que el Proyecto transversal de Educación en Valores se colaba entre las
      materias en vez de ir a la columna de Religión.
      Ahora: MATRÍCULA dice si están todas, MODALIDAD y OPTATIVAS dicen qué ha
-     elegido, y REL/At. dice si cursa Religión o Atención Educativa. */
+     elegido, y REL/At. dice si cursa Religión o el Proyecto transversal. */
   '1º BACH': ['alumno/a:', 'rep', 'matricula', 'neae', 'medidas/recursos',
               'modalidad', 'optativas', 'rel/atedu'],
   '2º BACH': ['alumno/a:', 'rep', 'mat. pend.', 'matricula', 'neae', 'medidas/recursos',
@@ -274,7 +274,7 @@ const EXPLICACIONES_COLUMNA = {
   'matricula':       'MATRÍCULA: OK = completa; si no, lo que falta.',
   'modalidad':       'MODALIDAD: materias de su modalidad.',
   'optativas':       'OPTATIVAS: las que ha elegido.',
-  'rel/atedu':       'REL/At.: CAT y EVA, Religión; AtEdu, At. Educativa.'
+  'rel/atedu':       'REL/At.: CAT y EVA, Religión; ATEDU, At. Educativa; PTEV, Proy. Transv. Ed. en Valores.'
 };
 
 function leyendaFijaDe_(claves) {

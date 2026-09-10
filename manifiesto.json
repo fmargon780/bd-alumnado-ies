@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — las materias de Bachillerato salen del documento de oferta educativa del centro: qué es obligatorio y de qué grupo se elige",
+  "version": "BD v51 — los PDF de borrador ya no se caen: el rótulo BORRADOR no une celdas, y un fallo en una pestaña no tumba las demás",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

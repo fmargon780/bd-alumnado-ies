@@ -315,7 +315,7 @@ function pendienteDeBac_(titulo) {
    hace buscarCsvsMatricula con la ESO, que se queda con el más reciente: eso
    tiraría media clase. */
 function ficherosBachilleratoPorCurso_() {
-  const porCurso = {};
+  const porCurso = {}, mejores = {};
   const listas = ficherosPorCarpeta_();
   for (let c = 0; c < listas.length; c++) {
     const ficheros = listas[c];
@@ -333,10 +333,24 @@ function ficherosBachilleratoPorCurso_() {
       const mm = n.match(/bach[^a-z0-9]*([ch])[^a-z0-9]/i);
       const modalidad = !mm ? '' :
         (mm[1].toLowerCase() === 'c' ? MODALIDAD_CIENCIAS : MODALIDAD_HUMANIDADES);
-      if (!porCurso[curso]) porCurso[curso] = [];
-      porCurso[curso].push({ archivo: f, modalidad: modalidad, nombre: n });
+      /* DEL MISMO FICHERO, EL MÁS RECIENTE, esté en la carpeta que esté. Desde
+         la BD v54 la carpeta tiene estructura, así que puede haber una copia
+         vieja ya ordenada y otra recién descargada todavía suelta. Sin esto se
+         leerían las dos y cada alumno saldría dos veces. */
+      const clave = curso + '|' + normalizar(n);
+      if (!mejores[clave] ||
+          f.getLastUpdated().getTime() > mejores[clave].archivo.getLastUpdated().getTime()) {
+        mejores[clave] = { archivo: f, modalidad: modalidad, nombre: n, curso: curso };
+      }
     }
-    if (Object.keys(porCurso).length) break;
+  }
+  for (const k in mejores) {
+    const m = mejores[k];
+    if (!porCurso[m.curso]) porCurso[m.curso] = [];
+    porCurso[m.curso].push(m);
+  }
+  for (const cu in porCurso) {
+    porCurso[cu].sort(function (a, b) { return a.nombre < b.nombre ? -1 : 1; });
   }
   return porCurso;
 }

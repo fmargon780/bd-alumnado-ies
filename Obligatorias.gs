@@ -16,14 +16,26 @@
  * "MATERIAS OBLIGATORIAS", que Francisco puede leer y corregir. Es la lista
  * buena: el programa hace lo que ella diga. Sus columnas son:
  *
- *   Curso                          1º, 2º, 3º o 4º
+ *   Curso                          1º, 2º, 3º o 4º en la ESO;
+ *                                  1º BACH o 2º BACH en Bachillerato
  *   Materia                        el nombre EXACTO que le da Séneca en el CSV
  *   Quién la cursa                 "Todo el alumnado",
- *                                  "Todos menos diversificación" o
- *                                  "Solo diversificación"
+ *                                  "Todos menos diversificación",
+ *                                  "Solo diversificación",
+ *                                  "Solo Ciencias y Tecnología",
+ *                                  "Solo Humanidades y CC. Sociales" o
+ *                                  "Solo quienes cursan <materia>"
  *   Desde el año                   año en que empieza a ser obligatoria (2026)
  *   Hasta el año                   último año en que lo fue; vacío = sigue
  *   Notas                          para escribir el porqué de un cambio
+ *   Elegir de este grupo           vacío = la materia es obligatoria.
+ *                                  Con texto, las líneas que comparten ese
+ *                                  texto son una lista de la que el alumno
+ *                                  elige UNA, o las que diga "(elegir 2)"
+ *
+ * DE UN GRUPO SE CURSAN EXACTAMENTE LAS QUE DICE: ni menos ni más. Si hay que
+ * elegir entre Religión Católica y Atención Educativa, el alumno tiene que
+ * tener una en Séneca; ni ninguna ni las dos.
  *
  * LAS FECHAS DE VIGENCIA. Una materia solo se comprueba si el año académico en
  * curso está dentro de su ventana. Así, cuando una asignatura deje de ser
@@ -733,10 +745,20 @@ function oblAvisosDeFicheroBac_(tabla, curso, modalidad, vigentes) {
       for (let c = 0; c < grupos[g].cols.length; c++) {
         if (oblCumpleBac_(tabla[f][grupos[g].cols[c]])) n++;
       }
-      if (n >= grupos[g].cuantas) continue;
+      if (n === grupos[g].cuantas) continue;
+      /* De un grupo hay que cursar EXACTAMENTE las que dice: ni menos ni más.
+         Lo pidió Francisco el 10-sep-2026: "si un alumno tiene que elegir
+         entre Religión Católica y Atención Educativa, tiene que tener en
+         Séneca necesariamente una de las dos; no puede tener ni ninguna ni
+         las dos a la vez". */
+      const cuales = [];
+      for (let c = 0; c < grupos[g].cols.length; c++) {
+        if (oblCumpleBac_(tabla[f][grupos[g].cols[c]])) cuales.push(grupos[g].materias[c]);
+      }
       avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
-        aviso: 'No ha elegido de un grupo: ' + g,
-        detalle: 'De "' + g + '" hay que cursar ' + grupos[g].cuantas + ' y solo tiene ' + n +
+        aviso: (n < grupos[g].cuantas ? 'Le faltan materias de un grupo: ' : 'Tiene materias de más de un grupo: ') + g,
+        detalle: 'De "' + g + '" hay que cursar ' + grupos[g].cuantas + ' y tiene ' + n +
+          (cuales.length ? ' (' + cuales.join(', ') + ')' : '') +
           '. Las de ese grupo son: ' + grupos[g].materias.join(', ') + '. Modalidad: ' +
           modalidad + '. Compruébalo en Séneca.' });
     }
@@ -975,7 +997,15 @@ function comprobarObligatorias_() {
     if (!propuesta.length) return { alumnos: 0, escritos: 0, sembrada: false, lineas: 0 };
     oblEscribirTabla_(propuesta);
     filas = propuesta.map(function (p) {
-      return { curso: p.curso, materia: p.materia, quien: p.quien, desde: 0, hasta: 0 };
+      /* OJO CON EL GRUPO. Aquí se perdía, y era un fallo gordo: en la misma
+         ejecución en la que se rellena la pestaña, la comprobación se hacía
+         con estas líneas, no con las de la hoja. Sin el grupo, TODAS las
+         materias pasaban a ser obligatorias para todo el mundo, y salían
+         cientos de avisos falsos de "le faltan materias obligatorias". Lo vio
+         Francisco el 10-sep-2026. A la ejecución siguiente ya se leía bien de
+         la hoja, así que el fallo aparecía y desaparecía solo. */
+      return { curso: p.curso, materia: p.materia, quien: p.quien,
+               grupo: p.grupo || '', desde: 0, hasta: 0 };
     });
     sembrada = true;
   }
@@ -1014,7 +1044,8 @@ function comprobarObligatorias_() {
       oblAnadirCursos_(nuevas);
       for (let k = 0; k < nuevas.length; k++) {
         filas.push({ curso: nuevas[k].curso, materia: nuevas[k].materia,
-                     quien: nuevas[k].quien, desde: 0, hasta: 0 });
+                     quien: nuevas[k].quien, grupo: nuevas[k].grupo || '',
+                     desde: 0, hasta: 0 });
       }
     }
   }

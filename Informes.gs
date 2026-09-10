@@ -323,17 +323,14 @@ const PDF_OPCIONES = 'format=pdf&size=A4&portrait=true&fitw=true&scale=2' +
 const TEXTO_BORRADOR   = 'BORRADOR';
 const LETRA_BORRADOR   = 26;
 const COLOR_BORRADOR   = '#9E9E9E';
-/* LA CARPETA DE LOS BORRADORES VA FUERA DE "Informes por unidad", Y ES A
-   PROPÓSITO (10-sep-2026). El director va a compartir "Informes por unidad"
-   con todo el profesorado, y al compartir una carpeta se comparte todo lo que
+/* LA CARPETA DE LOS BORRADORES VA FUERA DE LA CARPETA DE INFORMES, Y ES A
+   PROPÓSITO (10-sep-2026). El director comparte la carpeta de informes con
+   todo el profesorado, y al compartir una carpeta se comparte todo lo que
    tiene dentro, subcarpetas incluidas. Los borradores son la hoja de trabajo
    de Francisco: llevan las interrogantes y lo que todavía no está cuadrado,
    así que no pueden estar ahí.
-   Ahora cuelgan de "Datos de matrícula", al lado de la carpeta compartida y
-   fuera de ella. El aviso va en el propio nombre para que nadie la vuelva a
-   meter dentro. */
-const CARPETA_BORRADORES = 'Borradores (no compartir)';
-const CARPETA_BORRADORES_ANTES = 'Borradores';
+   Los nombres y el sitio de las dos carpetas están en el mapa de Carpetas.gs,
+   bajo las claves 'informes' y 'borradores'. */
 
 /* Lo que nunca debe quedarse en la carpeta que se comparte: el resumen para el
    equipo directivo. Dice lo que falta por cuadrar en Séneca, y eso no es
@@ -762,60 +759,43 @@ function ajustarFilasDelLogo_(hoja) {
 /*** ================= PDF ================= ***/
 
 /* Todos los PDF van siempre a la misma carpeta, con los mismos nombres.
-   Antes se creaba una carpeta nueva cada día y se acumulaban. */
-const CARPETA_INFORMES = 'Informes por unidad';
+   Antes se creaba una carpeta nueva cada día y se acumulaban.
 
+   DÓNDE ESTÁ CADA CARPETA lo dice el mapa de Carpetas.gs, no este fichero.
+   Aquí solo se pide: la de informes ('informes'), que es la que el director
+   comparte con el profesorado, y la privada ('borradores'), que es donde van
+   los borradores y el resumen para el equipo directivo.
+   carpetaDe_ las encuentra aunque todavía estén en su sitio de antes, así que
+   esto funciona igual antes y después de ordenar la carpeta de Drive. */
 function carpetaDeInformes_(borrador) {
-  const raiz = DriveApp.getFolderById(CARPETA_ID);
-  const encontradas = raiz.getFoldersByName(CARPETA_INFORMES);
-  const carpeta = encontradas.hasNext() ? encontradas.next() : raiz.createFolder(CARPETA_INFORMES);
-  if (!borrador) return carpeta;
-  return carpetaPrivada_(raiz, carpeta);
+  return carpetaDe_(borrador ? 'borradores' : 'informes', true);
 }
 
 /* La carpeta de lo que NO se comparte: los PDF de borrador y el resumen para
-   el equipo directivo. Cuelga de "Datos de matrícula", nunca de la carpeta de
-   informes.
+   el equipo directivo.
 
-   Y se encarga ella de la mudanza: hasta la BD v51 esta carpeta vivía DENTRO
-   de "Informes por unidad", así que la primera vez que se ejecute esto la
-   saca de ahí con todo lo que tenga dentro. Francisco no tiene que arrastrar
-   nada a mano. */
-function carpetaPrivada_(raiz, informes) {
-  const base = raiz || DriveApp.getFolderById(CARPETA_ID);
-
-  /* 1. Ya está en su sitio. */
-  let hay = base.getFoldersByName(CARPETA_BORRADORES);
-  if (hay.hasNext()) return hay.next();
-
-  /* 2. Está en su sitio, pero con el nombre de antes. */
-  hay = base.getFoldersByName(CARPETA_BORRADORES_ANTES);
-  if (hay.hasNext()) {
-    const c = hay.next();
-    try { c.setName(CARPETA_BORRADORES); } catch (e) { /* el nombre da igual */ }
-    return c;
+   Y SI ESTÁ DENTRO DE LA CARPETA COMPARTIDA, LA SACA. Hasta la BD v51 vivía
+   ahí dentro, y al compartir una carpeta se comparte todo su árbol: los
+   borradores con las interrogantes acabarían en manos del profesorado. Esto no
+   puede esperar a que alguien pulse "Ordenar la carpeta de Drive": se arregla
+   solo, la primera vez que se generan PDF. */
+function carpetaPrivada_() {
+  const carpeta = carpetaDe_('borradores', true);
+  if (!carpeta) return carpeta;
+  let compartida = null, base = null;
+  try {
+    compartida = carpetaDe_('informes', false);
+    base = carpetaDe_(CARPETAS.borradores.padre, true);
+  } catch (e) { return carpeta; }
+  if (compartida && base && cuelgaDe_(carpeta, compartida)) {
+    try {
+      carpeta.moveTo(base);
+      if (carpeta.getName() !== nombreDeCarpeta_('borradores')) {
+        carpeta.setName(nombreDeCarpeta_('borradores'));
+      }
+    } catch (e) { /* si Drive no deja moverla, al menos los PDF se hacen */ }
   }
-
-  /* 3. Está dentro de la carpeta que se comparte: se saca. */
-  let compartida = informes;
-  if (!compartida) {
-    const busca = base.getFoldersByName(CARPETA_INFORMES);
-    compartida = busca.hasNext() ? busca.next() : null;
-  }
-  if (compartida) {
-    const nombres = [CARPETA_BORRADORES, CARPETA_BORRADORES_ANTES];
-    for (let i = 0; i < nombres.length; i++) {
-      const dentro = compartida.getFoldersByName(nombres[i]);
-      if (!dentro.hasNext()) continue;
-      const c = dentro.next();
-      try { c.moveTo(base); } catch (e) { /* si Drive no deja, al menos se ve el nombre */ }
-      try { c.setName(CARPETA_BORRADORES); } catch (e) { /* el nombre da igual */ }
-      return c;
-    }
-  }
-
-  /* 4. No existe todavía. */
-  return base.createFolder(CARPETA_BORRADORES);
+  return carpeta;
 }
 
 /* Saca de la carpeta compartida los PDF del resumen para el equipo directivo
@@ -857,7 +837,6 @@ function contarPaginas_(blob) {
     return m && m.length ? m.length : 1;
   } catch (e) { return 1; }
 }
-
 /* Google no deja pedirle muchos PDF seguidos: a partir del quinto o sexto
    empieza a decir que no. Por eso se le pide despacio, y si dice que no se
    espera un poco y se vuelve a intentar, cada vez esperando más. */
@@ -1029,11 +1008,11 @@ function pdfsPorInforme_(libro, entradas, borrador) {
      Dentro de cada una, siempre los mismos nombres: cada fichero se sustituye
      cuando se consigue sacar, así que si un día Google corta a medias, lo que
      ya estaba sigue ahí y basta con volver a pulsar. */
-  const nombreCarpeta = borrador ? CARPETA_BORRADORES : CARPETA_INFORMES;
   const carpetaCompartida = carpetaDeInformes_(false);
   /* La carpeta privada se prepara siempre, aunque estemos sacando los
      definitivos: el resumen para el equipo directivo va ahí en los dos casos. */
-  const carpetaPrivada = carpetaPrivada_(null, carpetaCompartida);
+  const carpetaPrivada = carpetaPrivada_();
+  const nombreCarpeta = borrador ? carpetaPrivada.getName() : carpetaCompartida.getName();
   const rescatados = sacarLoQueNoSeComparte_(carpetaCompartida, carpetaPrivada);
 
   const token = ScriptApp.getOAuthToken();
@@ -1110,7 +1089,8 @@ function pdfsPorInforme_(libro, entradas, borrador) {
     }
   }
   return { carpeta: nombreCarpeta, hechos: hechos, dobles: dobles, fallidos: fallidos,
-           privada: carpetaPrivada.getName(), rescatados: rescatados };
+           privada: carpetaPrivada.getName(), compartida: carpetaCompartida.getName(),
+           rescatados: rescatados };
 }
 
 /* Qué hojas hay que exportar, mirando el cuaderno tal como está ahora.
@@ -1603,7 +1583,7 @@ function generarLosPdf_(borrador) {
        el profesorado habría podido ver. */
     if (sueltos.rescatados) {
       avisos.push(['', '', 'He sacado de la carpeta compartida el resumen del equipo directivo',
-                   sueltos.rescatados + ' fichero(s). Estaban en "' + CARPETA_INFORMES +
+                   sueltos.rescatados + ' fichero(s). Estaban en "' + sueltos.compartida +
                    '" y ahora están en "' + sueltos.privada + '".']);
     }
   } catch (e) {

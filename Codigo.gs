@@ -1198,6 +1198,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
           'subcarpeta "' + CARPETA_SECUNDARIA + '", con el nombre "' + PREFIJO_EXP_SEC + ' ' +
           a.nombre + '.csv". Ese fichero trae sus años en otros institutos y cierra el caso solo.' });
     }
+
     const decisionAMano = String(man[6] || '').trim().toUpperCase();
     if (decisionAMano === 'SÍ' || decisionAMano === 'SI') {
       pil = 'SÍ';
@@ -1597,6 +1598,7 @@ function construirAlumnado() {
     const r = leerMatricula(textoATabla(textoDeArchivo(ficheros[curso])), curso);
     porCurso[curso] = r.alumnos;
     resumen.push(curso + ' ESO: ' + r.alumnos.length + ' alumnos (' + ficheros[curso].getName() + ')');
+
     /* Cuántas asignaturas esperábamos encontrar en el CSV de este curso, y
        cuántas hemos encontrado de verdad. */
     let esperadas = 0;

@@ -1,5 +1,5 @@
 {
-  "version": "BD v52 — la carpeta de borradores sale de \"Informes por unidad\", y el resumen para el equipo directivo tampoco se queda en la carpeta que se comparte con el profesorado",
+  "version": "BD v53 — las materias de Bachillerato van por bloques, como en la hoja de elección del centro, y una columna nueva dice si cada alumno está bien matriculado en Séneca",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

@@ -192,6 +192,53 @@ function oblColumnas_(tabla) {
     iAmb: cabN.indexOf(normalizar(COL_AMBITOS)) };
 }
 
+/* LA COLUMNA DEL CSV DONDE SE MIRA UNA MATERIA DE LA OFERTA (BD v61).
+ *
+ * Primero se busca el nombre exacto, que es lo que se hacía hasta ahora. Si no
+ * aparece, se prueban dos parecidos, y solo se acepta el parecido cuando hay
+ * UNA sola columna candidata:
+ *
+ *   - Sin lo que va entre paréntesis. Séneca escribe cosas como
+ *     "Música (Proyecto Integrado)" y la oferta dice "Música".
+ *   - Que la columna empiece o acabe por el nombre de la oferta, con el corte
+ *     en un espacio. Así "Cultura Clásica" encuentra "Cultura Clásica II",
+ *     pero "Matemáticas" NO encuentra "Matemáticas A" y "Matemáticas B" a la
+ *     vez, porque son dos candidatas y entonces no se elige ninguna.
+ *
+ * Se avisa de cada emparejamiento por parecido, con los dos nombres, para que
+ * se pueda comprobar. No se adivina nada en silencio. */
+function oblSinParentesis_(t) {
+  return normalizar(String(t === null || t === undefined ? '' : t).replace(/\([^)]*\)/g, ' '));
+}
+
+function oblBuscarColumna_(C, materia) {
+  const objetivo = normalizar(materia);
+  let c = C.cabN.indexOf(objetivo);
+  if (c !== -1) return { col: c, aprox: false };
+  if (!objetivo) return { col: -1, aprox: false };
+
+  const sinPar = oblSinParentesis_(materia);
+  let cand = [];
+  for (let i = 0; i < C.cabN.length; i++) {
+    if (i === C.iNombre || i === C.iUnidad) continue;
+    if (C.cabN[i] && oblSinParentesis_(C.cab[i]) === sinPar) cand.push(i);
+  }
+  if (cand.length === 1) return { col: cand[0], aprox: true };
+
+  cand = [];
+  for (let i = 0; i < C.cabN.length; i++) {
+    if (i === C.iNombre || i === C.iUnidad) continue;
+    const n = C.cabN[i];
+    if (!n || n === objetivo) continue;
+    const empieza = n.length > objetivo.length + 1 && n.substring(0, objetivo.length + 1) === objetivo + ' ';
+    const acaba   = n.length > objetivo.length + 1 && n.substring(n.length - objetivo.length - 1) === ' ' + objetivo;
+    if (empieza || acaba) cand.push(i);
+  }
+  if (cand.length === 1) return { col: cand[0], aprox: true };
+
+  return { col: -1, aprox: false };
+}
+
 /* Parte el alumnado del CSV en dos grupos: el ordinario y el de
    diversificación, que es el que está matriculado en el Ámbito. */
 function oblAlumnos_(tabla, C) {
@@ -878,23 +925,72 @@ function oblAvisosDeCurso_(tabla, curso, vigentes) {
   const todos = G.orden.concat(G.diver);
 
   /* Cada línea de la oferta, con la columna del CSV donde se mira. */
-  const lista = [], sinColumna = [];
+  const lista = [], sinColumna = [], aprox = [], usadas = {};
   for (let i = 0; i < vigentes.length; i++) {
     const v = vigentes[i];
-    const c = C.cabN.indexOf(normalizar(v.materia));
-    if (c === -1) { if (sinColumna.indexOf(v.materia) === -1) sinColumna.push(v.materia); continue; }
-    lista.push({ col: c, materia: v.materia, quien: oblQuien_(v.quien), grupo: v.grupo || '' });
+    const hallazgo = oblBuscarColumna_(C, v.materia);
+    if (hallazgo.col === -1) {
+      if (sinColumna.indexOf(v.materia) === -1) sinColumna.push(v.materia);
+      continue;
+    }
+    if (hallazgo.aprox) {
+      const par = v.materia + ' → ' + C.cab[hallazgo.col];
+      if (aprox.indexOf(par) === -1) aprox.push(par);
+    }
+    usadas[hallazgo.col] = true;
+    lista.push({ col: hallazgo.col, materia: v.materia, quien: oblQuien_(v.quien),
+                 grupo: v.grupo || '' });
   }
 
-  /* Una materia que la oferta nombra y el CSV no trae no se comprueba. Casi
-     siempre es que Séneca la escribe de otra manera. Se dice una vez por curso,
-     con los nombres tal y como están, para poder corregirlos. */
-  if (sinColumna.length) {
+  /* LOS DOS LADOS DEL MISMO PROBLEMA, EN UN SOLO AVISO (BD v61).
+   *
+   * Antes se decía solo una mitad: "la oferta nombra esta materia y Séneca no
+   * la trae". Y con esa mitad no se puede hacer nada, porque no distingue los
+   * dos casos, que son muy distintos:
+   *
+   *   a) NADIE la cursa. El fichero de Séneca solo trae columna de las
+   *      materias que alguien cursa. Si el centro ofrece Cultura del Flamenco
+   *      y nadie la eligió, no hay columna. No pasa nada: si no hay columna,
+   *      tampoco hay ningún alumno matriculado en ella, así que a nadie le
+   *      puede salir un "falta" por esto.
+   *
+   *   b) SÉNECA LA LLAMA DE OTRA MANERA. Entonces sí importa, y mucho: los
+   *      alumnos que la cursan aparecen como si les faltara una optativa.
+   *
+   * Lo que separa un caso del otro es la lista de enfrente: las columnas que
+   * Séneca SÍ trae, que tienen alumnos dentro, y que la oferta no nombra. Si
+   * esa lista está vacía, es el caso (a) y no hay nada que hacer. Si tiene
+   * algo, ahí está el nombre bueno, al lado del nombre que hay que corregir.
+   *
+   * Por eso van juntas en la misma fila de AVISOS. */
+  const sobranCols = [];
+  for (let c = 0; c < C.cab.length; c++) {
+    if (usadas[c] || c === C.iNombre || c === C.iUnidad) continue;
+    let n = 0;
+    for (let a = 0; a < todos.length; a++) if (oblMatriculado_(todos[a].fila[c])) n++;
+    if (n) sobranCols.push(C.cab[c] + ' (' + n + ')');
+  }
+  if (sinColumna.length || sobranCols.length || aprox.length) {
+    const partes = [];
+    if (sinColumna.length) {
+      partes.push('LA OFERTA LAS NOMBRA Y SÉNECA NO LAS TRAE: ' + sinColumna.join(', ') + '.');
+    }
+    if (sobranCols.length) {
+      partes.push('SÉNECA LAS TRAE Y LA OFERTA NO LAS NOMBRA (entre paréntesis, cuánta gente ' +
+                  'las cursa): ' + sobranCols.join(', ') + '.');
+    }
+    if (aprox.length) {
+      partes.push('EMPAREJADAS POR PARECIDO: ' + aprox.join(', ') + '.');
+    }
+    partes.push(sobranCols.length
+      ? 'Las dos listas son el mismo problema visto por los dos lados: lo más probable es que ' +
+        'sea la misma materia escrita de dos maneras. Dime cuál es cuál y lo corrijo.'
+      : 'No hay ninguna columna suelta con alumnos dentro, así que lo normal es que sean ' +
+        'materias que el centro ofrece y este curso no ha elegido nadie. En ese caso no ' +
+        'afectan a nadie y puedes marcar este aviso como "No procede".');
     avisos.push({ curso: curso, grupo: '', alumno: '',
-      aviso: 'Materias que la oferta nombra y Séneca no trae',
-      detalle: 'En ' + curso + ': ' + sinColumna.join(', ') + '. El fichero de matrícula no ' +
-        'tiene ninguna columna que se llame exactamente así, y por eso no se comprueban. ' +
-        'Si alguna de estas la cursa alguien de verdad, dime cómo la llama Séneca.' });
+      aviso: 'Nombres de materias que no cuadran en ' + curso,
+      detalle: partes.join(' ') });
   }
 
   /* UNA SOLA LÍNEA POR ALUMNO. Antes salía una por cada materia obligatoria que
@@ -1088,7 +1184,10 @@ function comprobarObligatorias_() {
       aviso: 'Materias que trae el fichero de ' + curso + (apellido ? ' (' + apellido + ')' : ''),
       detalle: nombres.length + ' columnas · ' + nombres.join(' · ') });
   };
-  for (let i = 0; i < cursos.length; i++) vocabulario(cursos[i], tablas[cursos[i]], '');
+  /* LA ESO YA NO SUELTA AQUÍ TODAS SUS COLUMNAS (BD v61). Lo hace mejor el
+     aviso "Nombres de materias que no cuadran", que enseña solo las que
+     chirrían y con cuántos alumnos dentro. Bachillerato sí sigue soltándolas:
+     su comprobación va por otro camino (Bachillerato.gs). */
   for (let i = 0; i < cursosBac.length; i++) {
     const lista = bacPorCurso[cursosBac[i]];
     for (let j = 0; j < lista.length; j++) {

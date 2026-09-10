@@ -83,9 +83,18 @@ function nombreDelFicheroSec_(nombreFichero) {
 }
 
 
-/*** ================= LEER UN EXPEDIENTE ================= ***/
+/*** ================= LEER UN EXPEDIENTE =================
+ *
+ * CACHÉ DE EXPEDIENTES (BD v64). Igual que en Primaria.gs: leerExpedienteSec_
+ * es ahora la envoltura que mira la caché (Cache.gs), y
+ * leerExpedienteSecReal_ es la lectura de verdad, tal y como era antes. Su
+ * resultado no lleva ninguna Date, así que se guarda en la caché tal cual. ***/
 
 function leerExpedienteSec_(archivo) {
+  return conCacheDeFichero_('SECUNDARIA', archivo, leerExpedienteSecReal_);
+}
+
+function leerExpedienteSecReal_(archivo) {
   const alumno = nombreDelFicheroSec_(archivo.getName());
   const salida = {
     nombre: alumno, fichero: archivo.getName(),
@@ -246,6 +255,25 @@ function carpetaSecundaria_() {
   return carpeta;
 }
 
+/* Los ficheros de la carpeta de expedientes de Secundaria, listados una sola
+   vez por ejecución. Igual que ficherosDeExpedientes_ en Primaria.gs: dentro
+   de una misma pulsación de "Actualizar los datos" se mira dos veces (el
+   panel, y datosSecundaria_ al construir la tabla), y listar Drive dos veces
+   es tiempo que no hace falta gastar. */
+let CACHE_FICHEROS_SEC_ = null;
+
+function ficherosDeExpedientesSec_() {
+  if (CACHE_FICHEROS_SEC_) return CACHE_FICHEROS_SEC_;
+  const arr = [];
+  const carpeta = carpetaSecundaria_();
+  if (carpeta) {
+    const it = carpeta.getFiles();
+    while (it.hasNext()) arr.push(it.next());
+  }
+  CACHE_FICHEROS_SEC_ = arr;
+  return arr;
+}
+
 
 /*** ================= LO QUE LLAMA Codigo.gs ================= ***/
 
@@ -260,9 +288,9 @@ function datosSecundaria_(cursosDeAlumno) {
 
   const porNombre = {};
   let ficheros = 0;
-  const it = carpeta.getFiles();
-  while (it.hasNext()) {
-    const f = it.next();
+  const listaFicheros = ficherosDeExpedientesSec_();
+  for (let fi = 0; fi < listaFicheros.length; fi++) {
+    const f = listaFicheros[fi];
     if (!/\.csv$/i.test(f.getName())) continue;
     ficheros++;
     let r;

@@ -141,22 +141,12 @@ function textoDeMarca_(marca) {
 /*** ================= BUSCAR EL FICHERO DE JEFATURA ================= ***/
 
 /* Igual que hace Jefatura.gs, pero solo para saber si está y de cuándo es.
-   No lo abre ni lo lee: aquí solo interesa la fecha. Usa la misma caché de
-   ficheros que buscarCsv (Codigo.gs), así que no vuelve a listar Drive. */
+   No lo abre ni lo lee: aquí solo interesa la fecha. Reutiliza la misma
+   búsqueda que usa leerJefatura_ (buscarFicheroJefatura_, en Jefatura.gs) en
+   vez de repetirla, para que el panel y la lectura de verdad estén siempre de
+   acuerdo en cuál es "el" fichero de Jefatura. */
 function buscarAgrupamientosPanel_() {
-  const listas = ficherosPorCarpeta_();
-  let mejor = null;
-  for (let c = 0; c < listas.length; c++) {
-    const ficheros = listas[c];
-    for (let i = 0; i < ficheros.length; i++) {
-      const f = ficheros[i];
-      if (f.getMimeType() !== MimeType.GOOGLE_SHEETS) continue;
-      if (normalizar(f.getName()).indexOf('agrupamientos') === -1) continue;
-      if (!mejor || f.getLastUpdated().getTime() > mejor.getLastUpdated().getTime()) mejor = f;
-    }
-    if (mejor) break;
-  }
-  return mejor;
+  return buscarFicheroJefatura_().archivo;
 }
 
 /*** ================= EL ESTADO DE LAS FUENTES ================= ***/
@@ -333,13 +323,15 @@ function estadoDeLasFuentes_() {
           carpetaPri ? '' : 'No está la carpeta "' + CARPETA_PRIMARIA + '".');
 
   /* 6. Los expedientes de Secundaria. Fuente opcional: si no hay carpeta, el
-        sistema funciona igual con el histórico de este centro. */
+        sistema funciona igual con el histórico de este centro. Lista
+        cacheada: ver ficherosDeExpedientesSec_ en Secundaria.gs, igual que
+        con los de Primaria un poco más arriba. */
   const carpetaSec = carpetaSecundaria_();
   let nSec = 0, secReciente = null;
   if (carpetaSec) {
-    const it = carpetaSec.getFiles();
-    while (it.hasNext()) {
-      const f = it.next();
+    const ficherosExpSec = ficherosDeExpedientesSec_();
+    for (let i = 0; i < ficherosExpSec.length; i++) {
+      const f = ficherosExpSec[i];
       if (!/\.csv$/i.test(f.getName())) continue;
       nSec++;
       const u = f.getLastUpdated();
@@ -539,31 +531,72 @@ function preguntarAntesDeActualizar_(E) {
   }
 }
 
+/*** ================= CUÁNTO TARDA CADA FASE =================
+ *
+ * Lo pidió Francisco: quiere ver, sin cronómetro, en qué se va el tiempo de
+ * "Actualizar los datos". Cada fase mide SU PROPIA duración (no el reloj
+ * desde el principio), así que la espera del cuadro de confirmación —que
+ * depende de Francisco, no del programa— nunca se cuela en ninguna fase.
+ *
+ * La línea de tiempos se añade SIEMPRE a "hecho" antes de escribir el panel,
+ * también cuando algo falla a medias: así se ve hasta dónde llegó y cuánto
+ * tardó en llegar. ***/
+
+function duracionCorta_(ms) {
+  const s = Math.max(0, Math.round((ms || 0) / 1000));
+  if (s < 60) return s + ' s';
+  return Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
+}
+
+/* T lleva, por fase, los milisegundos que ha tardado ELLA SOLA. Una fase que
+   todavía no se ha alcanzado cuenta como 0, así que la línea sale igual de
+   completa aunque la ejecución se pare antes de llegar al final. */
+function lineaTiempos_(T) {
+  const fases = [['ficheros', 'ficheros'], ['historico', 'histórico'], ['tabla', 'tabla'],
+                 ['informes', 'informes'], ['formato', 'formato']];
+  let total = 0;
+  const trozos = [];
+  for (let i = 0; i < fases.length; i++) {
+    const dur = (T && T[fases[i][0]]) || 0;
+    total += dur;
+    trozos.push(fases[i][1] + ' ' + duracionCorta_(dur));
+  }
+  return 'Tiempos: ' + trozos.join(' · ') + ' · total ' + duracionCorta_(total);
+}
+
 /*** ================= BOTÓN 1: ACTUALIZAR LOS DATOS ================= ***/
 
 function actualizarDatos() {
+  const T = {};
+
   let E;
   try {
+    const t0 = Date.now();
     E = estadoDeLasFuentes_();
+    T.ficheros = Date.now() - t0;
   } catch (e) {
-    avisar_('No he podido mirar los ficheros', e.message);
+    avisar_('No he podido mirar los ficheros', e.message + '\n\n' + lineaTiempos_(T));
     return;
   }
 
   const respuesta = preguntarAntesDeActualizar_(E);
 
   if (respuesta === 'no') {
+    guardarCacheDeFicheros_();
     escribirPanel_('No se ha actualizado nada: has cancelado',
-      ['Cuando tengas los ficheros al día, vuelve a pulsar "1. Actualizar los datos".'],
+      ['Cuando tengas los ficheros al día, vuelve a pulsar "1. Actualizar los datos".',
+       '', lineaTiempos_(T)],
       E.filas, pendientesDelSistema_());
     return;
   }
 
   if (respuesta === 'sin-cuadro') {
+    guardarCacheDeFicheros_();
     escribirPanel_('No he podido preguntarte, así que no he tocado nada',
       ['Google no me ha dejado mostrar el cuadro de confirmación.',
        'Arriba tienes, de cada fichero, lo que ya está metido y lo que hay ahora.',
-       'Si lo ves bien, vuelve a pulsar "1. Actualizar los datos".'],
+       'Si lo ves bien, vuelve a pulsar "1. Actualizar los datos".',
+       '', lineaTiempos_(T)],
       E.filas, pendientesDelSistema_());
     return;
   }
@@ -571,6 +604,7 @@ function actualizarDatos() {
   /* A partir de aquí, Francisco ha dicho que sí. */
   const hecho = [];
 
+  const tHist0 = Date.now();
   if (E.historicoNuevo) {
     try {
       cargarHistorico();                     // escribe la pestaña HISTORIAL
@@ -583,6 +617,7 @@ function actualizarDatos() {
   } else {
     hecho.push('Histórico de matrículas: no ha cambiado, no se ha tocado.');
   }
+  T.historico = Date.now() - tHist0;
 
   /* Lo que Francisco haya escrito en las columnas Estado y Observaciones de
      la pestaña AVISOS se guarda AHORA, porque construirAlumnado la reescribe
@@ -593,12 +628,14 @@ function actualizarDatos() {
   try { notasAvisos = notasDeAvisos_(); } catch (e) { notasAvisos = {}; }
 
   let seHaConstruido = false;
+  const tTabla0 = Date.now();
   try {
     /* construirAlumnado devuelve false cuando ha decidido parar ella misma,
        por ejemplo porque un CSV de matrícula no trae las asignaturas. En ese
        caso no ha escrito ninguna pestaña, así que tampoco hay anotaciones de
        AVISOS que restaurar. */
     seHaConstruido = construirAlumnado() !== false;   // ALUMNADO, JEFATURA, DISCREPANCIAS, NEAE, PRIMARIA, AVISOS
+    T.tabla = Date.now() - tTabla0;
     if (seHaConstruido) {
       hecho.push('Tabla ALUMNADO reconstruida con todas las fuentes.');
 
@@ -621,8 +658,12 @@ function actualizarDatos() {
       }
     }
   } catch (e) {
+    T.tabla = Date.now() - tTabla0;
     hecho.push('Tabla ALUMNADO: NO se ha podido construir (' + e.message + ').');
     try { restaurarNotasAvisos_(notasAvisos); } catch (e2) { /* la pestaña puede no existir */ }
+    hecho.push('');
+    hecho.push(lineaTiempos_(T));
+    guardarCacheDeFicheros_();
     escribirPanel_('Algo ha fallado al actualizar', hecho, E.filas, pendientesDelSistema_());
     return;
   }
@@ -636,6 +677,8 @@ function actualizarDatos() {
     hecho.push('Tabla ALUMNADO: NO se ha reconstruido, así que no he seguido.');
     hecho.push('Los informes por unidad se han quedado como estaban.');
     hecho.push('');
+    hecho.push(lineaTiempos_(T));
+    guardarCacheDeFicheros_();
     escribirPanel_('No he actualizado nada: hay que revisar un fichero',
       hecho.concat(motivo), E.filas, pendientesDelSistema_());
     return;
@@ -647,9 +690,11 @@ function actualizarDatos() {
      apuntar la fecha sería mentir. */
   guardarMarcas_(E.marcas);
 
+  const tInf0 = Date.now();
   try {
     const R = rellenarPestanasInformes_();
-    hecho.push('Informes por unidad: ' + R.grupos + ' pestañas rellenadas, ' +
+    hecho.push('Informes por unidad: ' + R.grupos + ' pestañas (' + R.reescritas +
+               ' reescritas · ' + R.sinCambios + ' sin cambios), ' +
                R.alumnos + ' alumnos escritos.');
     if (R.siglasSinExplicar.length) {
       hecho.push('Siglas sin explicar en la leyenda: ' + R.siglasSinExplicar.join(', ') + '.');
@@ -661,10 +706,12 @@ function actualizarDatos() {
   } catch (e) {
     hecho.push('Informes por unidad: NO se han podido rellenar (' + e.message + ').');
   }
+  T.informes = Date.now() - tInf0;
 
   /* El formato de las pestañas se deja bien al final, de una vez: anchos
      fijos, ajuste de texto en las columnas largas, cabecera y primeras
      columnas congeladas, y filtro en todas. Ver Formato.gs. */
+  const tFmt0 = Date.now();
   try {
     const F = arreglarFormatoDeTodo_();
     hecho.push('Formato revisado en ' + F.hojas + ' pestañas.' +
@@ -682,9 +729,15 @@ function actualizarDatos() {
 
   /* El estado de las fuentes se vuelve a mirar, porque el histórico ya está
      al día y las marcas de lo incorporado acaban de cambiar. Así la tabla del
-     panel enseña ya las dos fechas iguales. */
+     panel enseña ya las dos fechas iguales. Esto y lo que queda por cuadrar
+     se cuentan dentro de la fase "formato": es lo último antes de pintar el
+     panel, y tarda tan poco que no merece una fase propia. */
   let fuentesFinales = E.filas;
   try { fuentesFinales = estadoDeLasFuentes_().filas; } catch (e) { /* nos quedamos con las de antes */ }
+  const pend = pendientesDelSistema_();
+  T.formato = Date.now() - tFmt0;
 
-  escribirPanel_('Datos actualizados', hecho, fuentesFinales, pendientesDelSistema_());
+  hecho.push(lineaTiempos_(T));
+  guardarCacheDeFicheros_();
+  escribirPanel_('Datos actualizados', hecho, fuentesFinales, pend);
 }

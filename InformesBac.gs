@@ -49,36 +49,60 @@ function libroDeBachillerato_(crear) {
     catch (e) { /* lo habrán borrado o movido a la papelera: se busca abajo */ }
   }
 
-  /* 2. Por su nombre, en las carpetas de trabajo. Así, si alguien lo mueve o
-        lo renombra a medias, se vuelve a encontrar en vez de crear otro. */
-  const listas = ficherosPorCarpeta_();
-  for (let c = 0; c < listas.length; c++) {
-    for (let i = 0; i < listas[c].length; i++) {
-      const f = listas[c][i];
-      if (String(f.getMimeType()) !== MimeType.GOOGLE_SHEETS) continue;
-      if (normalizar(f.getName()).indexOf(normalizar(NOMBRE_INFORMES_BAC)) === -1) continue;
-      /* Y del curso de ahora. Sin esto, el año que viene, si se hubiera
-         perdido el identificador guardado, se escribirían los grupos nuevos
-         dentro del cuaderno del curso pasado. Es la misma comprobación que
-         hacen los CSV de matrícula. */
-      if (f.getName().indexOf(CURSO_ACTUAL) === -1) continue;
-      guardarIdBachillerato_(f.getId());
-      return SpreadsheetApp.openById(f.getId());
-    }
-  }
+  /* A PARTIR DE AQUÍ SE BUSCA POR NOMBRE Y, SI HACE FALTA, SE CREA. Dos
+     ejecuciones a la vez (dos pulsaciones seguidas de "Actualizar los datos",
+     o un disparador por tiempo) podrían las dos decidir que el cuaderno no
+     existe y crear cada una el suyo. Se protege con un bloqueo del
+     documento; si no se consigue en 30 segundos, se sigue sin él: mejor
+     arriesgar un duplicado raro que dejar a Francisco sin cuaderno. */
+  const lock = LockService.getDocumentLock();
+  let conLock = false;
+  try { conLock = lock.tryLock(30000); } catch (e) { conLock = false; }
 
-  if (!crear) return null;
-
-  /* 3. No existe: se crea, y se deja al lado de la carpeta de trabajo. */
-  const libro = SpreadsheetApp.create(NOMBRE_INFORMES_BAC + ' ' + CURSO_ACTUAL);
   try {
-    const archivo = DriveApp.getFileById(libro.getId());
-    const datos = DriveApp.getFolderById(CARPETA_ID);
-    const padres = datos.getParents();
-    archivo.moveTo(padres.hasNext() ? padres.next() : datos);
-  } catch (e) { /* si no se puede mover, se queda en Mi unidad; funciona igual */ }
-  guardarIdBachillerato_(libro.getId());
-  return libro;
+    /* Puede que otra ejecución haya guardado el identificador mientras se
+       esperaba el bloqueo: se vuelve a mirar antes de buscar por nombre. */
+    try {
+      guardado = PropertiesService.getDocumentProperties().getProperty(PROP_ID_INFORMES_BAC) || '';
+    } catch (e) { guardado = ''; }
+    if (guardado) {
+      try { return SpreadsheetApp.openById(guardado); }
+      catch (e) { /* se sigue buscando por nombre */ }
+    }
+
+    /* 2. Por su nombre, en las carpetas de trabajo. Así, si alguien lo mueve o
+          lo renombra a medias, se vuelve a encontrar en vez de crear otro. */
+    const listas = ficherosPorCarpeta_();
+    for (let c = 0; c < listas.length; c++) {
+      for (let i = 0; i < listas[c].length; i++) {
+        const f = listas[c][i];
+        if (String(f.getMimeType()) !== MimeType.GOOGLE_SHEETS) continue;
+        if (normalizar(f.getName()).indexOf(normalizar(NOMBRE_INFORMES_BAC)) === -1) continue;
+        /* Y del curso de ahora. Sin esto, el año que viene, si se hubiera
+           perdido el identificador guardado, se escribirían los grupos nuevos
+           dentro del cuaderno del curso pasado. Es la misma comprobación que
+           hacen los CSV de matrícula. */
+        if (f.getName().indexOf(CURSO_ACTUAL) === -1) continue;
+        guardarIdBachillerato_(f.getId());
+        return SpreadsheetApp.openById(f.getId());
+      }
+    }
+
+    if (!crear) return null;
+
+    /* 3. No existe: se crea, y se deja al lado de la carpeta de trabajo. */
+    const libro = SpreadsheetApp.create(NOMBRE_INFORMES_BAC + ' ' + CURSO_ACTUAL);
+    try {
+      const archivo = DriveApp.getFileById(libro.getId());
+      const datos = DriveApp.getFolderById(CARPETA_ID);
+      const padres = datos.getParents();
+      archivo.moveTo(padres.hasNext() ? padres.next() : datos);
+    } catch (e) { /* si no se puede mover, se queda en Mi unidad; funciona igual */ }
+    guardarIdBachillerato_(libro.getId());
+    return libro;
+  } finally {
+    if (conLock) { try { lock.releaseLock(); } catch (e) { /* se libera sola al terminar */ } }
+  }
 }
 
 function guardarIdBachillerato_(id) {

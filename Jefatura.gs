@@ -31,6 +31,10 @@ const TITULOS_JEFATURA = ['Alumno/a', 'Unidad', 'Curso', 'Grupo de origen', 'REL
    "Código de Jefatura" y "Abreviatura". Así hay una sola lista de materias
    en todo el programa. Se construye una vez por ejecución. */
 let CACHE_TRAD_JEFATURA_ = null;
+/* Si leerOferta_() falla, se anota aquí en vez de tragárselo, y leerJefatura_
+   lo deja en AVISOS: sin la pestaña OFERTA los códigos de Jefatura se quedan
+   sin traducir, y eso hay que poder verlo, no solo intuirlo. */
+let AVISO_TRAD_JEFATURA_ = '';
 function tablaTraduccionJefatura_() {
   if (CACHE_TRAD_JEFATURA_) return CACHE_TRAD_JEFATURA_;
   const tabla = {};
@@ -48,7 +52,10 @@ function tablaTraduccionJefatura_() {
         }
       }
     }
-  } catch (e) { /* sin oferta, los códigos se dejan como vienen */ }
+  } catch (e) {
+    AVISO_TRAD_JEFATURA_ = 'No he podido leer la pestaña OFERTA para traducir los códigos de ' +
+      'Jefatura (' + e.message + '). Los códigos se han dejado tal cual venían, sin traducir.';
+  }
   CACHE_TRAD_JEFATURA_ = tabla;
   return tabla;
 }
@@ -342,13 +349,22 @@ function compararJefatura_(filasAlum, idxAlum, alumnosJef) {
   return salida;
 }
 
-/*** ================= ACCESO A DRIVE ================= ***/
+/*** ================= ACCESO A DRIVE =================
+ *
+ * BUSCAR SIN ABRIR (BD v64). buscarFicheroJefatura_ solo mira los nombres y
+ * las fechas de Drive: es lo único que necesita el panel para decir de cuándo
+ * es el fichero de Jefatura (buscarAgrupamientosPanel_, en Panel.gs). Abrir
+ * el cuaderno con SpreadsheetApp.openById es lo lento, y el panel no necesita
+ * leer ni una celda de dentro. buscarLibroJefatura_ es quien de verdad lo
+ * abre, para quien sí necesita leerlo (leerJefatura_, aquí abajo). ***/
 
-/* Busca el cuaderno de Jefatura por su nombre. Devuelve {libro, nombre} o
-   {aviso: '...'} si no lo encuentra o si está sin convertir.
-   Usa la misma caché de ficheros que buscarCsv (Codigo.gs), así que no
-   vuelve a listar Drive si ya se ha mirado antes en esta misma ejecución. */
-function buscarLibroJefatura_() {
+/* Busca el fichero de Jefatura por su nombre, sin abrirlo. Devuelve
+   { archivo, sinConvertir }: 'archivo' es el más reciente que sea una Hoja de
+   cálculo de Google, o null si no hay ninguno; 'sinConvertir' es el nombre de
+   un Excel sin convertir, si es lo único que se ha encontrado.
+   Usa la misma caché de ficheros que buscarCsv (Codigo.gs), así que no vuelve
+   a listar Drive si ya se ha mirado antes en esta misma ejecución. */
+function buscarFicheroJefatura_() {
   const listas = ficherosPorCarpeta_();
   let sinConvertir = '', mejor = null;
   for (let c = 0; c < listas.length; c++) {
@@ -367,9 +383,16 @@ function buscarLibroJefatura_() {
       sinConvertir = f.getName();
     }
   }
-  if (mejor) return { libro: SpreadsheetApp.openById(mejor.getId()), nombre: mejor.getName() };
-  if (sinConvertir) {
-    return { aviso: 'He encontrado "' + sinConvertir + '", pero es un Excel sin convertir. ' +
+  return { archivo: mejor, sinConvertir: sinConvertir };
+}
+
+/* Busca el cuaderno de Jefatura por su nombre Y LO ABRE. Devuelve
+   {libro, nombre} o {aviso: '...'} si no lo encuentra o si está sin convertir. */
+function buscarLibroJefatura_() {
+  const r = buscarFicheroJefatura_();
+  if (r.archivo) return { libro: SpreadsheetApp.openById(r.archivo.getId()), nombre: r.archivo.getName() };
+  if (r.sinConvertir) {
+    return { aviso: 'He encontrado "' + r.sinConvertir + '", pero es un Excel sin convertir. ' +
       'Ábrelo en Drive y usa Archivo > Guardar como Hojas de cálculo de Google.' };
   }
   return { aviso: 'No he encontrado ningún cuaderno cuyo nombre contenga "AGRUPAMIENTOS".' };
@@ -449,6 +472,10 @@ function leerJefatura_() {
   if (!grupos) {
     avisos.push({ curso: '', grupo: '', alumno: '', aviso: 'El cuaderno de Jefatura no tiene grupos',
       detalle: 'Ninguna pestaña de "' + r.nombre + '" se llama como un grupo, tipo "3º ESO B".' });
+  }
+  if (AVISO_TRAD_JEFATURA_) {
+    avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'No he podido traducir los códigos de Jefatura', detalle: AVISO_TRAD_JEFATURA_ });
   }
   return { alumnos: alumnos, nombre: r.nombre, avisos: avisos };
 }

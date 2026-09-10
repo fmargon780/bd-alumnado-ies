@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v52';
+const VERSION_BD = 'BD v53';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -140,7 +140,9 @@ const FORMATO_HOJAS = {
       'OPC4': 'Solo en 4º. Cuarta opción: NSD (Nutrición, Salud y Deporte), PB (Prácticas Biológicas), DT (Dibujo Técnico) o ASE (Aprendizaje Social y Emocional).',
       'REL/Atedu': 'Qué cursa el alumno en la hora de religión: CAT (Religión Católica), EVA (Religión Evangélica) o ATEDU (Atención Educativa).',
       'MODALIDAD': 'SOLO BACHILLERATO. La modalidad que cursa: Ciencias y Tecnología, o Humanidades y CC. Sociales.\n\nSale del fichero de matrícula en el que aparece el alumno, y por tanto de su grupo: el grupo A es de Ciencias y los grupos B y C son de Humanidades.\n\nEn la ESO esta casilla va vacía, porque allí no hay modalidades.',
-      'ITINERARIO': 'SOLO BACHILLERATO. Las materias que cursa este año además de las comunes de su curso, abreviadas y seguidas.\n\nComunes de 1º: Educación Física, Filosofía, Lengua y Inglés. Comunes de 2º: Historia de España, Historia de la Filosofía, Lengua e Inglés. Todo lo demás sale aquí.\n\nOjo: si el alumno repite 2º, aquí solo salen las materias que está cursando de verdad. Las que ya aprobó no aparecen, porque este año no las cursa.\n\nEn la ESO esta casilla va vacía: allí lo que cursa el alumno está repartido en las columnas OPT, MAT y OPC1 a OPC4.',
+      'MAT. MODALIDAD': 'SOLO BACHILLERATO. Las materias de MODALIDAD que cursa, abreviadas.\n\nSon la obligatoria de su modalidad (Matemáticas en Ciencias, Latín en Humanidades) y las que ha elegido del grupo de modalidad.\n\nSi el alumno repite curso, aquí solo salen las que está cursando de verdad: las que ya aprobó no aparecen.\n\nEn la ESO esta casilla va vacía.',
+      'OPTATIVAS': 'SOLO BACHILLERATO. Las optativas que ha elegido, abreviadas. En 1º y en 2º se eligen dos.\n\nSi aquí aparece una materia que no está en la pestaña MATERIAS OBLIGATORIAS, es que la oferta del centro no la recoge: sale también en AVISOS.\n\nEn la ESO esta casilla va vacía: allí la optativa está en la columna OPT.',
+      'MATRÍCULA': 'SOLO BACHILLERATO. Dice si el alumno está bien matriculado en Séneca.\n\nPone OK cuando tiene todas las materias que le tocan. En 1º son diez: 4 comunes, la obligatoria de su modalidad, 2 de modalidad a elegir, 2 optativas y Religión o Atención Educativa.\n\nSi no, dice en pocas palabras qué falta o qué sobra: "falta MAT", "faltan 2 de Optativas".\n\nEl reparto sale de la pestaña MATERIAS OBLIGATORIAS, de sus columnas Quién la cursa y Elegir de este grupo. Si una materia deja de ser obligatoria, se corrige allí.\n\nCada alumno con algo que falte deja además una línea en AVISOS.',
       'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso con su etapa detrás ("2º ESO"), el centro escrito con su nombre entero ("IES Fuente Lucena"), la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? suspensas", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
     },
@@ -159,7 +161,8 @@ const FORMATO_HOJAS = {
       'Diversificación': [95, 'C'], 'NEAE': [180, 'W'], 'MEDIDAS Y RECURSOS': [180, 'W'],
       'OPT': [60, 'C'], 'FR -> ALCT': [60, 'C'], 'MAT': [55, 'C'], 'OPC1': [55, 'C'],
       'OPC2': [55, 'C'], 'OPC3': [55, 'C'], 'OPC4': [55, 'C'], 'REL/Atedu': [65, 'C'],
-      'MODALIDAD': [150, 'W'], 'ITINERARIO': [200, 'W'],
+      'MODALIDAD': [150, 'W'], 'MAT. MODALIDAD': [150, 'W'],
+      'OPTATIVAS': [140, 'W'], 'MATRÍCULA': [190, 'W'],
       'Trayectoria': [200, 'I'], 'Observaciones': [200, 'W']
     }
   },
@@ -460,6 +463,18 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
     siDice('Cursos repetidos en ESO', SIN_DATO, FMT_AMBAR);
     /* Repeticiones de Primaria estimadas por edad: hay que revisarlas a mano. */
     siDice('Fuente Primaria', 'EDAD', FMT_AMBAR);
+    /* BACHILLERATO: la matrícula que no cuadra, en ámbar. Es justo lo que hay
+       que arreglar en Séneca. Una casilla vacía es un alumno de la ESO, y esa
+       no se pinta: si no, se pintarían las 668 filas de la ESO. */
+    const cMatri = fmtColumnaDe_(titulos, 'MATRÍCULA');
+    if (cMatri) {
+      const letraM = hoja.getRange(1, cMatri).getA1Notation().replace(/[0-9]/g, '');
+      reglas.push(SpreadsheetApp.newConditionalFormatRule()
+        .whenFormulaSatisfied('=AND($' + letraM + primera + '<>"",$' + letraM + primera +
+                              '<>"' + MATRICULA_OK + '")')
+        .setBackground(FMT_AMBAR)
+        .setRanges([hoja.getRange(primera, cMatri, nDatos, 1)]).build());
+    }
     /* Repeticiones que hubo pero no sabemos dónde. Cuentan para el PIL, y
        conviene mirarlas una a una: puede que el alumno vaya retrasado por
        otro motivo. Aquí el valor es un número, no un texto. */

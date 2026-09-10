@@ -362,7 +362,7 @@ function estadoDeLasFuentes_() {
 function pendientesDelSistema_() {
   const libro = SpreadsheetApp.getActiveSpreadsheet();
   const salida = { total: 0, sinDato: 0, sinUnidad: 0, discrepancias: 0, avisos: 0,
-                   primeroSinExpediente: 0, hayAlumnado: false };
+                   primeroSinExpediente: 0, matriculasBac: 0, hayAlumnado: false };
 
   const hoja = libro.getSheetByName(HOJA_ALUMNADO);
   if (hoja && hoja.getLastRow() >= 3) {
@@ -373,6 +373,8 @@ function pendientesDelSistema_() {
     const iUni = titulos.indexOf(normalizar('Unidad'));
     const iAsi = titulos.indexOf(normalizar('Asignaturas pendientes'));
     const iMns = titulos.indexOf(normalizar('MAT NO SUP.'));
+    /* Solo Bachillerato: la casilla vacía es un alumno de la ESO. */
+    const iMat = titulos.indexOf(normalizar('MATRÍCULA'));
     const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
     for (let f = 0; f < datos.length; f++) {
       if (!String(datos[f][0] || '').trim()) continue;
@@ -384,6 +386,10 @@ function pendientesDelSistema_() {
         salida.primeroSinExpediente++;
       }
       if (iUni !== -1 && !String(datos[f][iUni] || '').trim()) salida.sinUnidad++;
+      if (iMat !== -1) {
+        const mat = String(datos[f][iMat] || '').trim();
+        if (mat && mat !== MATRICULA_OK) salida.matriculasBac++;
+      }
     }
   }
 
@@ -473,6 +479,7 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
     mete('Alumnado en la tabla', String(pend.total));
     mete('Con algún dato sin confirmar (sale "' + SIN_DATO + '")', String(pend.sinDato));
     mete('Sin unidad asignada en Séneca', String(pend.sinUnidad));
+    mete('Bachillerato: matrículas que no cuadran en Séneca', String(pend.matriculasBac));
     mete('Diferencias con Jefatura sin marcar', String(pend.discrepancias));
     mete('Avisos anotados', String(pend.avisos));
     mete('');

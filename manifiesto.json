@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — los PDF de borrador ya no se caen: el rótulo BORRADOR no une celdas, y un fallo en una pestaña no tumba las demás",
+  "version": "BD v51 — arreglado el fallo que daba cientos de avisos falsos de materias obligatorias, y de cada grupo se exige el número exacto",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

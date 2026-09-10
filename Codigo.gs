@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v51';
+const VERSION = 'BD v52';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -598,7 +598,6 @@ function notaDeAlumno_(mapa, nombre) {
  * el curso lleva siempre su etapa detrás y el centro se escribe con su nombre.
  * Es lo mismo, escrito para que se entienda sin conocer el sistema por dentro.
  * ======================================================== ***/
-
 /* "29000517 - C.E.I.P. Carmen Arévalo" -> "C.E.I.P. Carmen Arévalo".
    Y si es este instituto, su nombre entero. Una casilla vacía también es este
    centro: solo el histórico de aquí deja el centro sin decir.
@@ -1198,7 +1197,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
           'subcarpeta "' + CARPETA_SECUNDARIA + '", con el nombre "' + PREFIJO_EXP_SEC + ' ' +
           a.nombre + '.csv". Ese fichero trae sus años en otros institutos y cierra el caso solo.' });
     }
-
     const decisionAMano = String(man[6] || '').trim().toUpperCase();
     if (decisionAMano === 'SÍ' || decisionAMano === 'SI') {
       pil = 'SÍ';

@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v53';
+const VERSION = 'BD v54';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -1336,15 +1336,18 @@ function textoDeArchivo(archivo) {
  * ======================================================== ***/
 let CACHE_CARPETAS_ = null;
 
+/* DÓNDE SE BUSCAN LOS FICHEROS SUELTOS. Desde la BD v54 la carpeta de trabajo
+   tiene estructura: los CSV de matrícula en una carpeta, el histórico y el
+   censo en otra, y lo que no viene de Séneca en una tercera. El mapa de todas
+   ellas está en Carpetas.gs, y de ahí sale esta lista, ya en orden: de la
+   carpeta más concreta a la más general.
+   Las dos últimas de la lista son el sitio de antes, así que mientras
+   Francisco no pulse "Ordenar la carpeta de Drive" los ficheros se siguen
+   encontrando donde estén hoy. */
 function carpetasDondeBuscar() {
   if (CACHE_CARPETAS_) return CACHE_CARPETAS_;
-  const lista = [];
-  const carpeta = DriveApp.getFolderById(CARPETA_ID);
-  lista.push(carpeta);
-  const padres = carpeta.getParents();
-  while (padres.hasNext()) lista.push(padres.next());
-  CACHE_CARPETAS_ = lista;
-  return lista;
+  CACHE_CARPETAS_ = carpetasDeBusqueda_();
+  return CACHE_CARPETAS_;
 }
 
 /* ficherosPorCarpeta_() está en Ficheros.gs: devuelve los ficheros de cada
@@ -1366,7 +1369,12 @@ function buscarCsv(prefijo, contiene) {
       if (contiene && n.indexOf(contiene) === -1) continue;
       if (!mejor || f.getLastUpdated().getTime() > mejor.getLastUpdated().getTime()) mejor = f;
     }
-    if (mejor) break;
+    /* NO SE PARA EN LA PRIMERA CARPETA QUE TENGA ALGO, y es importante. Desde
+       que la carpeta de trabajo tiene estructura (BD v54), el mismo fichero
+       puede estar en dos sitios: la copia vieja en su carpeta ordenada y la
+       recién descargada, todavía suelta en la carpeta de descargas. Parando en
+       la primera se cogería la vieja y el panel diría que no ha cambiado nada.
+       Se miran todas y gana el MÁS RECIENTE, que es la regla de siempre. */
   }
   return mejor;
 }
@@ -1389,7 +1397,6 @@ function ficherosDeBachillerato_() {
       if (normalizar(n).indexOf('bach') === -1) continue;
       if (nombres.indexOf(n) === -1) nombres.push(n);
     }
-    if (nombres.length) break;
   }
   return nombres;
 }
@@ -1426,7 +1433,8 @@ function buscarCsvsMatricula() {
         encontrados[curso] = f;
       }
     }
-    if (Object.keys(encontrados).length === 4) break;
+    /* Tampoco se para al completar los cuatro cursos: puede que en la carpeta
+       de descargas haya uno más nuevo que el que ya está ordenado. */
   }
   return encontrados;
 }

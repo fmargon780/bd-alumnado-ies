@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v56';
+const VERSION = 'BD v57';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -1521,10 +1521,16 @@ function cargarHistorico() {
      antes solo tardaba tiempo para nada. Ver el comentario grande al principio
      de Formato.gs. */
 
+  /* AQUÍ NO SE LE PIDE A NADIE QUE PULSE NADA. Este aviso decía "Ahora pulsa
+     2. Construir la tabla ALUMNADO", que era el segundo de los tres botones de
+     entonces. Ese botón ya no existe desde la BD v15, y además esta función se
+     llama DENTRO de "1. Actualizar los datos" (Panel.gs), así que el cartel
+     salía a media ejecución mandando pulsar algo que no está. Lo vio Francisco
+     el 10-sep-2026 mirando la pantalla mientras el programa trabajaba.
+     Es un cartel de paso: la pestaña RESUMEN se reescribe entera al terminar. */
   avisar_('Histórico cargado (' + VERSION + ')',
     'Fichero: ' + archivo.getName() + '\nAño más reciente: ' + res.ano +
-    '\nAlumnos de ESO matriculados ese año: ' + res.filas.length +
-    '\n\nAhora pulsa "2. Construir la tabla ALUMNADO".');
+    '\nAlumnos de ESO matriculados ese año: ' + res.filas.length);
 }
 
 /*** ================= BOTÓN 2: ALUMNADO ================= ***/

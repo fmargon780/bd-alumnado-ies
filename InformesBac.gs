@@ -177,7 +177,7 @@ function rellenarBachillerato_(avisos) {
       avisos.push(['', '', 'El cuaderno de Bachillerato no se ha actualizado',
         'No he encontrado los CSV de matrícula de Bachillerato en la carpeta, así que ' +
         'sus pestañas se han quedado con los datos de la última vez. Vuelve a dejar los ' +
-        'cuatro ficheros en "Datos de matrícula" y pulsa otra vez "1. Actualizar los datos".']);
+        'cuatro ficheros en la carpeta de descargas y pulsa otra vez "1. Actualizar los datos".']);
     }
     return null;
   }

@@ -73,11 +73,17 @@ const DELATAN_HUMANIDADES = ['Latín', 'Griego', 'Historia del Arte', 'Literatur
    Ya no hace falta que la lista esté completa: lo que decide es el BLOQUE al
    que pertenece la materia según la pestaña MATERIAS OBLIGATORIAS. Esta lista
    solo dice qué código se escribe en el papel. Cualquier otra materia de ese
-   bloque se escribe ATEDU, que es exactamente como se escribe en la ESO (ver
-   ABREVIATURAS en Codigo.gs). La misma columna no puede llevar dos grafías
-   distintas según la etapa. */
+   bloque se escribe PTEV.
+
+   POR QUÉ PTEV Y NO ATEDU (10-sep-2026). Lo señaló Francisco: en la ESO la
+   alternativa a la Religión es "Atención Educativa", y se escribe ATEDU. En
+   Bachillerato NO existe esa materia: lo que se cursa se llama "Proyectos
+   Transversales de Educación en Valores". Son dos materias distintas, con
+   nombres distintos en Séneca, así que escribir ATEDU en Bachillerato sería
+   llamar a una materia por el nombre de otra. Cada etapa, su código, y la
+   leyenda del informe explica los dos. */
 const RELIGION_BAC = { 'Religión Católica': 'CAT', 'Religión Evangélica': 'EVA' };
-const CODIGO_ATEDU = 'ATEDU';
+const CODIGO_VALORES = 'PTEV';
 
 function codigoDeReligion_(materia) {
   const t = String(materia || '').trim();
@@ -85,7 +91,7 @@ function codigoDeReligion_(materia) {
   const n = normalizar(t);
   if (n.indexOf('catolica') !== -1) return 'CAT';
   if (n.indexOf('evangelica') !== -1) return 'EVA';
-  return CODIGO_ATEDU;
+  return CODIGO_VALORES;
 }
 
 /*** ================= LOS CUATRO BLOQUES DE LA MATRÍCULA =================
@@ -98,7 +104,7 @@ function codigoDeReligion_(materia) {
  *     1  modalidad obligatoria     Matemáticas, o Latín
  *     2  modalidad a elegir
  *     2  optativas
- *     1  Religión o Atención Educativa
+ *     1  Religión o Proyectos Transversales de Educación en Valores
  *
  * Ni una más ni una menos. Por eso saber si un alumno está bien matriculado no
  * es adivinar nada: es contar.
@@ -526,7 +532,7 @@ function codigoDeReligionConocida_(materia) {
   if (RELIGION_BAC[t] !== undefined) return RELIGION_BAC[t];
   const n = normalizar(t);
   if (n.indexOf('religion') !== -1) return 'CAT';
-  if (n.indexOf('educacion en valores') !== -1) return CODIGO_ATEDU;
+  if (n.indexOf('educacion en valores') !== -1) return CODIGO_VALORES;
   return '';
 }
 

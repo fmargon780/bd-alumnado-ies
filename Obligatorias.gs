@@ -645,126 +645,20 @@ function oblProponerBachillerato_(porModalidad, curso) {
   return propuesta;
 }
 
-/* Los avisos de un fichero de Bachillerato. */
-function oblAvisosDeFicheroBac_(tabla, curso, modalidad, vigentes) {
-  const avisos = [];
-  if (!tabla || tabla.length < 2 || !vigentes.length) return avisos;
-  const C = oblColumnas_(tabla);
-  if (C.iNombre === -1) return avisos;
+/* LA COMPROBACIÓN DE BACHILLERATO YA NO ESTÁ AQUÍ (BD v53).
 
-  const laOtra = modalidad === MODALIDAD_HUMANIDADES ? 'ciencias' : 'humanidades';
-  const lista = [];
-  for (let i = 0; i < vigentes.length; i++) {
-    const quien = oblQuien_(vigentes[i].quien);
-    if (quien === laOtra) continue;              // es de la otra modalidad
-    if (quien === 'diver' || quien === 'ordinario') continue;   // eso es de la ESO
-    const c = C.cabN.indexOf(normalizar(vigentes[i].materia));
-    if (c === -1) continue;   // no está en ESTE fichero; puede estar en el de la otra modalidad
+   La hace Bachillerato.gs, en diagnosticoMatricula_, mientras lee los CSV de
+   matrícula. Se movió por dos razones:
 
-    /* Las líneas de itinerario solo se le exigen a quien cursa la materia que
-       lo define. Si esa materia no está en este fichero, la línea es de la
-       otra modalidad y aquí no pinta nada. */
-    let colCond = -1;
-    if (quien === 'condicion') {
-      const cond = oblCondicion_(vigentes[i].quien);
-      colCond = cond ? C.cabN.indexOf(normalizar(cond)) : -1;
-      if (colCond === -1) continue;
-    }
-    lista.push({ col: c, materia: vigentes[i].materia, colCond: colCond,
-                 grupo: vigentes[i].grupo || '' });
-  }
+     1. Para que la columna MATRÍCULA de la tabla ALUMNADO y el aviso digan
+        exactamente lo mismo. Antes eran dos cuentas distintas en dos ficheros
+        distintos, y eso siempre acaba en dos respuestas distintas.
+     2. Para no leer los mismos cuatro ficheros dos veces.
 
-  /* Los grupos de elección de este fichero: de cada uno el alumno tiene que
-     cursar unas cuantas materias, normalmente una. */
-  const grupos = {};
-  for (let i = 0; i < lista.length; i++) {
-    if (!lista[i].grupo) continue;
-    if (!grupos[lista[i].grupo]) {
-      grupos[lista[i].grupo] = { cuantas: oblCuantasDelGrupo_(lista[i].grupo), cols: [], materias: [] };
-    }
-    grupos[lista[i].grupo].cols.push(lista[i].col);
-    grupos[lista[i].grupo].materias.push(lista[i].materia);
-  }
-
-  /* Cuántas materias cursa cada alumno. Sirve para el aviso de más abajo. */
-  const cuantas = [];
-  for (let f = 1; f < tabla.length; f++) {
-    if (!String(tabla[f][C.iNombre] || '').trim()) continue;
-    let n = 0;
-    for (let c = 0; c < C.cab.length; c++) {
-      if (c === C.iNombre || c === C.iUnidad) continue;
-      if (!C.cab[c] || pendienteDeBac_(C.cab[c])) continue;
-      if (oblCumpleBac_(tabla[f][c])) n++;
-    }
-    cuantas.push(n);
-  }
-  const ordenadas = cuantas.slice().sort(function (a, b) { return a - b; });
-  const mediana = ordenadas.length ? ordenadas[Math.floor(ordenadas.length / 2)] : 0;
-  const minimo = Math.max(3, Math.floor(mediana / 2));
-
-  let iAlumno = -1;
-  for (let f = 1; f < tabla.length; f++) {
-    const nombre = String(tabla[f][C.iNombre] || '').trim();
-    if (!nombre) continue;
-    iAlumno++;
-    const unidad = C.iUnidad === -1 ? '' : String(tabla[f][C.iUnidad] || '').trim();
-
-    /* MATRÍCULA A MEDIAS. No es que le falte una materia obligatoria: es que
-       apenas tiene materias. Casi siempre es una matrícula que se quedó sin
-       terminar en Séneca. Sin esta comprobación no se veía, porque las cuatro
-       materias comunes sí las tenía. */
-    if (cuantas[iAlumno] < minimo) {
-      avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
-        aviso: 'Matrícula incompleta en Séneca',
-        detalle: 'Solo está matriculado en ' + cuantas[iAlumno] + ' materias, y en su grupo lo ' +
-          'normal son ' + mediana + '. Parece una matrícula sin terminar. Modalidad: ' + modalidad + '.' });
-      continue;
-    }
-
-    /* Primero las obligatorias de verdad, las que no están en ningún grupo. */
-    const faltan = [];
-    for (let i = 0; i < lista.length; i++) {
-      const m = lista[i];
-      if (m.grupo) continue;
-      if (m.colCond !== -1 && !oblCumpleBac_(tabla[f][m.colCond])) continue;
-      if (!oblCumpleBac_(tabla[f][m.col])) faltan.push(m.materia);
-    }
-    if (faltan.length) {
-      avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
-        aviso: 'Le faltan materias obligatorias en Séneca',
-        detalle: 'No está matriculado en: ' + faltan.join(', ') + '. Modalidad: ' + modalidad +
-          '. Compruébalo en Séneca, o corrige la pestaña "' + HOJA_OBLIGATORIAS +
-          '" si esa materia ya no es obligatoria.' });
-    }
-
-    /* Y ahora los grupos de elección: de cada uno tiene que cursar N. Solo se
-       avisa cuando le faltan, no cuando le sobran: cursar una materia de más
-       no es un error de matrícula, y avisar de eso llenaría AVISOS de ruido. */
-    for (const g in grupos) {
-      let n = 0;
-      for (let c = 0; c < grupos[g].cols.length; c++) {
-        if (oblCumpleBac_(tabla[f][grupos[g].cols[c]])) n++;
-      }
-      if (n === grupos[g].cuantas) continue;
-      /* De un grupo hay que cursar EXACTAMENTE las que dice: ni menos ni más.
-         Lo pidió Francisco el 10-sep-2026: "si un alumno tiene que elegir
-         entre Religión Católica y Atención Educativa, tiene que tener en
-         Séneca necesariamente una de las dos; no puede tener ni ninguna ni
-         las dos a la vez". */
-      const cuales = [];
-      for (let c = 0; c < grupos[g].cols.length; c++) {
-        if (oblCumpleBac_(tabla[f][grupos[g].cols[c]])) cuales.push(grupos[g].materias[c]);
-      }
-      avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
-        aviso: (n < grupos[g].cuantas ? 'Le faltan materias de un grupo: ' : 'Tiene materias de más de un grupo: ') + g,
-        detalle: 'De "' + g + '" hay que cursar ' + grupos[g].cuantas + ' y tiene ' + n +
-          (cuales.length ? ' (' + cuales.join(', ') + ')' : '') +
-          '. Las de ese grupo son: ' + grupos[g].materias.join(', ') + '. Modalidad: ' +
-          modalidad + '. Compruébalo en Séneca.' });
-    }
-  }
-  return avisos;
-}
+   Y de paso se simplificó lo que se escribe. Lo dijo Francisco el 10-sep-2026:
+   "los avisos son demasiado complejos". Ahora cada alumno mal matriculado deja
+   UNA línea, con la misma frase corta que sale en la tabla y en el papel:
+   "falta MAT", "faltan 2 de Optativas". */
 
 /* Añade al final de la pestaña las líneas de los cursos que todavía no están.
    La pestaña la manda Francisco y el programa NO la reescribe: aquí solo se
@@ -806,85 +700,16 @@ function oblAnadirCursos_(nuevas) {
 
 /*** ============ LAS QUE SE QUEDAN A LAS PUERTAS ============ ***/
 
-/* A partir de qué porcentaje una materia merece que Francisco decida si es
-   obligatoria, y cuántas se le llevan como mucho para no llenar AVISOS. */
-const OBL_CANDIDATA = 0.80;
-const OBL_MAX_CANDIDATAS = 15;
+/* LAS MATERIAS "CANDIDATAS" YA NO SE PREGUNTAN (BD v53).
 
-/* Las materias que casi todo un itinerario cursa, pero no todo, y que no están
-   todavía en la pestaña.
-
-   POR QUÉ ESTO ES UN AVISO Y NO UNA LÍNEA MÁS DE LA PESTAÑA. El programa solo
-   puede ver cuánta gente cursa cada materia. Que la cursen 27 de 28 puede
-   querer decir dos cosas muy distintas: que es obligatoria y a uno le falta en
-   Séneca, o que es una elección que casi todos hacen. Eso no se deduce de los
-   datos: está en la normativa y en la documentación del centro, y lo sabe
-   Francisco. Así que el programa no decide: pregunta, y espera.
-
-   Cada una sale como una fila de AVISOS, con su columna Estado, así que se
-   contesta marcándola. Lo que se marque no se vuelve a preguntar.
-
-   Ojo: aquí también caen elecciones del alumno que casi todos hacen, como la
-   religión. Se dicen igual, porque el programa no sabe distinguirlas, y se
-   despachan marcándolas "No procede" una vez. */
-function oblCandidatasDeUnFicheroBac_(tabla, curso, modalidad, yaEnLaPestana, itinerarios) {
-  const salida = [];
-  if (!tabla || tabla.length < 2) return salida;
-  const C = oblColumnas_(tabla);
-  if (C.iNombre === -1) return salida;
-
-  const alumnos = [];
-  for (let f = 1; f < tabla.length; f++) {
-    const nombre = String(tabla[f][C.iNombre] || '').trim();
-    if (!nombre) continue;
-    if (oblEsRepetidorBac_(tabla[f])) continue;
-    alumnos.push(tabla[f]);
-  }
-  if (alumnos.length < OBL_MINIMO_ALUMNOS) return salida;
-
-  const cols = [];
-  for (let c = 0; c < C.cab.length; c++) {
-    if (c === C.iNombre || c === C.iUnidad) continue;
-    if (!C.cab[c] || pendienteDeBac_(C.cab[c])) continue;
-    cols.push(c);
-  }
-
-  /* Los grupos donde se mira: la modalidad entera, y los itinerarios que ya se
-     conocen, que son los que están declarados en la pestaña con "Solo quienes
-     cursan...". NO se prueba con todas las materias del fichero: eso sacaba
-     parejas sin sentido, como "el 92 % de quienes cursan Química cursa
-     Religión". Un itinerario es algo que existe en el centro, no cualquier
-     coincidencia entre dos materias. */
-  const grupos = [{ nombre: '', alumnos: alumnos }];
-  for (let i = 0; i < itinerarios.length; i++) {
-    const c = C.cabN.indexOf(normalizar(itinerarios[i]));
-    if (c === -1) continue;
-    const g = [];
-    for (let a = 0; a < alumnos.length; a++) if (oblCumpleBac_(alumnos[a][c])) g.push(alumnos[a]);
-    if (g.length < OBL_MINIMO_ITINERARIO) continue;
-    grupos.push({ nombre: itinerarios[i], alumnos: g });
-  }
-
-  for (let k = 0; k < grupos.length; k++) {
-    const g = grupos[k];
-    const quien = g.nombre ? OBL_CONDICION + g.nombre : (modalidad || '');
-    for (let i = 0; i < cols.length; i++) {
-      const m = C.cab[cols[i]];
-      if (m === g.nombre) continue;
-      const clave = normalizar(curso) + '|' + normalizar(m);
-      if (yaEnLaPestana[clave]) continue;
-      let n = 0;
-      for (let a = 0; a < g.alumnos.length; a++) if (oblCumpleBac_(g.alumnos[a][cols[i]])) n++;
-      const p = n / g.alumnos.length;
-      if (p < OBL_CANDIDATA || p >= 1) continue;
-      salida.push({ curso: curso, materia: m, modalidad: modalidad, itinerario: g.nombre,
-                    quien: quien, cuantos: n, total: g.alumnos.length, parte: p });
-    }
-  }
-  return salida;
-}
-
-/*** ================= LA COMPROBACIÓN ================= ***/
+   Se preguntaba, materia por materia, si una que cursa el 80 % o el 90 % de un
+   itinerario era obligatoria. Tenía sentido cuando el programa no conocía la
+   oferta del centro y tenía que adivinarla contando alumnos. Desde que está el
+   documento "Oferta educativa para el curso 2026-27", ya no: la pestaña
+   MATERIAS OBLIGATORIAS dice qué es obligatorio y qué se elige, y el programa
+   cuenta en vez de preguntar.
+   Quitarlo es lo que pidió Francisco el 10-sep-2026: los avisos tienen que ser
+   pocos y claros. */
 
 /* Mira el CSV de un curso contra las líneas vigentes de la tabla y devuelve un
    aviso por cada alumno al que le falte alguna materia. */
@@ -1084,61 +909,8 @@ function comprobarObligatorias_() {
     const vigentes = oblVigentes_(filas, cursos[i], ano);
     avisos = avisos.concat(oblAvisosDeCurso_(tablas[cursos[i]], cursos[i], vigentes));
   }
-  for (let i = 0; i < cursosBac.length; i++) {
-    const cu = cursosBac[i];
-    const vigentes = oblVigentes_(filas, cu, ano);
-    const lista = bacPorCurso[cu];
-    for (let j = 0; j < lista.length; j++) {
-      avisos = avisos.concat(
-        oblAvisosDeFicheroBac_(lista[j].tabla, cu, lista[j].modalidad, vigentes));
-    }
-  }
-
-  /* LAS QUE SE QUEDAN A LAS PUERTAS. Se preguntan en AVISOS, una por fila, con
-     su casilla Estado. Lo que Francisco marque no se vuelve a preguntar. */
-  const yaEnLaPestana = {};
-  for (let k = 0; k < filas.length; k++) {
-    yaEnLaPestana[normalizar(filas[k].curso) + '|' + normalizar(filas[k].materia)] = true;
-  }
-  /* Los itinerarios que ya están declarados en la pestaña, con la forma
-     "Solo quienes cursan Latín". Son los que el programa conoce. */
-  const itinerariosDeclarados = [];
-  for (let k = 0; k < filas.length; k++) {
-    const cond = oblCondicion_(filas[k].quien);
-    if (cond && itinerariosDeclarados.indexOf(cond) === -1) itinerariosDeclarados.push(cond);
-  }
-
-  let candidatas = [];
-  for (let i = 0; i < cursosBac.length; i++) {
-    const cu = cursosBac[i];
-    const lista = bacPorCurso[cu];
-    for (let j = 0; j < lista.length; j++) {
-      candidatas = candidatas.concat(
-        oblCandidatasDeUnFicheroBac_(lista[j].tabla, cu, lista[j].modalidad,
-                                     yaEnLaPestana, itinerariosDeclarados));
-    }
-  }
-  /* Una misma materia puede salir por su modalidad y por un itinerario. Se
-     queda la del grupo donde más se cursa, que es la que mejor la explica. */
-  const mejor = {};
-  for (let i = 0; i < candidatas.length; i++) {
-    const c = candidatas[i];
-    const k = normalizar(c.curso) + '|' + normalizar(c.materia);
-    if (!mejor[k] || c.parte > mejor[k].parte) mejor[k] = c;
-  }
-  const unicas = [];
-  for (const k in mejor) unicas.push(mejor[k]);
-  unicas.sort(function (a, b) { return b.parte - a.parte; });
-  for (let i = 0; i < unicas.length && i < OBL_MAX_CANDIDATAS; i++) {
-    const c = unicas[i];
-    const donde = c.itinerario ? 'quienes cursan ' + c.itinerario : 'la modalidad de ' + c.modalidad;
-    avisos.push({ curso: c.curso, grupo: c.modalidad, alumno: '',
-      aviso: 'Decide si esta materia es obligatoria: ' + c.materia,
-      detalle: 'La cursan ' + c.cuantos + ' de ' + c.total + ' (' + Math.round(c.parte * 100) +
-        ' %) de ' + donde + '. Si es obligatoria, añádela a la pestaña "' + HOJA_OBLIGATORIAS +
-        '" con Curso "' + c.curso + '" y "Quién la cursa" = "' + c.quien + '". Si es una ' +
-        'elección del alumno, marca esta fila como "No procede" y no se vuelve a preguntar.' });
-  }
+  /* Bachillerato no se comprueba aquí: lo hace Bachillerato.gs al leer los
+     CSV, y sus avisos entran por componerAlumnado. Ver más arriba. */
 
   const escritos = oblAnadirAvisos_(avisos);
   return { alumnos: avisos.length, escritos: escritos, sembrada: sembrada, lineas: filas.length };

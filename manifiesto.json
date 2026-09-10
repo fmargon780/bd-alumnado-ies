@@ -1,5 +1,5 @@
 {
-  "version": "BD v57 — fuera el cartel que mandaba pulsar un botón que ya no existe",
+  "version": "BD v58 — los cuadros con una \"o\" de la oferta del centro son parejas: de cada cuadro se elige una, y así se comprueba",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",

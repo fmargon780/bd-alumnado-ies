@@ -1,7 +1,8 @@
 {
-  "version": "BD v53 — las materias de Bachillerato van por bloques, como en la hoja de elección del centro, y una columna nueva dice si cada alumno está bien matriculado en Séneca",
+  "version": "BD v54 — la carpeta de Drive queda ordenada: las descargas de Séneca por un lado, los ficheros del centro por otro, y los informes fuera de todo eso",
   "ficheros": [
     "Ficheros.gs",
+    "Carpetas.gs",
     "Formato.gs",
     "Codigo.gs",
     "NEAE.gs",
@@ -16,9 +17,21 @@
     "Panel.gs"
   ],
   "menu": [
-    { "titulo": "1. Actualizar los datos", "funcion": "actualizarDatos" },
-    { "titulo": "2. Generar los PDF (definitivos)", "funcion": "generarPdfs" },
-    { "titulo": "3. Generar los PDF (borrador)", "funcion": "generarPdfsBorrador" },
-    { "titulo": "4. Ordenar la carpeta de Drive", "funcion": "ordenarCarpeta" }
+    {
+      "titulo": "1. Actualizar los datos",
+      "funcion": "actualizarDatos"
+    },
+    {
+      "titulo": "2. Generar los PDF (definitivos)",
+      "funcion": "generarPdfs"
+    },
+    {
+      "titulo": "3. Generar los PDF (borrador)",
+      "funcion": "generarPdfsBorrador"
+    },
+    {
+      "titulo": "4. Ordenar la carpeta de Drive",
+      "funcion": "ordenarCarpeta"
+    }
   ]
 }

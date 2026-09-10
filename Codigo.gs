@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v57';
+const VERSION = 'BD v58';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -1748,6 +1748,7 @@ function construirAlumnado() {
       detalle: 'El fichero "' + P.porNombre[k].fichero + '" no corresponde a ningún alumno de la tabla. ' +
                'Comprueba que el nombre del fichero está escrito igual que en Séneca.' });
   }
+
   try { escribirSecundaria_(S.porNombre, unidadesPorNombre, enAlumnado); }
   catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
     aviso: 'No he podido escribir la pestaña SECUNDARIA', detalle: e.message }); }

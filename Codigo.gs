@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v58';
+const VERSION = 'BD v59';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -1198,7 +1198,6 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
           'subcarpeta "' + CARPETA_SECUNDARIA + '", con el nombre "' + PREFIJO_EXP_SEC + ' ' +
           a.nombre + '.csv". Ese fichero trae sus años en otros institutos y cierra el caso solo.' });
     }
-
     const decisionAMano = String(man[6] || '').trim().toUpperCase();
     if (decisionAMano === 'SÍ' || decisionAMano === 'SI') {
       pil = 'SÍ';
@@ -1598,7 +1597,6 @@ function construirAlumnado() {
     const r = leerMatricula(textoATabla(textoDeArchivo(ficheros[curso])), curso);
     porCurso[curso] = r.alumnos;
     resumen.push(curso + ' ESO: ' + r.alumnos.length + ' alumnos (' + ficheros[curso].getName() + ')');
-
     /* Cuántas asignaturas esperábamos encontrar en el CSV de este curso, y
        cuántas hemos encontrado de verdad. */
     let esperadas = 0;

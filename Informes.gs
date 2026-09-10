@@ -667,8 +667,15 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   }
 
   const rango = hoja.getRange(1, primera, FILAS_CABECERA, ancho - primera + 1);
-  try { rango.breakApart(); } catch (e) { /* no estaba unida */ }
-  rango.merge();
+  /* Los dos flush van DENTRO de sus try, y no es manía: Google no da el error
+     al unir, sino al vaciar la cola de operaciones. Si una pestaña tiene
+     columnas inmovilizadas y la unión las cruza, la rechaza con "no se pueden
+     combinar columnas inmovilizadas con columnas no inmovilizadas", y sin el
+     flush aquí ese error saldría mucho después, en cualquier otro sitio, y se
+     llevaría por delante todo el trabajo. La leyenda sin unir se lee peor,
+     pero se lee; y el informe sale igual. */
+  try { rango.breakApart(); SpreadsheetApp.flush(); } catch (e) { /* no estaba unida */ }
+  try { rango.merge(); SpreadsheetApp.flush(); } catch (e) { /* se escribe sin unir */ }
   rango.setValue(lineas.join('\n'))
        .setFontSize(LETRA_LEYENDA).setFontStyle('italic').setWrap(true)
        .setVerticalAlignment('top').setHorizontalAlignment('left');
@@ -813,14 +820,37 @@ function prepararParaPdf_(hoja, borrador) {
       img.setWidth(1);
       img.setHeight(1);
     }
-    /* Y en su sitio, la palabra BORRADOR en grande. */
+    /* Y en su sitio, la palabra BORRADOR en grande.
+
+       NO SE UNEN CELDAS, Y HAY UN MOTIVO. Antes se unían las filas 1 a 6 a lo
+       ancho del membrete para escribir ahí el rótulo. Si la pestaña tiene
+       columnas inmovilizadas —y las pestañas hechas a mano suelen tenerlas,
+       para que el nombre del alumno no se pierda al desplazarse—, esa unión
+       cruza la línea de las inmovilizadas y Google la rechaza: "no se pueden
+       combinar columnas inmovilizadas con columnas no inmovilizadas". El error
+       no salta al unir, sino en el flush siguiente, así que el try/catch de
+       aquí no lo cazaba y se caía toda la exportación. Le pasó a Francisco el
+       10-sep-2026: de todos los PDF solo salió la portada.
+
+       Ahora el rótulo se escribe en UNA sola casilla, la de la última fila de
+       la cabecera, que es la alta. Sin ajuste de texto, se desborda hacia la
+       derecha por encima de las casillas vacías, que es justo el hueco del
+       membrete, y se ve igual. Sin unir nada no hay nada que Google pueda
+       rechazar. */
     const rango = hoja.getRange(1, 1, FILAS_CABECERA, columnasDelMembrete_(hoja));
-    try { rango.breakApart(); } catch (e) { /* no estaba unida */ }
-    try { rango.merge(); } catch (e) { /* si no deja unir, se escribe igual */ }
-    rango.setValue(TEXTO_BORRADOR)
+    /* El flush va DENTRO del try a propósito: Google no da el error al separar
+       las celdas, sino al vaciar la cola de operaciones. Sin este flush aquí,
+       el error saldría más tarde y este try no serviría de nada. */
+    try { rango.breakApart(); SpreadsheetApp.flush(); } catch (e) { /* no estaba unida */ }
+
+    const celda = hoja.getRange(FILAS_CABECERA, 1);
+    estado.altoFila = hoja.getRowHeight(FILAS_CABECERA);
+    if (estado.altoFila < LETRA_BORRADOR + 8) hoja.setRowHeight(FILAS_CABECERA, LETRA_BORRADOR + 8);
+    celda.setValue(TEXTO_BORRADOR)
          .setFontSize(LETRA_BORRADOR).setFontWeight('bold').setFontColor(COLOR_BORRADOR)
          .setHorizontalAlignment('left').setVerticalAlignment('middle').setWrap(false);
     estado.rango = rango;
+    estado.celda = celda;
     return estado;
   }
 
@@ -865,12 +895,16 @@ function prepararParaPdf_(hoja, borrador) {
 /* Deja la pestaña como estaba antes de exportarla. */
 function deshacerParaPdf_(hoja, estado) {
   if (!estado) return;
+  /* Si se hizo sitio para el rótulo BORRADOR, se le devuelve su alto. */
+  if (estado.borrador && estado.altoFila) {
+    try { hoja.setRowHeight(FILAS_CABECERA, estado.altoFila); } catch (e) { /* mejor seguir */ }
+  }
   if (estado.borrador) {
-    if (estado.rango) {
-      try { estado.rango.breakApart(); } catch (e) { /* no estaba unida */ }
-      estado.rango.clearContent();
-      estado.rango.setFontSize(LETRA_LEYENDA).setFontWeight('normal').setFontColor('#000000');
+    if (estado.celda) {
+      estado.celda.clearContent();
+      estado.celda.setFontSize(LETRA_LEYENDA).setFontWeight('normal').setFontColor('#000000');
     }
+
     /* ponerMembrete_ con blob nulo no cambia la imagen: solo le devuelve su
        ancho y su alto de siempre. */
     try { ponerMembrete_(hoja, null); } catch (e) { /* mejor seguir */ }
@@ -939,6 +973,21 @@ function pdfsPorInforme_(libro, entradas, borrador) {
       while (anteriores.hasNext()) anteriores.next().setTrashed(true);
       carpeta.createFile(blob.setName(nombre + '.pdf'));
       hechos++;
+    } catch (err) {
+      /* UN FALLO EN UNA PESTAÑA NO PUEDE TUMBAR LAS DEMÁS. Antes aquí solo
+         había un 'finally', así que cualquier error se llevaba por delante
+         toda la exportación: pasó el 10-sep-2026 y de 30 PDF salió uno.
+         Ahora se anota, se sigue con la siguiente, y si fallan dos seguidas se
+         para igual que cuando Google cierra el grifo. */
+      fallidos.push(nombre + ' (' + err.message + ')');
+      seguidos++;
+      if (seguidos >= 2) {
+        for (let k = i + 1; k < entradas.length; k++) {
+          fallidos.push((borrador ? entradas[k].nombre + ' BORRADOR' : entradas[k].nombre) +
+                        ' (no intentado)');
+        }
+        break;
+      }
     } finally {
       /* Pase lo que pase, la pestaña se queda como estaba. */
       try { deshacerParaPdf_(e.hoja, estado); SpreadsheetApp.flush(); }

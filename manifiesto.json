@@ -1,5 +1,5 @@
 {
-  "version": "BD v62 — una sola comprobación de la matrícula: pestaña OFERTA (la única lista de materias) y pestaña MATRÍCULA (qué falta y qué sobra, alumno por alumno)",
+  "version": "BD v63 — quien repite 2º de Bachillerato: lo aprobado no falta ni sobra; en Bachillerato se lee la columna OPT 2 de Jefatura (antes se perdía) y sus códigos por el principio del nombre (PSIC)",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",

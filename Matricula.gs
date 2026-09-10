@@ -630,6 +630,18 @@ function lineaDeCodigoJef_(lineas, codigo) {
   }
   for (let i = 0; i < lineas.length; i++) if (codigoLimpio_(lineas[i].abrev) === c) return lineas[i];
   for (let i = 0; i < lineas.length; i++) if (codigoLimpio_(lineas[i].materia) === c) return lineas[i];
+  /* Último recurso: el código es el principio del nombre de la materia, como
+     "PSIC" para Psicología o "GEOG" para Geografía. Solo vale si hay UNA
+     materia del curso que empiece así (con "MAT" en 2º BACH hay dos, y ahí no
+     se adivina). Visto el 10-sep-2026: Jefatura escribe así en Bachillerato. */
+  if (c.length >= 3) {
+    const cn = normalizar(c);
+    let unica = null, cuantas = 0;
+    for (let i = 0; i < lineas.length; i++) {
+      if (normalizar(lineas[i].materia).indexOf(cn) === 0) { cuantas++; unica = lineas[i]; }
+    }
+    if (cuantas === 1) return unica;
+  }
   return null;
 }
 

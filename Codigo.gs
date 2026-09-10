@@ -598,6 +598,7 @@ function notaDeAlumno_(mapa, nombre) {
  * el curso lleva siempre su etapa detrás y el centro se escribe con su nombre.
  * Es lo mismo, escrito para que se entienda sin conocer el sistema por dentro.
  * ======================================================== ***/
+
 /* "29000517 - C.E.I.P. Carmen Arévalo" -> "C.E.I.P. Carmen Arévalo".
    Y si es este instituto, su nombre entero. Una casilla vacía también es este
    centro: solo el histórico de aquí deja el centro sin decir.
@@ -1197,6 +1198,7 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
           'subcarpeta "' + CARPETA_SECUNDARIA + '", con el nombre "' + PREFIJO_EXP_SEC + ' ' +
           a.nombre + '.csv". Ese fichero trae sus años en otros institutos y cierra el caso solo.' });
     }
+
     const decisionAMano = String(man[6] || '').trim().toUpperCase();
     if (decisionAMano === 'SÍ' || decisionAMano === 'SI') {
       pil = 'SÍ';

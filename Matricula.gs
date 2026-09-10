@@ -29,6 +29,12 @@
  * modalidad y el itinerario solo dicen QUÉ PARTE de la oferta le toca a cada
  * alumno.
  *
+ * QUIEN REPITE 2º DE BACHILLERATO (BD v63) tiene materias APRO: las aprobó el
+ * año pasado y no las vuelve a cursar. Lo aprobado nunca falta ni sobra, y de
+ * los cuadros de elección solo se le exige lo que escribe Jefatura; los
+ * cuadros no se cuentan. Lo pidió Francisco el 10-sep-2026 con el caso de un
+ * repetidor al que le salían como "sobran" tres materias ya aprobadas.
+ *
  * LA ÚNICA LISTA DE MATERIAS: LA PESTAÑA "OFERTA". Una línea por materia y
  * curso, con todo lo que el programa necesita saber de ella:
  *
@@ -716,6 +722,19 @@ function cuentaDeMatricula_(a, j, hayJef) {
   }
   if (!j && hayJef) salida.notas.push('No está en el fichero de Jefatura: los cuadros se comprueban contando.');
 
+  /* QUIEN REPITE 2º DE BACHILLERATO tiene materias APRO: las aprobó el año
+     pasado y no las vuelve a cursar. Con esa gente la cuenta cambia:
+       - lo aprobado ya lo tiene: nunca falta y nunca sobra;
+       - de los cuadros de elección solo se le exige lo que escribe Jefatura,
+         y lo que curse sin que Jefatura lo ponga, sobra;
+       - los cuadros no se cuentan: si Jefatura no le pone nada de un cuadro,
+         es que ya lo aprobó. */
+  const aprobada = a.aprobada || {};
+  const repite = Object.keys(aprobada).length > 0;
+  if (repite) {
+    salida.notas.push('Repite: lo aprobado el año pasado no cuenta y solo se le exige lo que escribe Jefatura.');
+  }
+
   /* Las obligatorias, una a una; los cuadros, agrupados. */
   const cuadros = {}, ordenCuadros = [];
   const faltan = [], sobran = [];
@@ -738,7 +757,7 @@ function cuentaDeMatricula_(a, j, hayJef) {
     }
     const C = cuadros[l.cuadro];
     C.lineas.push(l);
-    if (a.tiene[orden[i]]) C.sen.push(l);
+    if (a.tiene[orden[i]] && !aprobada[orden[i]]) C.sen.push(l);
     if (quiere[orden[i]]) C.jef.push(l);
   }
 
@@ -746,9 +765,21 @@ function cuentaDeMatricula_(a, j, hayJef) {
     const nombre = ordenCuadros[k], C = cuadros[nombre];
     const corto = nombreDeCuadro_(nombre);
     const jefAbrevs = C.jef.map(abrevDe).join(', ');
-    /* Lo que Jefatura pide y no está. */
+    /* Lo que Jefatura pide y no está (ni cursada ni aprobada). */
     const jefFaltan = C.jef.filter(function (l) { return !a.tiene[normalizar(l.materia)]; });
     jefFaltan.forEach(function (l) { faltan.push({ l: l, motivo: 'Jefatura, ' + corto }); });
+
+    if (repite) {
+      /* Quien repite solo cursa lo que Jefatura le pone. Si no está en el
+         fichero de Jefatura, no se le puede reprochar nada. */
+      if (j) {
+        C.sen.forEach(function (l) {
+          if (quiere[normalizar(l.materia)]) return;
+          sobran.push({ l: l, motivo: C.jef.length ? 'Jefatura dice ' + jefAbrevs : 'repite y Jefatura no la pone' });
+        });
+      }
+      continue;
+    }
 
     if (C.jef.length >= C.cuantas) {
       /* Jefatura ha rellenado el cuadro entero: lo demás sobra. */
@@ -774,9 +805,10 @@ function cuentaDeMatricula_(a, j, hayJef) {
     }
   }
 
-  /* Lo que está en Séneca y no le corresponde. */
+  /* Lo que está en Séneca y no le corresponde. Lo aprobado el año pasado no
+     se discute. */
   for (const n in a.tiene) {
-    if (porMateria[n]) continue;
+    if (porMateria[n] || aprobada[n]) continue;
     const l = cualquiera[n];
     if (l) sobran.push({ l: l, motivo: 'no le corresponde: ' + l.quien });
     else sobran.push({ texto: String(a.tiene[n]), cortoTexto: abreviar(String(a.tiene[n])),

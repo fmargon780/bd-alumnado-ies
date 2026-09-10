@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — arreglado el fallo que daba cientos de avisos falsos de materias obligatorias, y de cada grupo se exige el número exacto",
+  "version": "BD v52 — la carpeta de borradores sale de \"Informes por unidad\", y el resumen para el equipo directivo tampoco se queda en la carpeta que se comparte con el profesorado",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

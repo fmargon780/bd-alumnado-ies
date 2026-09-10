@@ -117,8 +117,21 @@ function huecosJefatura_(titulos, nivel) {
     else if (t === 'opt' || t === 'opt.' || t === 'opt 1' || t === 'opt1') h.opt = c;
     else if (t.indexOf('exento') === 0) h.alct = c;
     else if (t === 'neae' || t === 'neae/c') h.neae = c;
+    /* BACHILLERATO. Sus pestañas de grupo tienen otras columnas: dos de
+       materias de modalidad (MOD1, MOD2) y dos de optativas (OPT1, OPT2).
+       Solo se miran en Bachillerato, para no cambiar nada de la ESO: allí
+       "OPT1" ya significa otra cosa en 4º. */
+    else if (esNivelBachillerato_(nivel) && t === 'mod1') h.mod1 = c;
+    else if (esNivelBachillerato_(nivel) && t === 'mod2') h.mod2 = c;
+    else if (esNivelBachillerato_(nivel) && t === 'opt2') h.opt2 = c;
   }
   return h;
+}
+
+/* ¿Este nivel es de Bachillerato? El nivel de un grupo de Bachillerato se
+   escribe con la etapa dentro: "1º BACH". */
+function esNivelBachillerato_(nivel) {
+  return /^[12]\s*º\s+BACH$/i.test(String(nivel || '').trim());
 }
 
 /* Convierte una pestaña de grupo en filas de alumno.
@@ -167,6 +180,13 @@ function leerPestanaJefatura_(grupo, valores) {
          o ALCT. Aquí se hace lo mismo para poder compararlas: en 1º, quien no
          está marcado como exento es que cursa francés. */
       alct: marcas.alct ? 'ALCT' : (nivel === '1º' ? 'FR' : ''),
+      /* Las cuatro columnas de Bachillerato, TAL Y COMO LAS ESCRIBE JEFATURA,
+         sin traducir. Todavía no se comparan con Séneca: primero hay que saber
+         qué quiere decir cada código, y para eso el programa los va juntando y
+         los pregunta. Ver el aviso "Códigos de Bachillerato" en leerJefatura_. */
+      bac: [h.mod1, h.mod2, h.opt, h.opt2].map(function (col) {
+        return col === undefined ? '' : String(fila[col] === null || fila[col] === undefined ? '' : fila[col]).trim();
+      }),
       repite: marcas.repite ? 'SÍ' : '',
       pil: marcas.pil ? 'SÍ' : '',
       conf: marcas.conflictivo ? 'SÍ' : '',
@@ -365,6 +385,9 @@ function leerJefatura_() {
   if (!r.libro) return { alumnos: [], nombre: '', avisos: [r.aviso] };
 
   const alumnos = [], avisos = [], vistos = {}, saltadas = [];
+  /* Los códigos que Jefatura escribe en las columnas de Bachillerato, sin
+     repetir. Se preguntan al final, en un solo aviso. */
+  const codigosBac = {};
   const hojas = r.libro.getSheets();
   let grupos = 0;
   for (let h = 0; h < hojas.length; h++) {
@@ -397,9 +420,31 @@ function leerJefatura_() {
         continue;
       }
       vistos[clave] = leidos[i].unidad;
+      if (leidos[i].bac) {
+        for (let b = 0; b < leidos[i].bac.length; b++) {
+          const cod = leidos[i].bac[b];
+          if (cod) codigosBac[leidos[i].curso + ' · ' + cod] = true;
+        }
+      }
       alumnos.push(leidos[i]);
     }
   }
+  /* LOS CÓDIGOS DE BACHILLERATO, para poder empezar a comparar sus materias.
+     De Bachillerato hoy solo se comprueba si el alumno está y en qué grupo
+     está. Sus materias de modalidad y sus optativas no se comparan todavía,
+     porque el cuaderno de Jefatura las escribe con códigos suyos y hay que
+     saber qué significa cada uno, igual que en su día se hizo con los de la
+     ESO (REL->CAT, CYR->CyR...). Aquí se juntan todos los que aparecen y se
+     preguntan una sola vez. */
+  const listaCodigos = Object.keys(codigosBac).sort();
+  if (listaCodigos.length) {
+    avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'Códigos de Bachillerato del cuaderno de Jefatura',
+      detalle: listaCodigos.join(' · ') + '. Son los que Jefatura escribe en las columnas ' +
+        'MOD1, MOD2, OPT1 y OPT2. Hasta saber qué materia es cada uno, las materias de ' +
+        'Bachillerato no se comparan con Séneca; el grupo sí.' });
+  }
+
   /* Qué pestañas no se han leído. Casi siempre son las de resumen ("TODO 1º",
      "1º ESO CON OPT."), y está bien que no se lean. Pero si alguna pestaña de
      grupo tiene el nombre escrito de otra manera, aquí es donde se ve. */

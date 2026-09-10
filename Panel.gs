@@ -362,7 +362,7 @@ function estadoDeLasFuentes_() {
 function pendientesDelSistema_() {
   const libro = SpreadsheetApp.getActiveSpreadsheet();
   const salida = { total: 0, sinDato: 0, sinUnidad: 0, discrepancias: 0, avisos: 0,
-                   primeroSinExpediente: 0, matriculasBac: 0, hayAlumnado: false };
+                   primeroSinExpediente: 0, matriculasEso: 0, matriculasBac: 0, hayAlumnado: false };
 
   const hoja = libro.getSheetByName(HOJA_ALUMNADO);
   if (hoja && hoja.getLastRow() >= 3) {
@@ -373,7 +373,6 @@ function pendientesDelSistema_() {
     const iUni = titulos.indexOf(normalizar('Unidad'));
     const iAsi = titulos.indexOf(normalizar('Asignaturas pendientes'));
     const iMns = titulos.indexOf(normalizar('MAT NO SUP.'));
-    /* Solo Bachillerato: la casilla vacía es un alumno de la ESO. */
     const iMat = titulos.indexOf(normalizar('MATRÍCULA'));
     const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
     for (let f = 0; f < datos.length; f++) {
@@ -386,12 +385,15 @@ function pendientesDelSistema_() {
         salida.primeroSinExpediente++;
       }
       if (iUni !== -1 && !String(datos[f][iUni] || '').trim()) salida.sinUnidad++;
-      if (iMat !== -1) {
-        const mat = String(datos[f][iMat] || '').trim();
-        if (mat && mat !== MATRICULA_OK) salida.matriculasBac++;
-      }
     }
   }
+
+  /* Las matrículas que no cuadran, solo las que todavía no has marcado. */
+  try {
+    const m = matriculasSinMarcar_();
+    salida.matriculasEso = m.eso;
+    salida.matriculasBac = m.bac;
+  } catch (e) { /* sin pestaña, cero */ }
 
   const hd = libro.getSheetByName(HOJA_DISCREP);
   if (hd && hd.getLastRow() >= 3) {
@@ -479,8 +481,9 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
     mete('Alumnado en la tabla', String(pend.total));
     mete('Con algún dato sin confirmar (sale "' + SIN_DATO + '")', String(pend.sinDato));
     mete('Sin unidad asignada en Séneca', String(pend.sinUnidad));
-    mete('Bachillerato: matrículas que no cuadran en Séneca', String(pend.matriculasBac));
-    mete('Diferencias con Jefatura sin marcar', String(pend.discrepancias));
+    mete('Matrículas que no cuadran en Séneca, sin marcar (ESO · Bachillerato)',
+         String(pend.matriculasEso + pend.matriculasBac) + '  (' + pend.matriculasEso + ' · ' + pend.matriculasBac + ')');
+    mete('Diferencias de personas y grupos con Jefatura, sin marcar', String(pend.discrepancias));
     mete('Avisos anotados', String(pend.avisos));
     mete('');
   }
@@ -599,23 +602,16 @@ function actualizarDatos() {
     if (seHaConstruido) {
       hecho.push('Tabla ALUMNADO reconstruida con todas las fuentes.');
 
-      /* LAS MATERIAS OBLIGATORIAS. Ver Obligatorias.gs.
-         La comparación con Jefatura solo mira las asignaturas que el alumno
-         elige, porque son las únicas que Jefatura escribe. Esto comprueba las
-         otras: que cada alumno esté matriculado en Séneca en las materias que
-         cursa todo su curso.
-         Va AQUÍ, después de construir la tabla y ANTES de recuperar las
-         anotaciones de AVISOS, porque añade filas a esa pestaña y así esas
-         filas también conservan el Estado y las Observaciones de Francisco. */
+      /* La matrícula de cada alumno (obligatorias + lo que quiere Jefatura,
+         contra Séneca) se comprueba dentro de construirAlumnado, en
+         Matricula.gs, y se escribe en la pestaña MATRÍCULA. */
       try {
-        const O = comprobarObligatorias_();
-        hecho.push(O.alumnos
-          ? 'Materias obligatorias: ' + O.alumnos +
-            ' alumnos a los que les falta alguna en Séneca. Están en AVISOS.'
-          : 'Materias obligatorias: todo el alumnado está matriculado en las de su curso.');
-      } catch (e) {
-        hecho.push('Materias obligatorias: no he podido comprobarlas (' + e.message + ').');
-      }
+        const m = matriculasSinMarcar_();
+        hecho.push((m.eso + m.bac)
+          ? 'Matrículas que no cuadran en Séneca: ' + (m.eso + m.bac) + ' (ESO ' + m.eso +
+            ' · Bachillerato ' + m.bac + '). Están en la pestaña MATRÍCULA: qué falta y qué sobra.'
+          : 'Matrículas: todo el alumnado tiene en Séneca lo que le corresponde.');
+      } catch (e) { /* el panel lo cuenta igualmente */ }
 
       try {
         const rec = restaurarNotasAvisos_(notasAvisos);

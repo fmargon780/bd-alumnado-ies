@@ -53,7 +53,32 @@
 const HOJA_OBLIGATORIAS = 'MATERIAS OBLIGATORIAS';
 
 const TITULOS_OBLIGATORIAS = ['Curso', 'Materia (como la escribe Séneca)', 'Quién la cursa',
-  'Desde el año', 'Hasta el año', 'Notas'];
+  'Desde el año', 'Hasta el año', 'Notas', 'Elegir de este grupo'];
+
+/* LA COLUMNA "ELEGIR DE ESTE GRUPO" (10-sep-2026).
+
+   Hasta ahora una línea solo podía decir "esta materia la cursa todo el
+   mundo". En Bachillerato eso se queda muy corto: casi todo lo que cursa el
+   alumno lo elige de una lista. El documento de oferta educativa del centro lo
+   dice así: "elegir una entre Biología y Geología, Dibujo Técnico I o
+   Tecnología e Ingeniería I".
+
+   Así que las líneas que comparten el mismo texto en esta columna forman un
+   GRUPO, y de ese grupo el alumno tiene que cursar una. Si hay que elegir más
+   de una, se escribe entre paréntesis: "Modalidad (elegir 2)".
+
+   Una línea con esta casilla VACÍA es lo de siempre: materia obligatoria.
+
+   Lo que esto permite comprobar y antes no: que a un alumno no le falte NINGUNA
+   de un grupo. Es el error típico de una matrícula a medio hacer en Séneca, y
+   antes no se veía, porque ninguna materia suelta era obligatoria. */
+
+/* De "Modalidad (elegir 2)" saca el 2. Si no lo dice, es una. */
+function oblCuantasDelGrupo_(texto) {
+  const m = String(texto || '').match(/\(\s*elegir\s+(\d+)\s*\)/i);
+  const n = m ? parseInt(m[1], 10) : 1;
+  return isNaN(n) || n < 1 ? 1 : n;
+}
 
 /* Las tres respuestas posibles a "quién la cursa". Son las del desplegable. */
 const OBL_TODOS      = 'Todo el alumnado';
@@ -178,7 +203,9 @@ function oblAlumnos_(tabla, C) {
 function oblLeerTabla_() {
   const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_OBLIGATORIAS);
   if (!hoja || hoja.getLastRow() < 3) return null;
-  const ancho = TITULOS_OBLIGATORIAS.length;
+  /* Una pestaña hecha con una versión anterior tiene una columna menos: la de
+     "Elegir de este grupo". Se lee lo que haya y esa casilla se da por vacía. */
+  const ancho = Math.min(TITULOS_OBLIGATORIAS.length, Math.max(6, hoja.getLastColumn()));
   const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
   const filas = [];
   for (let f = 0; f < datos.length; f++) {
@@ -186,7 +213,8 @@ function oblLeerTabla_() {
     const materia = String(datos[f][1] || '').trim();
     if (!curso || !materia) continue;
     filas.push({ curso: curso, materia: materia, quien: datos[f][2],
-                 desde: oblAno_(datos[f][3]), hasta: oblAno_(datos[f][4]) });
+                 desde: oblAno_(datos[f][3]), hasta: oblAno_(datos[f][4]),
+                 grupo: ancho >= 7 ? String(datos[f][6] || '').trim() : '' });
   }
   return filas.length ? filas : null;
 }
@@ -229,13 +257,16 @@ function oblEscribirTabla_(filas) {
     'Desde el año / Hasta el año: el año en que empieza el curso académico (2026 es el curso 2026-27). ' +
     'Cuando una materia deje de ser obligatoria, no borres su línea: escribe el último año en ' +
     '"Hasta el año" y así queda la historia.\n' +
-    'Una línea sin años se comprueba siempre.');
+    'Una línea sin años se comprueba siempre.\n' +
+    'Elegir de este grupo: las líneas que comparten aquí el mismo texto son una lista de la que ' +
+    'el alumno elige. Si hay que elegir más de una, se escribe "(elegir 2)" detrás. Una casilla ' +
+    'vacía quiere decir que esa materia es obligatoria y punto.');
 
   hoja.getRange(2, 1, 1, ancho).setValues([TITULOS_OBLIGATORIAS]).setFontWeight('bold')
       .setBackground('#D9D9D9').setWrap(true).setVerticalAlignment('middle');
 
   const valores = filas.map(function (f) {
-    return [f.curso, f.materia, f.quien, f.desde || '', f.hasta || '', ''];
+    return [f.curso, f.materia, f.quien, f.desde || '', f.hasta || '', '', f.grupo || ''];
   });
   if (valores.length) hoja.getRange(3, 1, valores.length, ancho).setValues(valores);
 
@@ -254,6 +285,7 @@ function oblEscribirTabla_(filas) {
   hoja.setColumnWidth(4, 90);
   hoja.setColumnWidth(5, 90);
   hoja.setColumnWidth(6, 300);
+  hoja.setColumnWidth(7, 220);
   hoja.setFrozenRows(2);
   try {
     if (!hoja.getFilter()) hoja.getRange(2, 1, Math.max(valores.length, 1) + 1, ancho).createFilter();
@@ -457,10 +489,112 @@ function oblItinerariosDeUnFicheroBac_(tabla, yaObligatorias) {
   return salida;
 }
 
+/*** ========== LA OFERTA DE BACHILLERATO DEL CENTRO ========== ***/
+
+/* De dónde sale esto: del documento "Oferta educativa para el curso 2026-27"
+   que el centro tiene publicado en su web. Lo señaló Francisco el 10-sep-2026:
+   ahí está dicho, negro sobre blanco, qué es obligatorio y qué se elige.
+
+   Es MUCHO mejor que adivinarlo contando alumnos. Contando, una materia que
+   eligen 27 de 28 parece obligatoria y no lo es.
+
+   ESTO SOLO SE USA UNA VEZ, para rellenar la pestaña la primera vez. A partir
+   de ahí manda la pestaña, que es de Francisco, y el programa no la vuelve a
+   tocar. Si el centro cambia su oferta, se corrige en la pestaña, no aquí.
+
+   Los nombres son los que usa SÉNECA en el CSV de matrícula, que no siempre
+   coinciden con los del documento: el documento dice "Matemáticas I" y Séneca
+   escribe "Matemáticas". Una materia de la lista que no exista en el CSV
+   simplemente no se comprueba. */
+const OFERTA_BACHILLERATO = {
+  '1º BACH': [
+    { quien: OBL_TODOS, grupo: '', materias: [
+      'Educación Física', 'Filosofía', 'Lengua Castellana y Literatura', 'Inglés'] },
+
+    { quien: OBL_CIENCIAS, grupo: '', materias: ['Matemáticas', 'Física y Química'] },
+    { quien: OBL_CIENCIAS, grupo: 'Modalidad', materias: [
+      'Biología, Geología y Ciencias Ambientales', 'Dibujo Técnico', 'Tecnología e Ingeniería'] },
+
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad (elegir 3)', materias: [
+      'Matemáticas Aplicadas a las Ciencias Sociales', 'Latín', 'Economía', 'Griego',
+      'Historia del Mundo Contemporáneo', 'Literatura Universal'] },
+
+    { quien: OBL_TODOS, grupo: 'Optativas (elegir 2)', materias: [
+      'Anatomía Aplicada', 'Cultura Emprendedora y Empresarial', 'Francés (Segundo Idioma)',
+      'Patrimonio Cultural y Artístico de Andalucía', 'Iniciación al Comentario de Texto',
+      'Tecnologías de la Información y la Comunicación', 'Antropología y Sociología',
+      'Fisiología Humana', 'Olimpismo', 'Creación Digital y Pensamiento Computacional',
+      'Educación para la Convivencia Democrática'] },
+
+    { quien: OBL_TODOS, grupo: 'Religión o Proyecto transversal', materias: [
+      'Religión Católica', 'Proyectos Transversales de Educación en Valores'] }
+  ],
+
+  '2º BACH': [
+    { quien: OBL_TODOS, grupo: '', materias: [
+      'Historia de España', 'Historia de la Filosofía', 'Lengua Castellana y Literatura',
+      'Inglés'] },
+
+    { quien: OBL_CIENCIAS, grupo: 'Modalidad (elegir 3)', materias: [
+      'Matemáticas', 'Matemáticas Aplicadas a las Ciencias Sociales', 'Biología',
+      'Dibujo Técnico', 'Física', 'Química', 'Tecnología e Ingeniería'] },
+    { quien: OBL_CIENCIAS, grupo: 'Optativas (elegir 2)', materias: [
+      'Programación y Computación', 'Estadística',
+      'Tecnologías de la Información y la Comunicación', 'Francés (Segundo Idioma)',
+      'Actividad Física, Salud y Sociedad', 'Psicología',
+      'Educación para la Convivencia Democrática'] },
+
+    { quien: OBL_HUMANIDADES, grupo: 'Modalidad (elegir 3)', materias: [
+      'Latín', 'Matemáticas Aplicadas a las Ciencias Sociales',
+      'Empresa y Diseño de Modelos de Negocio', 'Griego', 'Geografía', 'Historia del Arte'] },
+    { quien: OBL_HUMANIDADES, grupo: 'Optativas (elegir 2)', materias: [
+      'Finanzas y Economía', 'Fundamentos de Administración y Gestión', 'Mitología Clásica',
+      'Francés (Segundo Idioma)', 'Actividad Física, Salud y Sociedad', 'Psicología',
+      'Educación para la Convivencia Democrática',
+      /* El folleto no la ofrece en Humanidades, pero el fichero de matrícula de
+         Séneca sí trae su columna y hay alumnado cursándola. */
+      'Tecnologías de la Información y la Comunicación'] },
+
+    { quien: OBL_TODOS, grupo: 'Religión o Proyecto transversal', materias: [
+      'Religión Católica', 'Proyectos Transversales de Educación en Valores'] }
+  ]
+};
+
+/* POR QUÉ LOS GRUPOS NO SON EXACTAMENTE LOS DEL FOLLETO. El documento del
+   centro presenta las optativas en dos columnas, "Optativas propias de
+   Andalucía" y "Optativas", y dice elegir una de cada. Mirando la matrícula de
+   verdad del curso 26-27, eso no es lo que pasa: hay alumnos con las dos de la
+   primera columna y ninguna de la segunda, y al revés. Las dos columnas son la
+   forma de ofrecerlas, no una regla. Lo que sí se cumple siempre es el número:
+   dos optativas. Por eso aquí van juntas, con "(elegir 2)".
+   Lo mismo con la modalidad de Humanidades: el folleto la presenta como tres
+   parejas, pero hay alumnos que combinan de otra manera y cursan igualmente
+   tres materias de modalidad. */
+
+/* La propuesta de un curso de Bachillerato, sacada de la oferta del centro. */
+function oblOfertaDeCurso_(curso) {
+  const bloques = OFERTA_BACHILLERATO[curso];
+  if (!bloques) return [];
+  const propuesta = [];
+  for (let i = 0; i < bloques.length; i++) {
+    for (let j = 0; j < bloques[i].materias.length; j++) {
+      propuesta.push({ curso: curso, materia: bloques[i].materias[j],
+                       quien: bloques[i].quien, grupo: bloques[i].grupo,
+                       desde: '', hasta: '' });
+    }
+  }
+  return propuesta;
+}
+
 /* La propuesta de un curso de Bachillerato, mirando sus dos modalidades.
    Una materia que sale en las dos es de todo el alumnado del curso; una que
    sale en una sola es de esa modalidad. */
 function oblProponerBachillerato_(porModalidad, curso) {
+  /* Si el centro tiene publicada su oferta para este curso, manda ella: es un
+     documento, no una estimación. Solo se cuenta alumnos cuando no la hay. */
+  const oficial = oblOfertaDeCurso_(curso);
+  if (oficial.length) return oficial;
+
   const propuesta = [], deCiencias = {}, deHumanidades = {};
   for (let i = 0; i < porModalidad.length; i++) {
     const encontradas = oblObligatoriasDeUnFicheroBac_(porModalidad[i].tabla);
@@ -524,7 +658,20 @@ function oblAvisosDeFicheroBac_(tabla, curso, modalidad, vigentes) {
       colCond = cond ? C.cabN.indexOf(normalizar(cond)) : -1;
       if (colCond === -1) continue;
     }
-    lista.push({ col: c, materia: vigentes[i].materia, colCond: colCond });
+    lista.push({ col: c, materia: vigentes[i].materia, colCond: colCond,
+                 grupo: vigentes[i].grupo || '' });
+  }
+
+  /* Los grupos de elección de este fichero: de cada uno el alumno tiene que
+     cursar unas cuantas materias, normalmente una. */
+  const grupos = {};
+  for (let i = 0; i < lista.length; i++) {
+    if (!lista[i].grupo) continue;
+    if (!grupos[lista[i].grupo]) {
+      grupos[lista[i].grupo] = { cuantas: oblCuantasDelGrupo_(lista[i].grupo), cols: [], materias: [] };
+    }
+    grupos[lista[i].grupo].cols.push(lista[i].col);
+    grupos[lista[i].grupo].materias.push(lista[i].materia);
   }
 
   /* Cuántas materias cursa cada alumno. Sirve para el aviso de más abajo. */
@@ -562,18 +709,37 @@ function oblAvisosDeFicheroBac_(tabla, curso, modalidad, vigentes) {
       continue;
     }
 
+    /* Primero las obligatorias de verdad, las que no están en ningún grupo. */
     const faltan = [];
     for (let i = 0; i < lista.length; i++) {
       const m = lista[i];
+      if (m.grupo) continue;
       if (m.colCond !== -1 && !oblCumpleBac_(tabla[f][m.colCond])) continue;
       if (!oblCumpleBac_(tabla[f][m.col])) faltan.push(m.materia);
     }
-    if (!faltan.length) continue;
-    avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
-      aviso: 'Le faltan materias obligatorias en Séneca',
-      detalle: 'No está matriculado en: ' + faltan.join(', ') + '. Modalidad: ' + modalidad +
-        '. Compruébalo en Séneca, o corrige la pestaña "' + HOJA_OBLIGATORIAS +
-        '" si esa materia ya no es obligatoria.' });
+    if (faltan.length) {
+      avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
+        aviso: 'Le faltan materias obligatorias en Séneca',
+        detalle: 'No está matriculado en: ' + faltan.join(', ') + '. Modalidad: ' + modalidad +
+          '. Compruébalo en Séneca, o corrige la pestaña "' + HOJA_OBLIGATORIAS +
+          '" si esa materia ya no es obligatoria.' });
+    }
+
+    /* Y ahora los grupos de elección: de cada uno tiene que cursar N. Solo se
+       avisa cuando le faltan, no cuando le sobran: cursar una materia de más
+       no es un error de matrícula, y avisar de eso llenaría AVISOS de ruido. */
+    for (const g in grupos) {
+      let n = 0;
+      for (let c = 0; c < grupos[g].cols.length; c++) {
+        if (oblCumpleBac_(tabla[f][grupos[g].cols[c]])) n++;
+      }
+      if (n >= grupos[g].cuantas) continue;
+      avisos.push({ curso: curso, grupo: unidad, alumno: nombre,
+        aviso: 'No ha elegido de un grupo: ' + g,
+        detalle: 'De "' + g + '" hay que cursar ' + grupos[g].cuantas + ' y solo tiene ' + n +
+          '. Las de ese grupo son: ' + grupos[g].materias.join(', ') + '. Modalidad: ' +
+          modalidad + '. Compruébalo en Séneca.' });
+    }
   }
   return avisos;
 }
@@ -589,8 +755,18 @@ function oblAnadirCursos_(nuevas) {
   const ancho = TITULOS_OBLIGATORIAS.length;
   if (hoja.getMaxColumns() < ancho) hoja.insertColumnsAfter(hoja.getMaxColumns(), ancho - hoja.getMaxColumns());
   const valores = nuevas.map(function (f) {
-    return [f.curso, f.materia, f.quien, f.desde || '', f.hasta || '', ''];
+    return [f.curso, f.materia, f.quien, f.desde || '', f.hasta || '', '', f.grupo || ''];
   });
+  /* La pestaña puede venir de una versión sin la columna del grupo. Se le pone
+     el título, o quedaría una columna con datos y sin rótulo. */
+  try {
+    const cabecera = hoja.getRange(2, ancho);
+    if (!String(cabecera.getValue() || '').trim()) {
+      cabecera.setValue(TITULOS_OBLIGATORIAS[ancho - 1]).setFontWeight('bold')
+              .setBackground('#D9D9D9').setWrap(true).setVerticalAlignment('middle');
+      hoja.setColumnWidth(ancho, 220);
+    }
+  } catch (e) { /* si no se puede, se queda sin rótulo pero funciona igual */ }
   const primera = hoja.getLastRow() + 1;
   hoja.getRange(primera, 1, valores.length, ancho).setValues(valores);
   /* El desplegable de la pestaña se creó con tres respuestas y ahora hay
@@ -808,15 +984,25 @@ function comprobarObligatorias_() {
      pestaña se creó cuando el sistema solo llevaba la ESO. Se AÑADEN al final,
      sin tocar ni una línea de las que ya hay, y se avisa para que Francisco las
      repase igual que repasó las de la ESO. */
-  const cursosAnadidos = [];
+  const cursosAnadidos = [], avisosViejos = [];
   if (!sembrada && cursosBac.length) {
     let nuevas = [];
     for (let i = 0; i < cursosBac.length; i++) {
       const cu = cursosBac[i];
       if (oblVigentes_(filas, cu, 0).length) continue;
-      let hayAlguna = false;
+      let hayAlguna = false, hayGrupos = false;
       for (let k = 0; k < filas.length; k++) {
-        if (normalizar(filas[k].curso) === normalizar(cu)) { hayAlguna = true; break; }
+        if (normalizar(filas[k].curso) !== normalizar(cu)) continue;
+        hayAlguna = true;
+        if (filas[k].grupo) hayGrupos = true;
+      }
+      /* Si ese curso ya está pero NINGUNA de sus líneas usa la columna "Elegir
+         de este grupo", son las que puso una versión anterior del programa,
+         cuando todavía no se sabía qué se elige y qué es obligatorio. Ahora se
+         sabe: está en el documento de oferta educativa del centro. No se tocan
+         solas, porque la pestaña manda; se avisa para que se borren. */
+      if (hayAlguna && !hayGrupos && OFERTA_BACHILLERATO[cu]) {
+        avisosViejos.push(cu);
       }
       if (hayAlguna) continue;
       const p = oblProponerBachillerato_(bacPorCurso[cu], cu);
@@ -835,14 +1021,25 @@ function comprobarObligatorias_() {
 
   const ano = oblAnoActual_();
   let avisos = [];
+  if (avisosViejos.length) {
+    avisos.push({ curso: '', grupo: '', alumno: '',
+      aviso: 'Hay que rehacer las materias de Bachillerato de la pestaña',
+      detalle: 'Las líneas de ' + avisosViejos.join(' y ') + ' de la pestaña "' +
+        HOJA_OBLIGATORIAS + '" son de una versión anterior: las puso el programa contando ' +
+        'alumnos, antes de conocer el documento de oferta educativa del centro. BORRA esas ' +
+        'líneas (solo las de Bachillerato, las de la ESO no se tocan) y vuelve a pulsar ' +
+        '"1. Actualizar los datos": el programa las escribirá bien, diciendo de cada materia ' +
+        'si es obligatoria o de qué grupo se elige.' });
+  }
   if (cursosAnadidos.length) {
     avisos.push({ curso: '', grupo: '', alumno: '',
       aviso: 'Revisa las materias obligatorias de Bachillerato',
       detalle: 'He añadido al final de la pestaña "' + HOJA_OBLIGATORIAS + '" las materias de ' +
         cursosAnadidos.join(' y ') + ', sacadas de los propios ficheros de Séneca: las que cursa ' +
-        'casi todo el mundo. Las de la ESO no las he tocado. Repásalas: en Bachillerato una ' +
-        'materia puede ser obligatoria en una modalidad y no existir en la otra, y eso se dice ' +
-        'en la columna "Quién la cursa".' });
+        'sacadas del documento de oferta educativa del centro. Las de la ESO no las he tocado. ' +
+        'Repásalas: la columna "Quién la cursa" dice si una materia es de una modalidad o de ' +
+        'todas, y la columna "Elegir de este grupo" junta las materias entre las que el alumno ' +
+        'elige. Una casilla vacía ahí quiere decir que la materia es obligatoria y punto.' });
   }
   if (sembrada) {
     avisos.push({ curso: '', grupo: '', alumno: '',

@@ -1748,7 +1748,6 @@ function construirAlumnado() {
       detalle: 'El fichero "' + P.porNombre[k].fichero + '" no corresponde a ningún alumno de la tabla. ' +
                'Comprueba que el nombre del fichero está escrito igual que en Séneca.' });
   }
-
   try { escribirSecundaria_(S.porNombre, unidadesPorNombre, enAlumnado); }
   catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
     aviso: 'No he podido escribir la pestaña SECUNDARIA', detalle: e.message }); }

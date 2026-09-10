@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v52';
+const VERSION = 'BD v53';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -198,7 +198,7 @@ const TITULOS_ALUMNADO = [
   /* Lo que cursa este año. Las dos últimas son solo de Bachillerato: en la
      ESO se quedan vacías, y al revés con las de la ESO. Ver Bachillerato.gs. */
   'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu',
-  'MODALIDAD', 'ITINERARIO',
+  'MODALIDAD', 'MAT. MODALIDAD', 'OPTATIVAS', 'MATRÍCULA',
   /* Lo tuyo */
   'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */

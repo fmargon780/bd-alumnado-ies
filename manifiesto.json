@@ -1,5 +1,5 @@
 {
-  "version": "BD v51 — las materias que se quedan a las puertas de ser obligatorias se preguntan en AVISOS, con su casilla para contestar",
+  "version": "BD v51 — se leen las columnas MOD1, MOD2, OPT1 y OPT2 de las pestañas de Bachillerato de Jefatura, y se preguntan sus códigos",
   "ficheros": [
     "Ficheros.gs",
     "Formato.gs",

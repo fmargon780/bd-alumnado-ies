@@ -84,10 +84,11 @@ const ALIAS_COLUMNAS = {
   'rel/atedu': 'rel/atedu',
   'mat': 'mat', 'opc1': 'opc1', 'opc2': 'opc2', 'opc3': 'opc3', 'opc4': 'opc4',
   'veces repite primaria': 'veces repite primaria',
-  /* Solo Bachillerato. Se llama MATERIAS y no ITINERARIO a propósito: en 4º de
-     la ESO ya hay una columna ITINERARIO que se monta juntando otras cinco, y
-     dos columnas con el mismo rótulo se confundirían al releer la pestaña. */
-  'materias': 'materias'
+  /* Solo Bachillerato. MATERIAS es la columna que tenían las pestañas hasta la
+     BD v53; se reconoce para poder quitarla, porque ahora son tres:
+     MATRÍCULA, MODALIDAD y OPTATIVAS. */
+  'materias': 'materias',
+  'matricula': 'matricula', 'modalidad': 'modalidad', 'optativas': 'optativas'
 };
 
 /* El rótulo que se escribe en la fila 9. */
@@ -101,7 +102,9 @@ const ROTULOS = {
   'div': 'DIV',
   'neae': 'NEAE',
   'medidas/recursos': 'MEDIDAS Y RECURSOS',
-  'materias': 'MATERIAS',
+  'matricula': 'MATRÍCULA',
+  'modalidad': 'MODALIDAD',
+  'optativas': 'OPTATIVAS',
   'itinerario': 'ITINERARIO',
   'opt': 'OPT',
   'fr -> alct': 'EXENTO FR',
@@ -124,15 +127,29 @@ const COLUMNAS_POR_NIVEL = {
      imperativo legal ni la diversificación. En 1º tampoco lleva pendientes,
      porque para entrar en Bachillerato hace falta el título de la ESO, así
      que nadie llega debiendo nada. En 2º sí: son las materias de 1º.
-     La modalidad no es una columna: va escrita en la cabecera del grupo, que
-     es donde se lee una sola vez en vez de 30. */
-  '1º BACH': ['alumno/a:', 'rep', 'neae', 'medidas/recursos', 'materias', 'rel/atedu'],
-  '2º BACH': ['alumno/a:', 'rep', 'mat. pend.', 'neae', 'medidas/recursos',
-              'materias', 'rel/atedu']
+     El nombre de la modalidad no es una columna: va escrito en la cabecera del
+     grupo, que es donde se lee una sola vez en vez de 30.
+
+     LAS MATERIAS VAN POR BLOQUES, COMO EN LA HOJA DE ELECCIÓN DEL CENTRO
+     (BD v53). Antes había una sola columna, MATERIAS, con lo que el alumno
+     cursaba además de las comunes. Francisco lo comparó con Séneca el
+     10-sep-2026 y vio dos cosas: que las comunes no salían por ninguna parte,
+     y que el Proyecto transversal de Educación en Valores se colaba entre las
+     materias en vez de ir a la columna de Religión.
+     Ahora: MATRÍCULA dice si están todas, MODALIDAD y OPTATIVAS dicen qué ha
+     elegido, y REL/At. dice si cursa Religión o Atención Educativa. */
+  '1º BACH': ['alumno/a:', 'rep', 'matricula', 'neae', 'medidas/recursos',
+              'modalidad', 'optativas', 'rel/atedu'],
+  '2º BACH': ['alumno/a:', 'rep', 'mat. pend.', 'matricula', 'neae', 'medidas/recursos',
+              'modalidad', 'optativas', 'rel/atedu']
 };
 
-/* Columnas que ya no se usan: sus datos van ahora dentro de ITINERARIO. */
-const COLUMNAS_RETIRADAS = ['mat', 'opc1', 'opc2', 'opc3', 'opc4'];
+/* Columnas que ya no se usan. Las cinco primeras van ahora dentro de
+   ITINERARIO, en 4º de la ESO. La sexta, MATERIAS, era la de Bachillerato
+   hasta la BD v53: se ha partido en MODALIDAD y OPTATIVAS. Estar en esta lista
+   es lo que hace que desaparezca de las pestañas que ya la tenían escrita; si
+   no, se conservaría al final con su contenido viejo. */
+const COLUMNAS_RETIRADAS = ['mat', 'opc1', 'opc2', 'opc3', 'opc4', 'materias'];
 
 /* De dónde sale cada columna. Las que no aparecen aquí las rellena una
    persona, y el programa nunca las toca. */
@@ -165,9 +182,11 @@ const MAPA_INFORMES = {
   'pil':        { col: 'PIL', traduce: { 'SÍ': 'SÍ' } },
   'div':        { col: 'Diversificación', siEmpieza: 'SÍ' },
   'itinerario': { junta: ['MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4'] },
-  /* Solo Bachillerato: las materias que cursa además de las comunes de su
-     curso. Ya vienen abreviadas y seguidas desde ALUMNADO. Ver Bachillerato.gs. */
-  'materias':   { col: 'ITINERARIO' },
+  /* SOLO BACHILLERATO. Los tres bloques de su matrícula, ya abreviados desde
+     ALUMNADO. Ver Bachillerato.gs. */
+  'matricula':  { col: 'MATRÍCULA' },
+  'modalidad':  { col: 'MAT. MODALIDAD' },
+  'optativas':  { col: 'OPTATIVAS' },
   'opt':        { col: 'OPT' },
   /* NEAE y MEDIDAS Y RECURSOS las rellena ahora el censo NEAE de Séneca.
      'conservaSiVacio' es la red de seguridad: si el censo no dice nada de un
@@ -196,13 +215,17 @@ const ANCHOS_MINIMOS = {
   'alumno/a:': 130, 'rep': 26, 'mat no sup.': 90, 'mat. pend.': 85,
   'mat. pend. 6º': 85, 'pil': 26, 'div': 26, 'neae': 55,
   'medidas/recursos': 75, 'itinerario': 112, 'opt': 40, 'fr -> alct': 46,
-  'rel/atedu': 46, 'veces repite primaria': 45, 'materias': 150
+  'rel/atedu': 46, 'veces repite primaria': 45,
+  /* Bachillerato. Los tres suman 260, y con lo demás caben en el folio incluso
+     en 2º, que además lleva PENDIENTES. */
+  'matricula': 80, 'modalidad': 95, 'optativas': 85
 };
 const ANCHO_DESCONOCIDA = 80;
 const COLUMNAS_ELASTICAS = ['mat no sup.', 'mat. pend.', 'mat. pend. 6º', 'alumno/a:',
-                            'neae', 'medidas/recursos', 'materias'];
+                            'neae', 'medidas/recursos', 'matricula', 'modalidad', 'optativas'];
 const CON_AJUSTE = ['alumno/a:', 'mat no sup.', 'mat. pend.', 'mat. pend. 6º',
-                    'neae', 'medidas/recursos', 'itinerario', 'opt', 'materias'];
+                    'neae', 'medidas/recursos', 'itinerario', 'opt',
+                    'matricula', 'modalidad', 'optativas'];
 /* Se baja de 9 a 8 al meter las columnas NEAE y MEDIDAS Y RECURSOS.
    Medido con el simulador sobre los datos reales del curso 26-27:
    con letra 9 el PDF pasaría de 27 a 33 páginas y de 3 a 9 grupos de dos
@@ -248,7 +271,10 @@ const EXPLICACIONES_COLUMNA = {
   'mat. pend.':      'PENDIENTES: de antes.',
   'mat. pend. 6º':   'PENDIENTES: suspensas en 6º de Primaria.',
   'div':             'DIV: diversificación.',
-  'materias':        'MATERIAS: las que cursa además de las comunes.'
+  'matricula':       'MATRÍCULA: OK = completa; si no, lo que falta.',
+  'modalidad':       'MODALIDAD: materias de su modalidad.',
+  'optativas':       'OPTATIVAS: las que ha elegido.',
+  'rel/atedu':       'REL/At.: CAT y EVA, Religión; AtEdu, At. Educativa.'
 };
 
 function leyendaFijaDe_(claves) {

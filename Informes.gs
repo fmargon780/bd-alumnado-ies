@@ -1203,16 +1203,19 @@ function escribirPortada_(libro, A, resumenGrupos, etapa) {
   /* La comparación con el fichero de Jefatura es solo de la ESO: su cuaderno
      AGRUPAMIENTOS no trae Bachillerato. Meter aquí esa lista sería enseñar en
      la portada de Bachillerato cosas de otra etapa. */
-  const pend = nombreEtapa === 'ESO' ? discrepanciasPendientes_() : [];
-  if (nombreEtapa === 'ESO') banda('PENDIENTE DE AJUSTAR EN SÉNECA (' + pend.length + ')');
-  if (nombreEtapa !== 'ESO') {
-    /* nada que decir aquí en Bachillerato */
-  } else if (!pend.length) {
-    mete('Nada pendiente. Séneca coincide con lo que quiere Jefatura de Estudios.');
+  /* Las de personas y grupos (DISCREPANCIAS) son solo de la ESO cuando el
+     cuaderno de Jefatura no trae Bachillerato. Las de matrícula (MATRÍCULA)
+     son de las dos etapas, cada una en su portada. */
+  let pend = nombreEtapa === 'ESO' ? discrepanciasPendientes_() : [];
+  try { pend = pend.concat(matriculasPendientes_(nombreEtapa === 'ESO' ? 'ESO' : 'BACH')); }
+  catch (e) { /* sin pestaña MATRÍCULA, se queda con las otras */ }
+  banda('PENDIENTE DE AJUSTAR EN SÉNECA (' + pend.length + ')');
+  if (!pend.length) {
+    mete('Nada pendiente. Séneca coincide con la oferta del centro y con lo que quiere Jefatura de Estudios.');
   } else {
-    mete('Escribe algo en la columna Estado de la pestaña DISCREPANCIAS y esa línea desaparece de aquí.');
+    mete('Escribe algo en la columna Estado de las pestañas DISCREPANCIAS o MATRÍCULA y esa línea desaparece de aquí.');
     filaCabeceraTabla = filas.length + 1;
-    mete('Grupo', 'Alumno/a', 'Qué no cuadra', 'Séneca dice', 'Jefatura quiere');
+    mete('Grupo', 'Alumno/a', 'Qué no cuadra', 'Séneca dice / sobra', 'Jefatura quiere / falta');
     for (let i = 0; i < pend.length; i++) {
       mete(pend[i][0], pend[i][1], pend[i][2], pend[i][3], pend[i][4]);
     }

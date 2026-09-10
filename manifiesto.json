@@ -1,5 +1,5 @@
 {
-  "version": "BD v61 — los nombres de materias que no cuadran, vistos por los dos lados: la que falta y la que sobra, juntas en el mismo aviso",
+  "version": "BD v62 — una sola comprobación de la matrícula: pestaña OFERTA (la única lista de materias) y pestaña MATRÍCULA (qué falta y qué sobra, alumno por alumno)",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",
@@ -10,7 +10,7 @@
     "Secundaria.gs",
     "Bachillerato.gs",
     "Jefatura.gs",
-    "Obligatorias.gs",
+    "Matricula.gs",
     "Informes.gs",
     "InformesBac.gs",
     "Orden.gs",

@@ -678,7 +678,11 @@ function actualizarDatos() {
   }
 
   hecho.push('');
-  hecho.push('Para sacar los PDF, pulsa "2. Generar los PDF".');
+  /* El nombre EXACTO de las dos opciones del menú. Un cartel que manda pulsar
+     un botón que no se llama así confunde: pasó con el "2. Construir la tabla
+     ALUMNADO" que quedaba del menú de tres botones. */
+  hecho.push('Para sacar los PDF del profesorado, pulsa "2. Generar los PDF (definitivos)".');
+  hecho.push('Para los tuyos, con las interrogantes, pulsa "3. Generar los PDF (borrador)".');
 
   /* El estado de las fuentes se vuelve a mirar, porque el histórico ya está
      al día y las marcas de lo incorporado acaban de cambiar. Así la tabla del

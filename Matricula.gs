@@ -613,6 +613,62 @@ function lineaAplica_(l, a) {
   return true;
 }
 
+/*** ========== CUÁNTAS ASIGNATURAS TIENE QUE TENER UN ALUMNO ==========
+ *
+ * Lo pidió Francisco el 11-sep-2026: "si es de 4º de diversificación tiene que
+ * tener 7 asignaturas". El número no hay que escribirlo en ninguna parte: sale
+ * de la pestaña OFERTA. Son las obligatorias que le tocan más, por cada cuadro
+ * de elección, cuántas hay que elegir. Con la oferta de este curso da 11 en 1º,
+ * 2º y 3º de la ESO (8 en diversificación de 3º), 10 en 4º (7 en
+ * diversificación) y 10 en los dos cursos de Bachillerato.
+ *
+ * Se compara con lo que tiene en Séneca: las casillas con MATR, CONV o APRO.
+ * El repetidor de 2º de Bachillerato NO rompe la regla: en Séneca su fila
+ * conserva el curso entero, con APRO en lo que aprobó el año pasado y MATR en
+ * lo que repite, así que suma igual.
+ * ================================================================== ***/
+
+/* La cuenta para un perfil concreto de alumno. */
+function asignaturasDeUnPerfil_(lineas, a) {
+  const vistas = {}, cuadros = {}, cuadroConColumna = {};
+  let n = 0;
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i];
+    if (!lineaAplica_(l, a)) continue;
+    const m = normalizar(l.materia);
+    if (l.cuadro) {
+      if (cuadros[l.cuadro] === undefined) cuadros[l.cuadro] = l.cuantas;
+      if (!a.existe || a.existe[m]) cuadroConColumna[l.cuadro] = true;
+      continue;
+    }
+    if (vistas[m]) continue;
+    vistas[m] = true;
+    /* Una obligatoria que Séneca no trae como columna no se le puede exigir a
+       nadie: es lo mismo que hace la cuenta de cada alumno. Si no, fallaría un
+       curso entero a la vez por un nombre mal escrito en la OFERTA. */
+    if (a.existe && !a.existe[m]) continue;
+    n++;
+  }
+  for (const c in cuadros) if (cuadroConColumna[c]) n += cuadros[c];
+  return n;
+}
+
+/* Cuántas asignaturas le tocan. Devuelve '' cuando no se puede saber. */
+function asignaturasQueLeTocan_(a) {
+  const lineas = ofertaDeCurso_(a.curso);
+  if (!lineas.length) return '';
+  /* En Bachillerato, si no se ha identificado la modalidad, se prueban las dos:
+     si las dos dan el mismo número (que es lo que pasa ahora), vale igual. */
+  if (esBachillerato_(a.curso) && !a.modalidad) {
+    const c = asignaturasDeUnPerfil_(lineas, { curso: a.curso, tiene: a.tiene, existe: a.existe,
+                                               modalidad: MODALIDAD_CIENCIAS });
+    const h = asignaturasDeUnPerfil_(lineas, { curso: a.curso, tiene: a.tiene, existe: a.existe,
+                                               modalidad: MODALIDAD_HUMANIDADES });
+    return c === h ? c : '';
+  }
+  return asignaturasDeUnPerfil_(lineas, a);
+}
+
 /* Un código escrito por Jefatura, en mayúsculas y sin tildes. */
 function codigoLimpio_(v) {
   return String(v === null || v === undefined ? '' : v)
@@ -914,6 +970,11 @@ function comprobarMatriculas_(porCurso, jefPorClave, cursosJef) {
       catch (e) { R = { corto: SIN_DATO, faltan: [], sobran: [], notas: ['No he podido comprobarla: ' + e.message] }; }
       if (!a.valores) a.valores = {};
       a.valores['MATRÍCULA'] = R.corto;
+      /* El recuento de asignaturas, para las dos columnas de ALUMNADO. */
+      try {
+        a.valores['Nº asignaturas'] = Object.keys(a.tiene).length;
+        a.valores['Debería tener'] = asignaturasQueLeTocan_(a);
+      } catch (e) { a.valores['Nº asignaturas'] = ''; a.valores['Debería tener'] = ''; }
       detalle[normalizar(a.nombre) + '|' + a.curso] = { corto: R.corto, detalle: R.detalle || null };
       if (R.corto === MATRICULA_OK) continue;
       if (esBachillerato_(a.curso)) bac++; else eso++;

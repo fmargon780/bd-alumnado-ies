@@ -1,5 +1,46 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v66';
+const VERSION = 'BD v67';
+
+/*** ================= EL RELOJ: LOS SEIS MINUTOS DE GOOGLE =================
+ *
+ * Google corta en seco cualquier script que pase de seis minutos, con un
+ * cartel rojo ("Se ha superado el tiempo máximo de ejecución") y sin dejar
+ * nada escrito: ni el panel, ni los tiempos, ni saber por dónde iba. Le pasó
+ * a Francisco el 11-sep-2026 al pulsar "1. Actualizar los datos".
+ *
+ * Desde la BD v67 el programa se mira el reloj. Antes de empezar cada trozo
+ * largo pregunta si le queda tiempo; si no le queda, no lo empieza: lo apunta
+ * como pendiente y termina bien, escribiendo el panel con los tiempos de cada
+ * fase. Volver a pulsar "1" lo remata, porque lo que ya está hecho no se
+ * repite (los informes que no han cambiado se saltan solos).
+ *
+ * Así nunca se pierde el trabajo hecho y siempre se sabe en qué se ha ido el
+ * tiempo.
+ * ======================================================================== ***/
+
+/* Los minutos que da Google, y lo que se reserva para escribir el panel. */
+const MINUTOS_DE_GOOGLE = 6;
+const SEGUNDOS_PARA_CERRAR = 80;
+let ARRANQUE_ = 0;
+let SE_ACABO_EL_TIEMPO_ = false;
+
+/* Se llama al principio de "Actualizar los datos". */
+function arrancarReloj_() {
+  ARRANQUE_ = Date.now();
+  SE_ACABO_EL_TIEMPO_ = false;
+}
+
+/* ¿Queda tiempo para un trozo que puede tardar 'segundos'? Sin reloj
+   arrancado (por ejemplo si alguien llama a una función suelta desde el
+   editor) siempre dice que sí, para no cambiar nada de cómo se comporta. */
+function quedaTiempo_(segundos) {
+  if (!ARRANQUE_) return true;
+  const gastado = Date.now() - ARRANQUE_;
+  const tope = (MINUTOS_DE_GOOGLE * 60 - SEGUNDOS_PARA_CERRAR - (segundos || 0)) * 1000;
+  if (gastado < tope) return true;
+  SE_ACABO_EL_TIEMPO_ = true;
+  return false;
+}
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -123,7 +164,7 @@ const ABREVIATURAS = {
  *      ES LA QUE VA AL INFORME EN PAPEL desde la BD v34.
  *
  *   'No podrá repetir este curso'
- *      Si suspende en junio, ¿pasará de curso igualmente? Mira al FUTURO
+ *      Si suspende en junio, ¿pasará al curso siguiente igualmente? Mira al FUTURO
  *      PRÓXIMO. Es la que el programa llamaba "PIL" hasta la BD v33.
  *
  *   'Ha agotado las dos permanencias'

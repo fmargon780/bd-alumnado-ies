@@ -427,6 +427,8 @@ function valoresDeBachillerato_(a, man, ficha, cursosDelCenso) {
     'MAT. MODALIDAD': v['MAT. MODALIDAD'] || '',
     'OPTATIVAS': v['OPTATIVAS'] || '',
     'MATRÍCULA': v['MATRÍCULA'] || '',
+    'Nº asignaturas': v['Nº asignaturas'] === undefined ? '' : v['Nº asignaturas'],
+    'Debería tener': v['Debería tener'] === undefined ? '' : v['Debería tener'],
     'Diversificación': '',
     /* EL CENSO MANDA, TAMBIÉN AQUÍ. La descarga del censo NEAE de Séneca es
        una sola y trae el centro entero: no se pide por cursos ni por etapas.

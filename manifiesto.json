@@ -1,5 +1,5 @@
 {
-  "version": "BD v65 — el arqueo de asignaturas: dos columnas nuevas en ALUMNADO (\"Nº asignaturas\" y \"Debería tener\"), en rojo cuando el alumno no tiene el número de asignaturas de su curso; y el CUADRE afinado con tres fallos vistos con datos reales",
+  "version": "BD v66 — en Bachillerato ya se compara la religión con Jefatura (la columna REL/ECD de su archivo se quedaba sin leer); antes, el arqueo de asignaturas en ALUMNADO (\"Nº asignaturas\" contra \"Debería tener\")",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",

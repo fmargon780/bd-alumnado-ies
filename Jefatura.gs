@@ -120,7 +120,13 @@ function huecosJefatura_(titulos, nivel) {
     const t = normalizar(titulos[c]);
     if (!t) continue;
     if (t === 'origen' || t === 'centro de procedencia') h.origen = c;
-    else if (t.indexOf('rel/') === 0) h.rel = c;
+    /* LA COLUMNA DE RELIGIÓN. Jefatura le cambia el nombre de una pestaña a
+       otra: "REL/Atedu" en la ESO, y en Bachillerato "REL/AE" (1º BACH A),
+       "REL/PTEV" (1º BACH B) o "REL/ECDH" (2º BACH A). Se reconoce por lo
+       único que no cambia: empieza por REL. Así no hay que tocar el programa
+       cada vez que le pone otro nombre. "RELACIÓN..." no cuela, porque detrás
+       de REL tiene que venir algo que no sea una letra. */
+    else if (/^rel($|[^a-z0-9])/.test(t) || t.indexOf('religion') === 0) h.rel = c;
     /* La segunda optativa de los alumnos de diversificación de 3º. Jefatura la
        titula "2º OPT DIV" en 3º ESO A y "OPT 2 DIV" en 3º ESO B, así que se
        reconoce porque el título lleva las palabras OPT y DIV, vaya donde vaya. */
@@ -202,11 +208,15 @@ function leerPestanaJefatura_(grupo, valores) {
       alct: marcas.alct ? 'ALCT' : (nivel === '1º' ? 'FR' : ''),
       /* Las columnas de materias de Bachillerato, TAL Y COMO LAS ESCRIBE
          JEFATURA, sin traducir: la de modalidad obligatoria (MCS/LAT), dos de
-         modalidad y dos de optativas. Las traduce Matricula.gs con la pestaña
-         OFERTA. La de religión no se mira: se comprueba contando.
-         SOLO EN BACHILLERATO. En la ESO esta lista va vacía a propósito. */
+         modalidad, dos de optativas y la de religión (la titula "REL/ECD").
+         Las traduce Matricula.gs con la pestaña OFERTA.
+         La religión se añadió en la BD v66: hasta entonces se quedaba fuera y
+         el cuadro "Religión o Proyecto transversal" no se comparaba nunca con
+         Jefatura. Lo vio Francisco el 11-sep-2026.
+         SOLO EN BACHILLERATO. En la ESO esta lista va vacía a propósito: allí
+         la religión se compara por su cuenta, ya traducida, en el hueco 'rel'. */
       bac: !esNivelBachillerato_(nivel) ? [] :
-        [h.mod0, h.mod1, h.mod2, h.opt, h.opt2].map(function (col) {
+        [h.mod0, h.mod1, h.mod2, h.opt, h.opt2, h.rel].map(function (col) {
           return col === undefined ? '' : String(fila[col] === null || fila[col] === undefined ? '' : fila[col]).trim();
         }),
       repite: marcas.repite ? 'SÍ' : '',

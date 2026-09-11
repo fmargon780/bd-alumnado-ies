@@ -354,7 +354,7 @@ function estadoDeLasFuentes_() {
 function pendientesDelSistema_() {
   const libro = SpreadsheetApp.getActiveSpreadsheet();
   const salida = { total: 0, sinDato: 0, sinUnidad: 0, discrepancias: 0, avisos: 0,
-                   primeroSinExpediente: 0, matriculasEso: 0, matriculasBac: 0, hayAlumnado: false };
+                   primeroSinExpediente: 0, matriculasEso: 0, matriculasBac: 0, cuadre: 0, hayAlumnado: false };
 
   const hoja = libro.getSheetByName(HOJA_ALUMNADO);
   if (hoja && hoja.getLastRow() >= 3) {
@@ -386,6 +386,9 @@ function pendientesDelSistema_() {
     salida.matriculasEso = m.eso;
     salida.matriculasBac = m.bac;
   } catch (e) { /* sin pestaña, cero */ }
+
+  /* Las diferencias del CUADRE que ninguna fila explica (Cuadre.gs). */
+  try { salida.cuadre = cuadreSinExplicar_(); } catch (e) { /* sin pestaña, cero */ }
 
   const hd = libro.getSheetByName(HOJA_DISCREP);
   if (hd && hd.getLastRow() >= 3) {
@@ -476,6 +479,7 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
     mete('Matrículas que no cuadran en Séneca, sin marcar (ESO · Bachillerato)',
          String(pend.matriculasEso + pend.matriculasBac) + '  (' + pend.matriculasEso + ' · ' + pend.matriculasBac + ')');
     mete('Diferencias de personas y grupos con Jefatura, sin marcar', String(pend.discrepancias));
+    mete('CUADRE: diferencias que ninguna fila explica (si hay alguna, es fallo del programa)', String(pend.cuadre));
     mete('Avisos anotados', String(pend.avisos));
     mete('');
   }
@@ -650,6 +654,19 @@ function actualizarDatos() {
           : 'Matrículas: todo el alumnado tiene en Séneca lo que le corresponde.');
       } catch (e) { /* el panel lo cuenta igualmente */ }
 
+      /* EL CUADRE: los totales de Séneca contra los de Jefatura, por unidad y
+         por materia, con cada diferencia explicada. Ver Cuadre.gs. */
+      try {
+        const Q = escribirCuadre_();
+        if (Q) {
+          hecho.push('Cuadre de Séneca contra Jefatura escrito en la pestaña CUADRE' +
+                     (Q.sinExplicar ? ': ' + Q.sinExplicar + ' diferencias que ninguna fila explica. Cuéntamelo.'
+                                    : ': todas las diferencias están explicadas.'));
+        }
+      } catch (e) {
+        hecho.push('No he podido escribir el CUADRE (' + e.message + ').');
+      }
+
       try {
         const rec = restaurarNotasAvisos_(notasAvisos);
         if (rec) hecho.push('Avisos: recuperadas tus anotaciones en ' + rec + ' filas.');
@@ -719,6 +736,9 @@ function actualizarDatos() {
   } catch (e) {
     hecho.push('No he podido dejar el formato de las pestañas (' + e.message + ').');
   }
+  /* La pestaña CUADRE se coloca detrás de MATRÍCULA. Va después de ordenar
+     las demás, que no la conocen. */
+  try { colocarCuadre_(); } catch (e) { /* se queda donde esté */ }
 
   hecho.push('');
   /* El nombre EXACTO de las dos opciones del menú. Un cartel que manda pulsar

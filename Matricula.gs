@@ -787,7 +787,7 @@ function cuentaDeMatricula_(a, j, hayJef) {
       if (j) {
         C.sen.forEach(function (l) {
           if (quiere[normalizar(l.materia)]) return;
-          sobran.push({ l: l, motivo: C.jef.length ? 'Jefatura dice ' + jefAbrevs : 'repite y Jefatura no la pone' });
+          sobran.push({ l: l, tipo: 'repite', motivo: C.jef.length ? 'Jefatura dice ' + jefAbrevs : 'repite y Jefatura no la pone' });
         });
       }
       continue;
@@ -796,7 +796,7 @@ function cuentaDeMatricula_(a, j, hayJef) {
     if (C.jef.length >= C.cuantas) {
       /* Jefatura ha rellenado el cuadro entero: lo demás sobra. */
       C.sen.forEach(function (l) {
-        if (!quiere[normalizar(l.materia)]) sobran.push({ l: l, motivo: 'Jefatura dice ' + jefAbrevs });
+        if (!quiere[normalizar(l.materia)]) sobran.push({ l: l, tipo: 'jefatura', motivo: 'Jefatura dice ' + jefAbrevs });
       });
       continue;
     }
@@ -807,11 +807,12 @@ function cuentaDeMatricula_(a, j, hayJef) {
       const d = C.cuantas - efectivo;
       faltan.push({ texto: d + ' de "' + corto + '"',
                     cortoTexto: d + ' de ' + corto,
+                    n: d, cuadro: nombre,
                     motivo: 'cuadro de elección: ' + C.lineas.map(abrevDe).join(', ') });
     } else if (efectivo > C.cuantas) {
       C.sen.forEach(function (l) {
         if (quiere[normalizar(l.materia)]) return;
-        sobran.push({ l: l, motivo: 'cuadro "' + corto + '": tiene ' + C.sen.length +
+        sobran.push({ l: l, tipo: 'cuadro', motivo: 'cuadro "' + corto + '": tiene ' + C.sen.length +
                                     ' y hay que cursar ' + C.cuantas });
       });
     }
@@ -822,8 +823,8 @@ function cuentaDeMatricula_(a, j, hayJef) {
   for (const n in a.tiene) {
     if (porMateria[n] || aprobada[n]) continue;
     const l = cualquiera[n];
-    if (l) sobran.push({ l: l, motivo: 'no le corresponde: ' + l.quien });
-    else sobran.push({ texto: String(a.tiene[n]), cortoTexto: abreviar(String(a.tiene[n])),
+    if (l) sobran.push({ l: l, tipo: 'ajena', motivo: 'no le corresponde: ' + l.quien });
+    else sobran.push({ texto: String(a.tiene[n]), cortoTexto: abreviar(String(a.tiene[n])), tipo: 'fuera',
                        motivo: 'no está en la oferta de ' + a.curso });
   }
 
@@ -831,6 +832,22 @@ function cuentaDeMatricula_(a, j, hayJef) {
   const cortoDe = function (x) { return x.l ? abrevDe(x.l) : x.cortoTexto; };
   salida.faltan = faltan.map(largo);
   salida.sobran = sobran.map(largo);
+  /* Lo mismo, pero como datos y no como texto, para el CUADRE (Cuadre.gs):
+     qué materia falta o sobra, o cuántas faltan de qué cuadro. El 'tipo' de
+     cada sobrante dice por qué sobra: 'jefatura' (Jefatura eligió otra),
+     'cuadro' (tiene más de las que hay que cursar), 'repite', 'ajena' (no le
+     corresponde) o 'fuera' (no está en la oferta). */
+  salida.detalle = {
+    repite: repite,
+    faltan: faltan.map(function (x) {
+      return x.l ? { materia: x.l.materia, cuadro: x.l.cuadro || '', n: 1 }
+                 : { materia: '', cuadro: x.cuadro || '', n: x.n || 1 };
+    }),
+    sobran: sobran.map(function (x) {
+      return { materia: x.l ? x.l.materia : String(x.texto || ''), cuadro: x.l ? (x.l.cuadro || '') : '',
+               tipo: x.tipo || '', n: 1 };
+    })
+  };
   const partes = [];
   if (faltan.length) partes.push((faltan.length === 1 ? 'falta ' : 'faltan ') + faltan.map(cortoDe).join(', '));
   if (sobran.length) partes.push((sobran.length === 1 ? 'sobra ' : 'sobran ') + sobran.map(cortoDe).join(', '));
@@ -850,7 +867,7 @@ let RESULTADO_MATRICULA_ = null;
    Escribe en cada alumno a.valores['MATRÍCULA'] y devuelve las filas de la
    pestaña MATRÍCULA. */
 function comprobarMatriculas_(porCurso, jefPorClave, cursosJef) {
-  const filas = [];
+  const filas = [], detalle = {};
   let eso = 0, bac = 0;
   for (const curso in porCurso) {
     const lista = porCurso[curso];
@@ -864,6 +881,7 @@ function comprobarMatriculas_(porCurso, jefPorClave, cursosJef) {
       catch (e) { R = { corto: SIN_DATO, faltan: [], sobran: [], notas: ['No he podido comprobarla: ' + e.message] }; }
       if (!a.valores) a.valores = {};
       a.valores['MATRÍCULA'] = R.corto;
+      detalle[normalizar(a.nombre) + '|' + a.curso] = { corto: R.corto, detalle: R.detalle || null };
       if (R.corto === MATRICULA_OK) continue;
       if (esBachillerato_(a.curso)) bac++; else eso++;
       filas.push({ curso: a.curso, grupo: a.unidad, alumno: a.nombre,
@@ -876,7 +894,11 @@ function comprobarMatriculas_(porCurso, jefPorClave, cursosJef) {
     const ky = y.curso + '|' + y.grupo + '|' + normalizar(y.alumno);
     return kx < ky ? -1 : (kx > ky ? 1 : 0);
   });
-  RESULTADO_MATRICULA_ = { filas: filas, eso: eso, bac: bac };
+  /* Se guarda también lo que hace falta para el CUADRE (Cuadre.gs), que se
+     escribe después, desde Panel.gs: el alumnado por curso, lo de Jefatura y
+     el detalle de cada cuenta. */
+  RESULTADO_MATRICULA_ = { filas: filas, eso: eso, bac: bac,
+                           porCurso: porCurso, jef: jefPorClave, cursosJef: cursosJef, detalle: detalle };
   return RESULTADO_MATRICULA_;
 }
 

@@ -1,5 +1,5 @@
 {
-  "version": "BD v66 — en Bachillerato ya se compara la religión con Jefatura (la columna REL/ECD de su archivo se quedaba sin leer); antes, el arqueo de asignaturas en ALUMNADO (\"Nº asignaturas\" contra \"Debería tener\")",
+  "version": "BD v67 — el reloj: \"Actualizar los datos\" ya no muere con el cartel rojo de Google. Al acercarse a los seis minutos para él solo, escribe el panel con los tiempos de cada fase y dice qué se ha quedado sin hacer; se remata volviendo a pulsar \"1\"",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",

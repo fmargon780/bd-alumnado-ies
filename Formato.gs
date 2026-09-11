@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v64';
+const VERSION_BD = 'BD v65';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -142,6 +142,8 @@ const FORMATO_HOJAS = {
       'MODALIDAD': 'SOLO BACHILLERATO. La modalidad que cursa: Ciencias y Tecnología, o Humanidades y CC. Sociales.\n\nSale del fichero de matrícula en el que aparece el alumno, y por tanto de su grupo: el grupo A es de Ciencias y los grupos B y C son de Humanidades.\n\nEn la ESO esta casilla va vacía, porque allí no hay modalidades.',
       'MAT. MODALIDAD': 'SOLO BACHILLERATO. Las materias de MODALIDAD que cursa, abreviadas.\n\nSon la obligatoria de su modalidad (Matemáticas en Ciencias, Latín en Humanidades) y las que ha elegido del grupo de modalidad.\n\nSi el alumno repite curso, aquí solo salen las que está cursando de verdad: las que ya aprobó no aparecen.\n\nEn la ESO esta casilla va vacía.',
       'OPTATIVAS': 'SOLO BACHILLERATO. Las optativas que ha elegido, abreviadas. En 1º y en 2º se eligen dos.\n\nSi aquí aparece una materia que no está en la pestaña OFERTA, se escribe igualmente para que no se pierda, y sale como "sobra" en la pestaña MATRÍCULA.\n\nEn la ESO esta casilla va vacía: allí la optativa está en la columna OPT.',
+      'Nº asignaturas': 'Cuántas asignaturas tiene este alumno en Séneca: las casillas con MATR, CONV o APRO.\n\nQuien repite 2º de Bachillerato suma igual, porque en Séneca su fila conserva el curso entero: lo que aprobó el año pasado sale como APRO y lo que repite como MATR.',
+      'Debería tener': 'Cuántas asignaturas le tocan por su curso. Sale de la pestaña OFERTA: las obligatorias que le corresponden más, por cada cuadro de elección, cuántas hay que elegir.\n\nCon la oferta de este curso son 11 en 1º, 2º y 3º de la ESO (8 en diversificación de 3º), 10 en 4º (7 en diversificación) y 10 en los dos cursos de Bachillerato.\n\nSe queda vacía cuando no se puede saber. Las dos casillas se pintan de rojo cuando los números no coinciden: entonces falta o sobra alguna asignatura, y la pestaña MATRÍCULA dice cuál. Una exención o una convalidación real también hacen que no coincida, y eso no es un error.',
       'MATRÍCULA': 'Dice si la matrícula del alumno en Séneca es la que tiene que ser: las obligatorias de su curso (según la pestaña OFERTA) más lo que ha escrito Jefatura para él, ni una más ni una menos.\n\nPone OK cuando cuadra. Si no, un resumen corto: "falta MAT · sobra CC". Pone "DIV pendiente" cuando la diversificación no cuadra con Jefatura, y "?" cuando no se ha podido comprobar.\n\nEl detalle, con los nombres enteros y el porqué de cada materia, está en la pestaña MATRÍCULA.',
       'Trayectoria': 'EL CUADRO RESUMEN DEL ALUMNO. Su historia ordenada, una línea por año académico, con la referencia temporal siempre delante.\n\nCada línea dice: el año, el curso con su etapa detrás ("2º ESO"), el centro escrito con su nombre entero ("IES Fuente Lucena"), la decisión de promoción y cuántas materias suspendió. La última línea, la de la flecha, es el veredicto del PIL.\n\nLo que no sabemos lleva una interrogante: "estimado por edad (?)", "? suspensas", o una línea propia cuando faltan años que nada explica.\n\nPARA LEERLO CÓMODAMENTE, PASA EL RATÓN POR ENCIMA DEL NOMBRE DEL ALUMNO: el mismo cuadro sale como nota de esa casilla, entero y sin tener que ensanchar nada.',
       'Observaciones': 'AQUÍ ESCRIBES TÚ. Lo que quieras anotar de ese alumno.\n\nEl programa no toca nunca esta columna: se guarda antes de reconstruir la tabla y se vuelve a poner igual.'
@@ -163,6 +165,7 @@ const FORMATO_HOJAS = {
       'OPC2': [55, 'C'], 'OPC3': [55, 'C'], 'OPC4': [55, 'C'], 'REL/Atedu': [65, 'C'],
       'MODALIDAD': [150, 'W'], 'MAT. MODALIDAD': [150, 'W'],
       'OPTATIVAS': [140, 'W'], 'MATRÍCULA': [190, 'W'],
+      'Nº asignaturas': [75, 'C'], 'Debería tener': [75, 'C'],
       'Trayectoria': [200, 'I'], 'Observaciones': [200, 'W']
     }
   },
@@ -493,6 +496,21 @@ function fmtColoresAutomaticos_(hoja, nombre, filaCab, ultimaFila, ancho, titulo
                               '<>"' + MATRICULA_OK + '")')
         .setBackground(FMT_AMBAR)
         .setRanges([hoja.getRange(primera, cMatri, nDatos, 1)]).build());
+    }
+    /* EL ARQUEO DE ASIGNATURAS. En rojo las dos casillas cuando el número que
+       tiene en Séneca no es el que le toca por su curso. Si alguna de las dos
+       está vacía no se pinta: es que no se ha podido saber. */
+    const cNum = fmtColumnaDe_(titulos, 'Nº asignaturas');
+    const cDebe = fmtColumnaDe_(titulos, 'Debería tener');
+    if (cNum && cDebe) {
+      const lN = hoja.getRange(1, cNum).getA1Notation().replace(/[0-9]/g, '');
+      const lD = hoja.getRange(1, cDebe).getA1Notation().replace(/[0-9]/g, '');
+      reglas.push(SpreadsheetApp.newConditionalFormatRule()
+        .whenFormulaSatisfied('=AND($' + lN + primera + '<>"",$' + lD + primera + '<>"",$' +
+                              lN + primera + '<>$' + lD + primera + ')')
+        .setBackground(FMT_ROJO)
+        .setRanges([hoja.getRange(primera, cNum, nDatos, 1),
+                    hoja.getRange(primera, cDebe, nDatos, 1)]).build());
     }
     /* Repeticiones que hubo pero no sabemos dónde. Cuentan para el PIL, y
        conviene mirarlas una a una: puede que el alumno vaya retrasado por

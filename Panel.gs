@@ -582,6 +582,9 @@ function lineaTiempos_(T) {
 
 function actualizarDatos() {
   const T = {};
+  /* EL RELOJ (Codigo.gs): Google corta el script a los seis minutos. Desde
+     aquí, cada trozo largo mira si le queda tiempo antes de empezar. */
+  arrancarReloj_();
 
   let E;
   try {
@@ -667,7 +670,11 @@ function actualizarDatos() {
       /* EL CUADRE: los totales de Séneca contra los de Jefatura, por unidad y
          por materia, con cada diferencia explicada. Ver Cuadre.gs. */
       try {
-        const Q = escribirCuadre_();
+        const Q = quedaTiempo_(30) ? escribirCuadre_() : null;
+        if (!Q && SE_ACABO_EL_TIEMPO_) {
+          hecho.push('Las tres pestañas CUADRE se han quedado sin rehacer: no quedaba tiempo. ' +
+                     'Siguen con lo de la vez anterior.');
+        }
         if (Q) {
           hecho.push('Cuadre de Séneca contra Jefatura, en las tres pestañas CUADRE. Filas con diferencia: personas ' +
                      Q.personas.conDiferencia + ' · materias ' + Q.materias.conDiferencia + ' · controles ' +
@@ -723,7 +730,8 @@ function actualizarDatos() {
     const R = rellenarPestanasInformes_();
     hecho.push('Informes por unidad: ' + R.grupos + ' pestañas (' + R.reescritas +
                ' reescritas · ' + R.sinCambios + ' sin cambios), ' +
-               R.alumnos + ' alumnos escritos.');
+               R.alumnos + ' alumnos escritos.' +
+               (R.sinTiempo ? ' ' + R.sinTiempo + ' se han quedado sin rellenar por falta de tiempo.' : ''));
     if (R.siglasSinExplicar.length) {
       hecho.push('Siglas sin explicar en la leyenda: ' + R.siglasSinExplicar.join(', ') + '.');
     }
@@ -741,9 +749,13 @@ function actualizarDatos() {
      columnas congeladas, y filtro en todas. Ver Formato.gs. */
   const tFmt0 = Date.now();
   try {
-    const F = arreglarFormatoDeTodo_();
-    hecho.push('Formato revisado en ' + F.hojas + ' pestañas.' +
-               (F.fallos.length ? ' No he podido con: ' + F.fallos.join('; ') : ''));
+    if (quedaTiempo_(30)) {
+      const F = arreglarFormatoDeTodo_();
+      hecho.push('Formato revisado en ' + F.hojas + ' pestañas.' +
+                 (F.fallos.length ? ' No he podido con: ' + F.fallos.join('; ') : ''));
+    } else {
+      hecho.push('El formato de las pestañas se ha quedado sin revisar: no quedaba tiempo.');
+    }
   } catch (e) {
     hecho.push('No he podido dejar el formato de las pestañas (' + e.message + ').');
   }
@@ -770,5 +782,15 @@ function actualizarDatos() {
 
   hecho.push(lineaTiempos_(T));
   guardarCacheDeFicheros_();
+  if (SE_ACABO_EL_TIEMPO_) {
+    hecho.push('');
+    hecho.push('SE HA ACABADO EL TIEMPO. Google no deja que este programa pase de ' +
+               MINUTOS_DE_GOOGLE + ' minutos seguidos, así que ha parado él solo antes de que lo ' +
+               'cortaran. Lo que ves arriba está bien hecho; lo que se ha quedado sin hacer lo dice ' +
+               'cada línea. Vuelve a pulsar "1. Actualizar los datos" para rematarlo: lo que ya está ' +
+               'hecho no se repite, así que la segunda vez tarda mucho menos.');
+    escribirPanel_('Datos actualizados a medias: se ha acabado el tiempo', hecho, fuentesFinales, pend);
+    return;
+  }
   escribirPanel_('Datos actualizados', hecho, fuentesFinales, pend);
 }

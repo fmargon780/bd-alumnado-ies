@@ -1438,7 +1438,11 @@ function rellenarPestanasInformes_() {
   /* El cuaderno de Bachillerato se crea solo la primera vez. Si algo falla
      ahí, la ESO ya está hecha y no se pierde: se anota y se sigue. */
   try {
-    const rb = rellenarBachillerato_(avisos);
+    /* EL RELOJ (Codigo.gs): si no queda tiempo, el cuaderno de Bachillerato se
+       deja entero para la próxima vez que se pulse "1". */
+    const hayTiempo = quedaTiempo_(25);
+    if (!hayTiempo) r.sinTiempo = (r.sinTiempo || 0) + 1;
+    const rb = hayTiempo ? rellenarBachillerato_(avisos) : null;
     if (rb) {
       r.grupos += rb.grupos;
       r.alumnos += rb.alumnos;
@@ -1446,6 +1450,7 @@ function rellenarPestanasInformes_() {
       r.sinUnidad += rb.sinUnidad;
       r.reescritas += rb.reescritas;
       r.sinCambios += rb.sinCambios;
+      r.sinTiempo = (r.sinTiempo || 0) + (rb.sinTiempo || 0);
     }
   } catch (e) {
     avisos.push(['', '', 'No he podido con el cuaderno de Bachillerato', e.message]);
@@ -1466,6 +1471,7 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
 
   const avisos = avisosFuera || [], resumen = [], usadas = {}, informes = [];
   let totalEscritos = 0, membretesCambiados = 0, reescritas = 0, sinCambios = 0;
+  let sinTiempo = 0;   // pestañas que se han quedado sin rellenar por el reloj
   let membrete = null;
   try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
@@ -1483,6 +1489,12 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
     if (!grupo) continue;   // no es una pestaña de grupo
     limpiarRotuloDiver_(hoja, fila7);
     const nivel = nivelDeGrupo_(grupo);
+
+    /* EL RELOJ (Codigo.gs). Rellenar una pestaña de grupo lleva unos segundos.
+       Si no queda tiempo para otra, se deja sin tocar: mejor que unas cuantas
+       queden para la próxima vez y la ejecución termine bien, a morirse a la
+       mitad de una y perderlo todo. Se rematan volviendo a pulsar "1". */
+    if (!quedaTiempo_(15)) { sinTiempo++; continue; }
 
     const anchoViejo = hoja.getLastColumn();
     const titulosViejos = hoja.getRange(FILA_TITULOS, 1, 1, anchoViejo).getValues()[0];
@@ -1699,7 +1711,7 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
   return { grupos: resumen.length, alumnos: totalEscritos, avisos: avisos.length,
            membretes: membretesCambiados, sinUnidad: A.sinUnidad.length,
            siglasSinExplicar: listaSinExplicar, pendientesSeneca: nPend,
-           reescritas: reescritas, sinCambios: sinCambios };
+           reescritas: reescritas, sinCambios: sinCambios, sinTiempo: sinTiempo };
 }
 
 /*** ================= BOTONES 2 Y 3: LOS PDF =================

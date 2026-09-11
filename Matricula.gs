@@ -284,7 +284,9 @@ const JEF_POR_MATERIA_BAC = {
   'Olimpismo': 'OLI', 'Biología': 'BIOL', 'Estadística': 'EST',
   'Empresa y Diseño de Modelos de Negocio': 'EYDI', 'Física': 'FISI',
   'Finanzas y Economía': 'FYEC', 'Geografía': 'GEOG', 'Historia del Arte': 'HART',
-  'Química': 'QUIM', 'Tecnología e Ingeniería': 'TECI'
+  'Química': 'QUIM', 'Tecnología e Ingeniería': 'TECI',
+  /* La religión de Bachillerato, que Jefatura escribe en la columna REL/ECD. */
+  'Religión Católica': 'REL', 'Proyectos Transversales de Educación en Valores': 'PTEV'
 };
 
 /* EN QUÉ COLUMNA DE ALUMNADO SE ENSEÑA CADA MATERIA DE LA ESO. Lo que no está

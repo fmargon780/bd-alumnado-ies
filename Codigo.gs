@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v64';
+const VERSION = 'BD v65';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -164,6 +164,9 @@ const TITULOS_ALUMNADO = [
      ESO se quedan vacías, y al revés con las de la ESO. Ver Bachillerato.gs. */
   'OPT', 'FR -> ALCT', 'MAT', 'OPC1', 'OPC2', 'OPC3', 'OPC4', 'REL/Atedu',
   'MODALIDAD', 'MAT. MODALIDAD', 'OPTATIVAS', 'MATRÍCULA',
+  /* El arqueo: cuántas asignaturas tiene en Séneca y cuántas le tocan por su
+     curso. Ver asignaturasQueLeTocan_ en Matricula.gs. */
+  'Nº asignaturas', 'Debería tener',
   /* Lo tuyo */
   'Observaciones'];
 /* Amarillas: las escribe Francisco y el programa nunca las pisa. */
@@ -1199,6 +1202,8 @@ function componerAlumnado(alumnosPorCurso, historial, notasPorCurso, manuales, j
       'OPC4': v['OPC4'] || '',
       'REL/Atedu': v['REL/Atedu'] || '',
       'MATRÍCULA': v['MATRÍCULA'] || '',
+      'Nº asignaturas': v['Nº asignaturas'] === undefined ? '' : v['Nº asignaturas'],
+      'Debería tener': v['Debería tener'] === undefined ? '' : v['Debería tener'],
       'Nº pendientes': pend.length ? pend.length : '',
       'Asignaturas pendientes': pendTexto,
       'Edad a 31/12': edad,

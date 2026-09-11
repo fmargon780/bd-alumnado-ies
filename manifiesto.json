@@ -1,5 +1,5 @@
 {
-  "version": "BD v64 — más rápido y robusto: mide los tiempos de cada fase, cachea los expedientes de Séneca y evita reescribir lo que no ha cambiado",
+  "version": "BD v64 — pestaña CUADRE (Séneca contra Jefatura en totales, con cada diferencia explicada); y más rápido y robusto: mide los tiempos de cada fase, cachea los expedientes y evita reescribir lo que no ha cambiado",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",
@@ -11,6 +11,7 @@
     "Bachillerato.gs",
     "Jefatura.gs",
     "Matricula.gs",
+    "Cuadre.gs",
     "Informes.gs",
     "InformesBac.gs",
     "Orden.gs",

@@ -659,9 +659,10 @@ function actualizarDatos() {
       try {
         const Q = escribirCuadre_();
         if (Q) {
-          hecho.push('Cuadre de Séneca contra Jefatura escrito en la pestaña CUADRE' +
-                     (Q.sinExplicar ? ': ' + Q.sinExplicar + ' diferencias que ninguna fila explica. Cuéntamelo.'
-                                    : ': todas las diferencias están explicadas.'));
+          hecho.push('Cuadre de Séneca contra Jefatura, en las tres pestañas CUADRE. Filas con diferencia: personas ' +
+                     Q.personas.conDiferencia + ' · materias ' + Q.materias.conDiferencia + ' · controles ' +
+                     Q.controles.conDiferencia + '. ' +
+                     (Q.sinExplicar ? 'Sin explicar: ' + Q.sinExplicar + '. Cuéntamelo.' : 'Todas están explicadas.'));
         }
       } catch (e) {
         hecho.push('No he podido escribir el CUADRE (' + e.message + ').');
@@ -736,8 +737,8 @@ function actualizarDatos() {
   } catch (e) {
     hecho.push('No he podido dejar el formato de las pestañas (' + e.message + ').');
   }
-  /* La pestaña CUADRE se coloca detrás de MATRÍCULA. Va después de ordenar
-     las demás, que no la conocen. */
+  /* Las pestañas del CUADRE se colocan detrás de MATRÍCULA. Va después de
+     ordenar las demás, que no las conocen. */
   try { colocarCuadre_(); } catch (e) { /* se queda donde esté */ }
 
   hecho.push('');

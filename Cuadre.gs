@@ -6,9 +6,13 @@
  * alumnos por enseñanza, curso y unidad, el número de matriculados en cada
  * asignatura por curso y unidad...".
  *
- * La pestaña MATRÍCULA mira alumno por alumno. Esta pestaña, CUADRE, mira los
- * TOTALES: los mismos números contados por dos caminos, y cada diferencia con
- * su explicación. Tres cuadros:
+ * La pestaña MATRÍCULA mira alumno por alumno. El CUADRE mira los TOTALES:
+ * los mismos números contados por dos caminos, y cada diferencia con su
+ * explicación. Son TRES PESTAÑAS, una por cuadro (hasta la BD v64 iban las
+ * tres en una y no se podía leer: cada cuadro necesita sus propios anchos de
+ * columna). Cada pestaña lleva arriba su resumen (filas, con diferencia, sin
+ * explicar), la cabecera fija y un filtro. Las notas largas van como nota de
+ * la celda, no como columna:
  *
  *   1. PERSONAS. Por unidad, con subtotales por curso y por enseñanza:
  *      cuántos alumnos hay en Séneca, cuántos en Jefatura, la diferencia, y
@@ -42,8 +46,12 @@
  * tabla ALUMNADO.
  * ======================================================================== ***/
 
-const HOJA_CUADRE = 'CUADRE';
-const CUADRE_ANCHO = 9;
+const HOJA_CUADRE_PERSONAS  = 'CUADRE PERSONAS';
+const HOJA_CUADRE_MATERIAS  = 'CUADRE MATERIAS';
+const HOJA_CUADRE_CONTROLES = 'CUADRE CONTROLES';
+const HOJAS_CUADRE = [HOJA_CUADRE_PERSONAS, HOJA_CUADRE_MATERIAS, HOJA_CUADRE_CONTROLES];
+/* La pestaña única de la primera versión, que se borra si sigue ahí. */
+const HOJA_CUADRE_VIEJA = 'CUADRE';
 
 /* Un alumno queda fuera de los cuadros de materias si su matrícula no se ha
    podido comprobar. */
@@ -58,16 +66,29 @@ function cuadreOrdenCurso_(c) {
   return (esBachillerato_(c) ? '2' : '1') + c;
 }
 
-/* Construye las filas de los tres cuadros. Devuelve { filas, marcas, sinExplicar,
-   fuera } donde 'marcas' dice qué filas son títulos, cabeceras o subtotales. */
+/* Construye los tres cuadros. Devuelve { personas, materias, controles,
+   sinExplicar, fuera, fueraPersonas }; cada cuadro trae titulos, filas, marcas
+   (unidad, subtotal, total, hueco), notas (una por fila) y resumen. */
 function cuadre_(R) {
-  const filas = [], marcas = [];
-  let sinExplicar = 0;
-  const mete = function (f, tipo) {
-    while (f.length < CUADRE_ANCHO) f.push('');
-    filas.push(f);
-    marcas.push(tipo || '');
-    if (f[CUADRE_ANCHO - 1] === 'NO') sinExplicar++;
+  /* Cada cuadro es una lista de filas, con su marca (título de unidad,
+     subtotal, total...) y su nota (la explicación que va como nota de celda).
+     La última columna de cada fila es siempre "Cuadra". */
+  const bloque = function (titulos) {
+    return { titulos: titulos, filas: [], marcas: [], notas: [] };
+  };
+  const B = {
+    personas: bloque(['Enseñanza', 'Curso', 'Unidad', 'Séneca', 'Jefatura', 'Diferencia',
+                      'Solo en Séneca', 'Solo en Jefatura', 'Cuadra']),
+    materias: bloque(['Curso', 'Unidad', 'Materia', 'Séneca', 'Esperado', 'Diferencia',
+                      'Explicado en MATRÍCULA', 'Cuadra']),
+    controles: bloque(['Curso', 'Unidad', 'Control', 'Esperado', 'Real', 'Diferencia',
+                       'Explicado', 'Cuadra'])
+  };
+  const mete = function (bl, f, tipo, nota) {
+    while (f.length < bl.titulos.length) f.push('');
+    bl.filas.push(f);
+    bl.marcas.push(tipo || '');
+    bl.notas.push(nota || '');
   };
   const cuadra = function (dif, expl) {
     if (dif === '' || expl === '') return '';
@@ -110,9 +131,6 @@ function cuadre_(R) {
   });
 
   /* ================= 1. PERSONAS ================= */
-  mete(['1. PERSONAS: cuántos alumnos hay en cada sitio'], 'titulo');
-  mete(['Enseñanza', 'Curso', 'Unidad', 'Séneca', 'Jefatura', 'Diferencia',
-        'Solo en Séneca', 'Solo en Jefatura', 'Cuadra'], 'cabecera');
   const sub = {};   // acumuladores por curso y por etapa
   const acum = function (k, s, j, ss, sj, hayJef) {
     if (!sub[k]) sub[k] = { s: 0, j: 0, ss: 0, sj: 0, hayJef: false, sinJef: 0 };
@@ -125,9 +143,11 @@ function cuadre_(R) {
     const parcial = t.hayJef && t.sinJef > 0;
     const dif = t.hayJef && !parcial ? t.s - t.j : '';
     const expl = t.hayJef && !parcial ? t.ss - t.sj : '';
-    mete([etiqueta1, etiqueta2, etiqueta3, t.s,
+    mete(B.personas, [etiqueta1, etiqueta2, etiqueta3, t.s,
           !t.hayJef ? '—' : (parcial ? t.j + ' (sin todos los cursos)' : t.j), dif,
-          t.hayJef ? t.ss : '', t.hayJef ? t.sj : '', cuadra(dif, expl)], tipo);
+          t.hayJef ? t.ss : '', t.hayJef ? t.sj : '', cuadra(dif, expl)], tipo,
+         !t.hayJef ? 'El fichero de Jefatura no trae este curso.'
+                   : (parcial ? 'A algún curso de este total le falta el fichero de Jefatura: no se compara.' : ''));
   };
   let cursoAnterior = '', etapaAnterior = '';
   for (let i = 0; i < clavesUnidad.length; i++) {
@@ -151,14 +171,8 @@ function cuadre_(R) {
   if (cursoAnterior) filaPersonas('', 'Total ' + cursoAnterior, '', sub['c|' + cursoAnterior], 'subtotal');
   if (etapaAnterior) filaPersonas('Total ' + etapaAnterior, '', '', sub['e|' + etapaAnterior], 'total');
   if (sub['t']) filaPersonas('TOTAL DEL CENTRO', '', '', sub['t'], 'total');
-  mete(['En los cursos que el fichero de Jefatura no trae, la columna Jefatura pone —. ' +
-        'Quien está solo en un sitio sale en DISCREPANCIAS.'], 'nota');
-  mete([]);
 
   /* ================= 2. MATERIAS ================= */
-  mete(['2. MATERIAS: matriculados en Séneca contra lo que se espera'], 'titulo');
-  mete(['Curso', 'Unidad', 'Materia', 'Séneca', 'Esperado', 'Diferencia',
-        'Explicado en MATRÍCULA', 'Nota', 'Cuadra'], 'cabecera');
   let fuera = 0, fueraPersonas = 0;
   const controles = [];   // se rellenan aquí y se escriben en el cuadro 3
   for (let i = 0; i < clavesUnidad.length; i++) {
@@ -174,11 +188,12 @@ function cuadre_(R) {
        (si Jefatura trae el curso): quien está solo en una ya está explicado
        en el cuadro 1. Y solo quien tiene la matrícula comprobada. */
     const alumnos = [];
+    let fueraU = 0, fueraPersonasU = 0;
     for (let q = 0; q < todos.length; q++) {
       const a = todos[q];
       const clave = normalizar(a.nombre) + '|' + a.curso;
-      if (hayJef && !u.jef[clave]) { fueraPersonas++; continue; }
-      if (!cuadreAlumnoCuenta_(R, a)) { fuera++; continue; }
+      if (hayJef && !u.jef[clave]) { fueraPersonas++; fueraPersonasU++; continue; }
+      if (!cuadreAlumnoCuenta_(R, a)) { fuera++; fueraU++; continue; }
       alumnos.push(a);
     }
     const porClave = {};
@@ -281,6 +296,16 @@ function cuadre_(R) {
         }
       }
     }
+    /* La unidad, como fila de título, y debajo sus materias. */
+    let cabeceraPuesta = false;
+    const filaUnidad = function () {
+      if (cabeceraPuesta) return;
+      cabeceraPuesta = true;
+      if (B.materias.filas.length) mete(B.materias, [], 'hueco');
+      mete(B.materias, [curso, u.nombre, u.nombre + ' — ' + alumnos.length + ' alumnos que entran en el cuadre'], 'unidad',
+           (fueraPersonasU ? fueraPersonasU + ' alumnos fuera: no están en las dos fuentes en esta unidad (ver PERSONAS). ' : '') +
+           (fueraU ? fueraU + ' alumnos fuera: matrícula en "' + MATRICULA_DIV_PENDIENTE + '" o "' + SIN_DATO + '".' : ''));
+    };
     for (let y = 0; y < ordenMaterias.length; y++) {
       const m = ordenMaterias[y], V = vistas[m], l = V.l;
       let esperado, nota = '';
@@ -289,7 +314,9 @@ function cuadre_(R) {
         nota = 'obligatoria: la cursa todo el alumnado al que le toca';
         if (!V.existe) {
           if (!V.aplicables) continue;
-          mete([curso, u.nombre, l.materia, '—', esperado, '', '', 'Séneca no trae esta columna (ver AVISOS)', ''], '');
+          filaUnidad();
+          mete(B.materias, [curso, u.nombre, l.materia, '—', esperado, '', '', ''], '',
+               'Séneca no trae esta columna (ver AVISOS).');
           continue;
         }
       } else {
@@ -311,8 +338,9 @@ function cuadre_(R) {
         cu = '';
         nota += ' · hay códigos de Jefatura sin leer en esta unidad (ver AVISOS)';
       }
-      mete([curso, u.nombre, l.materia, V.sen, esperado === '' ? '—' : esperado, dif,
-            esperado === '' ? '' : expl, nota, cu], '');
+      filaUnidad();
+      mete(B.materias, [curso, u.nombre, l.materia, V.sen, esperado === '' ? '—' : esperado, dif,
+            esperado === '' ? '' : expl, cu], '', nota);
     }
 
     /* Los controles de esta unidad, para el cuadro 3. */
@@ -323,9 +351,12 @@ function cuadre_(R) {
       const dif = C.real - C.esperado;
       let cu = cuadra(dif, expl), nota = '';
       if (codigosSinLeer && cu === 'NO') { cu = ''; nota = 'hay códigos de Jefatura sin leer en esta unidad (ver AVISOS)'; }
-      controles.push([curso, u.nombre, 'Cuadro "' + nombreDeCuadro_(nombre) + '": ' +
+      controles.push({ fila: [curso, u.nombre, 'Cuadro "' + nombreDeCuadro_(nombre) + '": ' +
                       (C.cuantas === 1 ? 'una por alumno' : C.cuantas + ' por alumno'),
-                      C.esperado, C.real, dif, expl, nota, cu]);
+                      C.esperado, C.real, dif, expl, cu],
+                       nota: 'Esperado: alumnos de la unidad a los que les toca este cuadro, por cuántas hay que elegir. ' +
+                             'Real: matriculados en las materias del cuadro. Quien repite 2º de Bachillerato no entra.' +
+                             (nota ? ' ' + nota + '.' : '') });
     }
     /* La diversificación, en la ESO y solo si Jefatura trae el curso. Aquí
        entra todo el mundo: la explican las filas de DISCREPANCIAS. */
@@ -347,97 +378,152 @@ function cuadre_(R) {
       }
       if (sDiv || jDiv) {
         const dif = sDiv - jDiv, expl = soloS - soloJ;
-        controles.push([curso, u.nombre, 'Diversificación: Séneca contra Jefatura', jDiv, sDiv, dif, expl,
-                        'la explican las filas de DISCREPANCIAS', cuadra(dif, expl)]);
+        controles.push({ fila: [curso, u.nombre, 'Diversificación: Séneca contra Jefatura', jDiv, sDiv, dif, expl,
+                               cuadra(dif, expl)],
+                         nota: 'Esperado: alumnos en diversificación según Jefatura. Real: según Séneca. ' +
+                               'La diferencia la explican las filas de DISCREPANCIAS.' });
       }
     }
   }
-  mete(['"Esperado" es lo que escribe Jefatura, o el número de alumnos a los que le toca si es obligatoria. ' +
-        '"Explicado" es lo que suman las filas de MATRÍCULA de esa unidad: sobran menos faltan.' +
-        (fueraPersonas ? ' Fuera de este cuadro: ' + fueraPersonas + ' alumnos que no están en las dos fuentes en la misma unidad (ver el cuadro 1).' : '') +
-        (fuera ? ' Fuera también: ' + fuera + ' alumnos con la matrícula en "' + MATRICULA_DIV_PENDIENTE +
-                 '" o "' + SIN_DATO + '".' : '')], 'nota');
-  mete([]);
-
   /* ================= 3. CONTROLES ================= */
-  mete(['3. CONTROLES: sumas que tienen que salir'], 'titulo');
-  mete(['Curso', 'Unidad', 'Control', 'Esperado', 'Real', 'Diferencia',
-        'Explicado', 'Nota', 'Cuadra'], 'cabecera');
-  for (let i = 0; i < controles.length; i++) mete(controles[i], '');
-  mete(['En cada cuadro de elección: alumnos de la unidad por cuántas hay que elegir, contra la suma de ' +
-        'matriculados en las materias del cuadro. Quien repite 2º de Bachillerato no entra: solo cursa lo que le quedó.'], 'nota');
+  for (let i = 0; i < controles.length; i++) mete(B.controles, controles[i].fila, '', controles[i].nota);
 
-  return { filas: filas, marcas: marcas, sinExplicar: sinExplicar, fuera: fuera };
+  /* El resumen de cada cuadro: filas de datos, con diferencia, sin explicar. */
+  let sinExplicar = 0;
+  for (const k in B) {
+    const bl = B[k];
+    const iDif = bl.titulos.indexOf('Diferencia'), iCu = bl.titulos.length - 1;
+    bl.resumen = { filas: 0, conDiferencia: 0, sinExplicar: 0 };
+    for (let i = 0; i < bl.filas.length; i++) {
+      const mk = bl.marcas[i];
+      if (mk === 'hueco' || mk === 'unidad') continue;
+      bl.resumen.filas++;
+      const d = bl.filas[i][iDif];
+      if (d !== '' && Number(d) !== 0) bl.resumen.conDiferencia++;
+      if (bl.filas[i][iCu] === 'NO') { bl.resumen.sinExplicar++; sinExplicar++; }
+    }
+  }
+  B.fuera = fuera;
+  B.fueraPersonas = fueraPersonas;
+  B.sinExplicar = sinExplicar;
+  return B;
 }
 
-/* Escribe la pestaña CUADRE. Devuelve { filas, sinExplicar } o null si no hay
-   datos de los que partir. Lo llama Panel.gs después de construirAlumnado. */
+/* Escribe una de las tres pestañas del cuadre. */
+function escribirPestanaCuadre_(nombre, bl, explicacion, anchos) {
+  const N = bl.titulos.length;
+  const hoja = hojaLimpia(nombre, N);
+  const r = bl.resumen;
+  hoja.getRange(1, 1).setValue(nombre + ' — ' + explicacion + ' Actualizado: ' +
+    new Date().toLocaleString('es-ES')).setFontStyle('italic').setFontColor('#666666');
+  hoja.getRange(2, 1).setValue('Filas: ' + r.filas + '   ·   Con diferencia: ' + r.conDiferencia +
+    '   ·   Sin explicar: ' + r.sinExplicar +
+    (r.sinExplicar ? '   ←  hay diferencias que ninguna fila explica: cuéntamelo' : '   ·   todo explicado'))
+    .setFontWeight('bold').setFontSize(11)
+    .setBackground(r.sinExplicar ? FMT_ROJO : FMT_VERDE);
+  hoja.getRange(2, 1).setNote('Con diferencia: filas cuya columna Diferencia no es cero. ' +
+    'Sin explicar: filas con NO en la columna Cuadra. Para ver solo las filas con diferencia, ' +
+    'usa el filtro de la cabecera en la columna Diferencia y quita el 0.');
+  hoja.getRange(3, 1, 1, N).setValues([bl.titulos]).setFontWeight('bold').setBackground('#D9D9D9')
+      .setWrap(true).setVerticalAlignment('middle');
+  hoja.setRowHeight(3, 40);
+
+  if (bl.filas.length) {
+    hoja.getRange(4, 1, bl.filas.length, N).setValues(bl.filas);
+    const unidades = [], subtotales = [], totales = [], noes = [], notas = [];
+    for (let i = 0; i < bl.filas.length; i++) {
+      const fila = i + 4;
+      const a1 = 'A' + fila + ':' + fmtLetraColumna_(N) + fila;
+      if (bl.marcas[i] === 'unidad') unidades.push(a1);
+      else if (bl.marcas[i] === 'subtotal') subtotales.push(a1);
+      else if (bl.marcas[i] === 'total') totales.push(a1);
+      if (bl.filas[i][N - 1] === 'NO') noes.push(fmtLetraColumna_(N) + fila);
+      notas.push([bl.notas[i] || '']);
+    }
+    if (unidades.length) hoja.getRangeList(unidades).setFontWeight('bold').setBackground('#D9E1F2');
+    if (subtotales.length) hoja.getRangeList(subtotales).setFontWeight('bold').setBackground('#F2F2F2');
+    if (totales.length) hoja.getRangeList(totales).setFontWeight('bold').setBackground(FMT_VERDE);
+    if (noes.length) hoja.getRangeList(noes).setBackground(FMT_ROJO).setFontWeight('bold');
+    /* La explicación de cada fila, como nota de la celda de la tercera
+       columna (materia, control o unidad): se lee al pasar el ratón. */
+    hoja.getRange(4, 3, bl.filas.length, 1).setNotes(notas);
+    hoja.getRange(4, 4, bl.filas.length, N - 3).setHorizontalAlignment('center');
+    hoja.getRange(4, 1, bl.filas.length, N)
+        .setBorder(true, true, true, true, true, true, '#CCCCCC', SpreadsheetApp.BorderStyle.SOLID);
+    /* Las filas de unidad se leen de un tirón: la celda de la tercera columna
+       no se corta. */
+    if (unidades.length) hoja.getRangeList(unidades).setHorizontalAlignment('left');
+    hoja.getRange(3, 1, bl.filas.length + 1, N).createFilter();
+  }
+  for (let c = 0; c < anchos.length; c++) hoja.setColumnWidth(c + 1, anchos[c]);
+  hoja.setFrozenRows(3);
+  try { hoja.setTabColor('#2E7D32'); } catch (e) { }
+}
+
+/* Escribe las tres pestañas del cuadre. Devuelve { sinExplicar, personas,
+   materias, controles } (cada una con filas, conDiferencia, sinExplicar) o
+   null si no hay datos de los que partir. Lo llama Panel.gs después de
+   construirAlumnado. */
 function escribirCuadre_() {
   const R = RESULTADO_MATRICULA_;
   if (!R || !R.porCurso) return null;
-  const Q = cuadre_(R);
-  const hoja = hojaLimpia(HOJA_CUADRE, CUADRE_ANCHO);
-  hoja.getRange(1, 1).setValue('CUADRE — los mismos números contados desde Séneca y desde Jefatura. ' +
-    'Cada diferencia tiene que estar explicada por MATRÍCULA (materias) o por DISCREPANCIAS (personas). ' +
-    'Un NO en "Cuadra" es un fallo del programa: cuéntamelo. Actualizado: ' +
-    new Date().toLocaleString('es-ES')).setFontStyle('italic');
-  hoja.getRange(1, 1).setNote(
-    '1. PERSONAS: alumnos por unidad en Séneca y en Jefatura. La diferencia la explican los que están ' +
-    'solo en un sitio (salen en DISCREPANCIAS).\n\n' +
-    '2. MATERIAS: matriculados en Séneca en cada materia, contra lo esperado. Lo esperado es lo que ' +
-    'escribe Jefatura (cuadros de elección) o los alumnos a los que le toca (obligatorias). La diferencia ' +
-    'la explican las filas de MATRÍCULA de esa unidad: sobran menos faltan.\n\n' +
-    '3. CONTROLES: en cada cuadro de elección, alumnos por cuántas hay que elegir contra la suma de ' +
-    'matriculados; y la diversificación de Séneca contra la de Jefatura.\n\n' +
-    'Cuadra = SÍ cuando diferencia y explicado coinciden. NO = hay una diferencia que ninguna fila explica.');
-  if (Q.filas.length) {
-    hoja.getRange(2, 1, Q.filas.length, CUADRE_ANCHO).setValues(Q.filas);
-    const titulos = [], cabeceras = [], subtotales = [], totales = [], notas = [], noes = [];
-    for (let i = 0; i < Q.marcas.length; i++) {
-      const fila = i + 2;
-      if (Q.marcas[i] === 'titulo') titulos.push('A' + fila + ':I' + fila);
-      else if (Q.marcas[i] === 'cabecera') cabeceras.push('A' + fila + ':I' + fila);
-      else if (Q.marcas[i] === 'subtotal') subtotales.push('A' + fila + ':I' + fila);
-      else if (Q.marcas[i] === 'total') totales.push('A' + fila + ':I' + fila);
-      else if (Q.marcas[i] === 'nota') notas.push('A' + fila);
-      if (Q.filas[i][CUADRE_ANCHO - 1] === 'NO') noes.push('I' + fila);
-    }
-    if (titulos.length) hoja.getRangeList(titulos).setFontWeight('bold').setBackground('#D9E1F2').setFontSize(11);
-    if (cabeceras.length) hoja.getRangeList(cabeceras).setFontWeight('bold').setBackground('#D9D9D9');
-    if (subtotales.length) hoja.getRangeList(subtotales).setFontWeight('bold').setBackground('#F2F2F2');
-    if (totales.length) hoja.getRangeList(totales).setFontWeight('bold').setBackground('#E2EFDA');
-    if (notas.length) hoja.getRangeList(notas).setFontStyle('italic').setFontColor('#666666');
-    if (noes.length) hoja.getRangeList(noes).setBackground(FMT_ROJO).setFontWeight('bold');
-    hoja.getRange(2, 4, Q.filas.length, 4).setHorizontalAlignment('center');
-    hoja.getRange(2, 9, Q.filas.length, 1).setHorizontalAlignment('center');
-    hoja.getRange(2, 8, Q.filas.length, 1).setWrap(true);
-  }
-  const anchos = [95, 95, 300, 75, 75, 80, 95, 300, 60];
-  for (let c = 0; c < anchos.length; c++) hoja.setColumnWidth(c + 1, anchos[c]);
-  hoja.setFrozenRows(1);
-  try { hoja.setTabColor('#2E7D32'); } catch (e) { }
-  return { filas: Q.filas.length, sinExplicar: Q.sinExplicar };
+  const B = cuadre_(R);
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  /* La pestaña única de la primera versión sobra. */
+  try {
+    const vieja = libro.getSheetByName(HOJA_CUADRE_VIEJA);
+    if (vieja) libro.deleteSheet(vieja);
+  } catch (e) { /* si no se puede borrar, se queda */ }
+
+  escribirPestanaCuadre_(HOJA_CUADRE_PERSONAS, B.personas,
+    'cuántos alumnos hay en cada unidad según Séneca y según Jefatura. La diferencia la explican ' +
+    'los que están solo en un sitio (salen en DISCREPANCIAS). Cuadra = SÍ cuando diferencia y ' +
+    'explicado coinciden.',
+    [100, 90, 110, 70, 90, 80, 90, 90, 60]);
+  escribirPestanaCuadre_(HOJA_CUADRE_MATERIAS, B.materias,
+    'matriculados en Séneca en cada materia, contra lo esperado: lo que escribe Jefatura si es de un ' +
+    'cuadro de elección, o los alumnos a los que le toca si es obligatoria. La diferencia la explican ' +
+    'las filas de MATRÍCULA de esa unidad (sobran menos faltan). Pasa el ratón por la materia para ver ' +
+    'de dónde sale el esperado.' +
+    (B.fueraPersonas ? ' Fuera del cuadro: ' + B.fueraPersonas + ' alumnos que no están en las dos fuentes en la misma unidad.' : '') +
+    (B.fuera ? ' Fuera también: ' + B.fuera + ' con la matrícula en "' + MATRICULA_DIV_PENDIENTE + '" o "' + SIN_DATO + '".' : ''),
+    [70, 90, 320, 70, 80, 80, 100, 60]);
+  escribirPestanaCuadre_(HOJA_CUADRE_CONTROLES, B.controles,
+    'sumas que tienen que salir: en cada cuadro de elección, alumnos por cuántas hay que elegir ' +
+    '(esperado) contra la suma de matriculados en las materias del cuadro (real); y la ' +
+    'diversificación de Séneca contra la de Jefatura. Pasa el ratón por el control para ver cómo se cuenta.',
+    [70, 90, 340, 80, 70, 80, 90, 60]);
+
+  return { sinExplicar: B.sinExplicar, personas: B.personas.resumen,
+           materias: B.materias.resumen, controles: B.controles.resumen };
 }
 
-/* Deja la pestaña CUADRE detrás de MATRÍCULA. Se llama después de ordenar las
-   demás pestañas (Formato.gs), que no la conocen. */
+/* Deja las tres pestañas del cuadre detrás de MATRÍCULA, en orden. Se llama
+   después de ordenar las demás pestañas (Formato.gs), que no las conocen. */
 function colocarCuadre_() {
   const libro = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = libro.getSheetByName(HOJA_CUADRE);
   const ref = libro.getSheetByName(HOJA_MATRICULA);
-  if (!hoja || !ref) return;
-  try {
-    libro.setActiveSheet(hoja);
-    libro.moveActiveSheet(ref.getIndex() + 1);
-  } catch (e) { /* si no se puede mover, se queda donde esté */ }
+  if (!ref) return;
+  for (let i = 0; i < HOJAS_CUADRE.length; i++) {
+    const hoja = libro.getSheetByName(HOJAS_CUADRE[i]);
+    if (!hoja) continue;
+    try {
+      libro.setActiveSheet(hoja);
+      libro.moveActiveSheet(ref.getIndex() + 1 + i);
+    } catch (e) { /* si no se puede mover, se queda donde esté */ }
+  }
 }
 
-/* Cuántas diferencias sin explicar hay en la pestaña CUADRE, para el panel. */
+/* Cuántas diferencias sin explicar hay en las pestañas del cuadre, para el
+   panel: lee la línea de resumen de cada una. */
 function cuadreSinExplicar_() {
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_CUADRE);
-  if (!hoja || hoja.getLastRow() < 2) return 0;
-  const datos = hoja.getRange(2, CUADRE_ANCHO, hoja.getLastRow() - 1, 1).getValues();
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
   let n = 0;
-  for (let f = 0; f < datos.length; f++) if (String(datos[f][0]).trim() === 'NO') n++;
+  for (let i = 0; i < HOJAS_CUADRE.length; i++) {
+    const hoja = libro.getSheetByName(HOJAS_CUADRE[i]);
+    if (!hoja || hoja.getLastRow() < 2) continue;
+    const m = String(hoja.getRange(2, 1).getValue() || '').match(/Sin explicar:\s*(\d+)/);
+    if (m) n += parseInt(m[1], 10);
+  }
   return n;
 }

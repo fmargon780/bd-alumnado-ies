@@ -609,10 +609,15 @@ function blobMembrete_() {
 }
 
 /* Cambia el membrete de una pestaña, conservando dónde está y encogiéndolo
-   un poco para ganar alto de folio. Devuelve true si lo ha cambiado. */
-function ponerMembrete_(hoja, blob) {
-  let imagenes;
-  try { imagenes = hoja.getImages(); } catch (e) { return false; }
+   un poco para ganar alto de folio. Devuelve true si lo ha cambiado.
+   'imagenes' es opcional: si ya se ha pedido hoja.getImages() antes (por
+   ejemplo para pasársela también a ajustarFilasDelLogo_), se reutiliza en vez
+   de volver a pedirla. Si esta función inserta una imagen nueva, la añade a
+   esa misma lista, para que quien la pasó vea también la nueva. */
+function ponerMembrete_(hoja, blob, imagenes) {
+  if (!imagenes) {
+    try { imagenes = hoja.getImages(); } catch (e) { return false; }
+  }
   let cambiada = false, habia = false;
   for (let i = 0; i < imagenes.length; i++) {
     const img = imagenes[i];
@@ -637,6 +642,7 @@ function ponerMembrete_(hoja, blob) {
       const img = hoja.insertImage(blob, 1, 1);
       img.setWidth(ANCHO_MEMBRETE);
       img.setHeight(Math.round(ANCHO_MEMBRETE / RATIO_MEMBRETE));
+      imagenes.push(img);
       cambiada = true;
     } catch (e) { /* sin membrete se puede vivir; el resto del informe sale igual */ }
   }
@@ -659,8 +665,11 @@ function columnaTrasElMembrete_(claves, anchos) {
 /* Escribe la leyenda en el hueco libre de las filas 1 a 6.
    'trozos' son las explicaciones de las siglas de este grupo, ya en texto,
    ordenadas de más a menos frecuente.
+   'alturas' es opcional: los altos de las filas 1 a FILAS_CABECERA, si ya se
+   han leído (por ejemplo, los que devuelve ajustarFilasDelLogo_). Si no se
+   pasan, se piden aquí.
    Devuelve { aviso, fuera }: 'fuera' son los trozos que no han cabido. */
-function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
+function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos, alturas) {
   const primera = columnaTrasElMembrete_(claves, anchos);
   if (primera > ancho) {
     return { aviso: 'No queda hueco a la derecha del membrete para la leyenda.', fuera: trozos };
@@ -675,7 +684,11 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   /* El alto de las filas 1 a 6 ya está ajustado al membrete cuando se llama
      a esta función, así que se puede saber cuántos renglones caben de verdad. */
   let alto = 0;
-  for (let r = 1; r <= FILAS_CABECERA; r++) alto += hoja.getRowHeight(r);
+  if (alturas && alturas.length) {
+    for (let r = 0; r < alturas.length; r++) alto += alturas[r];
+  } else {
+    for (let r = 1; r <= FILAS_CABECERA; r++) alto += hoja.getRowHeight(r);
+  }
   const cabenLineas = Math.max(2, Math.floor(alto / ALTO_LINEA_LEYENDA));
 
   const lineas = [];
@@ -706,15 +719,31 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
   }
 
   const rango = hoja.getRange(1, primera, FILAS_CABECERA, ancho - primera + 1);
-  /* Los dos flush van DENTRO de sus try, y no es manía: Google no da el error
-     al unir, sino al vaciar la cola de operaciones. Si una pestaña tiene
-     columnas inmovilizadas y la unión las cruza, la rechaza con "no se pueden
-     combinar columnas inmovilizadas con columnas no inmovilizadas", y sin el
-     flush aquí ese error saldría mucho después, en cualquier otro sitio, y se
-     llevaría por delante todo el trabajo. La leyenda sin unir se lee peor,
-     pero se lee; y el informe sale igual. */
-  try { rango.breakApart(); SpreadsheetApp.flush(); } catch (e) { /* no estaba unida */ }
-  try { rango.merge(); SpreadsheetApp.flush(); } catch (e) { /* se escribe sin unir */ }
+
+  /* Si el rango YA está unido exactamente así, no hace falta romperlo y
+     volver a unirlo: es lo que más tarda de esta función, por los dos flush.
+     Se compara fila, columna y tamaño con la única unión que debería haber. */
+  let yaUnido = false;
+  try {
+    const unidos = rango.getMergedRanges();
+    if (unidos.length === 1) {
+      const u = unidos[0];
+      yaUnido = u.getRow() === rango.getRow() && u.getColumn() === rango.getColumn() &&
+                u.getNumRows() === rango.getNumRows() && u.getNumColumns() === rango.getNumColumns();
+    }
+  } catch (e) { yaUnido = false; }
+
+  if (!yaUnido) {
+    /* Los dos flush van DENTRO de sus try, y no es manía: Google no da el error
+       al unir, sino al vaciar la cola de operaciones. Si una pestaña tiene
+       columnas inmovilizadas y la unión las cruza, la rechaza con "no se pueden
+       combinar columnas inmovilizadas con columnas no inmovilizadas", y sin el
+       flush aquí ese error saldría mucho después, en cualquier otro sitio, y se
+       llevaría por delante todo el trabajo. La leyenda sin unir se lee peor,
+       pero se lee; y el informe sale igual. */
+    try { rango.breakApart(); SpreadsheetApp.flush(); } catch (e) { /* no estaba unida */ }
+    try { rango.merge(); SpreadsheetApp.flush(); } catch (e) { /* se escribe sin unir */ }
+  }
   rango.setValue(lineas.join('\n'))
        .setFontSize(LETRA_LEYENDA).setFontStyle('italic').setWrap(true)
        .setVerticalAlignment('top').setHorizontalAlignment('left');
@@ -728,10 +757,25 @@ function escribirLeyendaCabecera_(hoja, claves, anchos, ancho, trozos) {
 }
 
 /*** ================= EL HUECO DEL MEMBRETE ================= ***/
-function ajustarFilasDelLogo_(hoja) {
-  let imagenes;
-  try { imagenes = hoja.getImages(); } catch (e) { return 0; }
-  if (!imagenes || !imagenes.length) return 0;
+
+/* Los altos de las filas 1 a FILAS_CABECERA, leídos de una vez. */
+function alturasCabecera_(hoja) {
+  const alturas = [];
+  for (let r = 1; r <= FILAS_CABECERA; r++) alturas.push(hoja.getRowHeight(r));
+  return alturas;
+}
+
+/* 'imagenes' y 'alturas' son opcionales: si ya se han pedido antes (para no
+   pedirle lo mismo a Google dos veces), se reutilizan.
+   Devuelve los altos de las filas 1 a FILAS_CABECERA DESPUÉS del ajuste, para
+   que escribirLeyendaCabecera_ no tenga que volver a leerlos: son justo los
+   que hacen falta para saber cuánto hueco le queda a la leyenda. */
+function ajustarFilasDelLogo_(hoja, imagenes, alturas) {
+  if (!imagenes) {
+    try { imagenes = hoja.getImages(); } catch (e) { return alturas || alturasCabecera_(hoja); }
+  }
+  if (!alturas) alturas = alturasCabecera_(hoja);
+  if (!imagenes.length) return alturas;
 
   let necesita = 0;
   for (let i = 0; i < imagenes.length; i++) {
@@ -742,18 +786,21 @@ function ajustarFilasDelLogo_(hoja) {
     const abajo = img.getAnchorCellYOffset() + img.getHeight();
     if (abajo > necesita) necesita = abajo;
   }
-  if (!necesita) return 0;
+  if (!necesita) return alturas;
 
   const total = necesita + AIRE_BAJO_LOGO;
-  let actual = 0;
-  for (let r = 1; r <= FILAS_CABECERA; r++) actual += hoja.getRowHeight(r);
 
   /* Antes esto solo encogía. En una pestaña nueva las filas nacen bajitas y el
      membrete no cabía: se salía por encima de la tabla. Ahora también crece. */
   const arriba = ALTO_MINIMO_FILA * (FILAS_CABECERA - 1);
   hoja.setRowHeights(1, FILAS_CABECERA - 1, ALTO_MINIMO_FILA);
-  hoja.setRowHeight(FILAS_CABECERA, Math.max(ALTO_MINIMO_FILA, total - arriba));
-  return actual - total;
+  const ultima = Math.max(ALTO_MINIMO_FILA, total - arriba);
+  hoja.setRowHeight(FILAS_CABECERA, ultima);
+
+  const nuevas = alturas.slice();
+  for (let r = 0; r < FILAS_CABECERA - 1; r++) nuevas[r] = ALTO_MINIMO_FILA;
+  nuevas[FILAS_CABECERA - 1] = ultima;
+  return nuevas;
 }
 
 /*** ================= PDF ================= ***/
@@ -871,6 +918,38 @@ function exportarHoja_(libro, hoja, token, aviso) {
  * formato y no lleva ni membrete ni interrogantes sueltas.
  * ======================================================== ***/
 
+/* Qué columnas de la pestaña pueden llevar SIN_DATO ("?"): las que
+   MAPA_INFORMES rellena con lo que trae ALUMNADO. Las demás (la numeración,
+   REP, PIL, DIV, ITINERARIO, EXENTO FR, y cualquier columna que Francisco
+   haya añadido a mano) nunca llevan "?" tal cual, así que prepararParaPdf_ no
+   necesita ni leerlas ni escribirlas. */
+function columnasParaSinDato_(titulos) {
+  const cols = [];
+  for (let c = 0; c < titulos.length; c++) {
+    const t = String(titulos[c] === null || titulos[c] === undefined ? '' : titulos[c]).trim();
+    if (!t) continue;
+    const regla = MAPA_INFORMES[claveColumna_(t)];
+    if (regla && regla.col) cols.push(c + 1);   // columnas de hoja, la primera es la 1
+  }
+  return cols;
+}
+
+/* Agrupa columnas consecutivas en tramos {desde, cuantas}, para leer y
+   escribir cada tramo de una vez en vez de columna a columna. */
+function tramosDeColumnas_(cols) {
+  const tramos = [];
+  let desde = -1, anterior = -1;
+  for (let i = 0; i < cols.length; i++) {
+    if (cols[i] !== anterior + 1) {
+      if (desde !== -1) tramos.push({ desde: desde, cuantas: anterior - desde + 1 });
+      desde = cols[i];
+    }
+    anterior = cols[i];
+  }
+  if (desde !== -1) tramos.push({ desde: desde, cuantas: anterior - desde + 1 });
+  return tramos;
+}
+
 /* Hasta qué columna llega el hueco del membrete, mirando los anchos que tiene
    de verdad la pestaña. Es el mismo cálculo que columnaTrasElMembrete_, pero
    sin necesitar la lista de columnas. */
@@ -951,28 +1030,39 @@ function prepararParaPdf_(hoja, borrador) {
 
   /* Y las casillas que solo llevan una interrogante salen en blanco. El dato
      no se pierde: se vuelve a escribir en cuanto termina la exportación de
-     esta pestaña. */
+     esta pestaña. Solo se tocan las columnas que pueden llevar "?" (las de
+     MAPA_INFORMES que salen de ALUMNADO), no toda la tabla: es la numeración,
+     REP, PIL... lo que se ahorra de leer y escribir. */
   const ultima = hoja.getLastRow();
-  const ancho = hoja.getLastColumn();
-  if (ultima < FILA_DATOS || ancho < 1) return estado;
-  const rango = hoja.getRange(FILA_DATOS, 1, ultima - FILA_DATOS + 1, ancho);
-  const antes = rango.getValues();
-  const ahora = [];
-  let hay = false;
-  for (let f = 0; f < antes.length; f++) {
-    const fila = [];
-    for (let c = 0; c < antes[f].length; c++) {
-      const v = antes[f][c];
-      if (String(v === null || v === undefined ? '' : v).trim() === SIN_DATO) {
-        fila.push(''); hay = true;
-      } else fila.push(v);
+  const anchoHoja = hoja.getLastColumn();
+  if (ultima < FILA_DATOS || anchoHoja < 1) return estado;
+  const titulos = hoja.getRange(FILA_TITULOS, 1, 1, anchoHoja).getValues()[0];
+  const tramos = tramosDeColumnas_(columnasParaSinDato_(titulos));
+  if (!tramos.length) return estado;
+
+  const nFilas = ultima - FILA_DATOS + 1;
+  const tocados = [];
+  for (let i = 0; i < tramos.length; i++) {
+    const rango = hoja.getRange(FILA_DATOS, tramos[i].desde, nFilas, tramos[i].cuantas);
+    const antes = rango.getValues();
+    const ahora = [];
+    let hay = false;
+    for (let f = 0; f < antes.length; f++) {
+      const fila = [];
+      for (let c = 0; c < antes[f].length; c++) {
+        const v = antes[f][c];
+        if (String(v === null || v === undefined ? '' : v).trim() === SIN_DATO) {
+          fila.push(''); hay = true;
+        } else fila.push(v);
+      }
+      ahora.push(fila);
     }
-    ahora.push(fila);
+    if (hay) {
+      rango.setValues(ahora);
+      tocados.push({ rango: rango, valores: antes });
+    }
   }
-  if (!hay) return estado;
-  rango.setValues(ahora);
-  estado.rango = rango;
-  estado.valores = antes;
+  if (tocados.length) estado.tramos = tocados;
   return estado;
 }
 
@@ -994,7 +1084,11 @@ function deshacerParaPdf_(hoja, estado) {
     try { ponerMembrete_(hoja, null); } catch (e) { /* mejor seguir */ }
     return;
   }
-  if (estado.rango && estado.valores) estado.rango.setValues(estado.valores);
+  if (estado.tramos) {
+    for (let i = 0; i < estado.tramos.length; i++) {
+      estado.tramos[i].rango.setValues(estado.tramos[i].valores);
+    }
+  }
   if (estado.leyenda) {
     try { estado.leyenda.celda.setValue(estado.leyenda.texto); }
     catch (e) { /* la siguiente actualización la vuelve a escribir */ }
@@ -1271,6 +1365,58 @@ function discrepanciasPendientes_() {
   return salida;
 }
 
+/*** ================= LA HUELLA DE CADA PESTAÑA =================
+ *
+ * Reescribir una pestaña entera —anchos, bordes, membrete, leyenda con sus
+ * flush— es lo que más tarda de "Actualizar los datos" cuando en realidad no
+ * ha cambiado nada de ese grupo. Por eso, antes de tocar una pestaña, se
+ * compara con la huella de la última vez: un resumen corto de los rótulos,
+ * el bloque de datos, los anchos y la leyenda. Si coincide, y la pestaña
+ * sigue teniendo las filas que le tocan, solo se actualiza la fecha de la
+ * cabecera y se cuenta como "sin cambios".
+ *
+ * Las huellas de TODAS las pestañas, de los dos cuadernos, viven en una sola
+ * propiedad del documento (HUELLAS_INFORMES), como JSON {pestaña: huella}. Se
+ * leen una vez al principio y se escriben una vez al final. Solo se guarda la
+ * huella nueva de una pestaña cuando se ha reescrito bien. ***/
+
+const PROP_HUELLAS_INFORMES = 'HUELLAS_INFORMES';
+let HUELLAS_INFORMES_MEM_;   // undefined = todavía no cargadas en esta ejecución
+
+function cargarHuellasInformes_() {
+  if (HUELLAS_INFORMES_MEM_ !== undefined) return HUELLAS_INFORMES_MEM_;
+  let mapa = {};
+  try {
+    const t = PropertiesService.getDocumentProperties().getProperty(PROP_HUELLAS_INFORMES);
+    if (t) {
+      const o = JSON.parse(t);
+      if (o && typeof o === 'object') mapa = o;
+    }
+  } catch (e) { mapa = {}; }
+  HUELLAS_INFORMES_MEM_ = mapa;
+  return mapa;
+}
+
+/* Se llama al terminar los dos cuadernos (ESO y Bachillerato), para escribir
+   todas las huellas de una vez. Si no se ha llegado ni a cargarlas, no hay
+   nada que guardar. Si falla al guardar, la próxima vez se reescribe todo:
+   no rompe nada, solo se pierde el ahorro de esta vez. */
+function guardarHuellasInformes_() {
+  if (HUELLAS_INFORMES_MEM_ === undefined) return;
+  try {
+    PropertiesService.getDocumentProperties()
+      .setProperty(PROP_HUELLAS_INFORMES, JSON.stringify(HUELLAS_INFORMES_MEM_));
+  } catch (e) { /* no rompe nada: la próxima vez se reescribe todo */ }
+}
+
+/* Un resumen corto (MD5 en base64) de todo lo que decide si hay que
+   reescribir la pestaña. Si algo de esto cambia, la huella cambia. */
+function huellaDePestana_(rotulos, bloque, anchos, trozos) {
+  const texto = JSON.stringify([rotulos, bloque, anchos, trozos]);
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, texto, Utilities.Charset.UTF_8);
+  return Utilities.base64Encode(bytes);
+}
+
 /*** ================= RELLENAR LAS PESTAÑAS (SIN PDF) =================
  *
  * Lo llama el botón "1. Actualizar los datos", en Panel.gs.
@@ -1298,12 +1444,15 @@ function rellenarPestanasInformes_() {
       r.alumnos += rb.alumnos;
       r.membretes += rb.membretes;
       r.sinUnidad += rb.sinUnidad;
+      r.reescritas += rb.reescritas;
+      r.sinCambios += rb.sinCambios;
     }
   } catch (e) {
     avisos.push(['', '', 'No he podido con el cuaderno de Bachillerato', e.message]);
   }
 
   escribirAvisosInformes_(avisos);
+  guardarHuellasInformes_();
   r.avisos = avisos.length;
   return r;
 }
@@ -1316,11 +1465,12 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
   const esBac = String(etapa || 'ESO').toUpperCase() === 'BACH';
 
   const avisos = avisosFuera || [], resumen = [], usadas = {}, informes = [];
-  let totalEscritos = 0, membretesCambiados = 0;
+  let totalEscritos = 0, membretesCambiados = 0, reescritas = 0, sinCambios = 0;
   let membrete = null;
   try { membrete = blobMembrete_(); } catch (e) { membrete = null; }
   const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
   const siglasSinExplicar = {};
+  const huellas = cargarHuellasInformes_();
 
   const hojas = libro.getSheets();
   for (let h = 0; h < hojas.length; h++) {
@@ -1373,22 +1523,6 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
     const ancho = claves.length + 1;              // más la columna de numeración
     const W = anchosDeLaPestana_(claves);
 
-    /* Las filas 1 a 6 llevan la leyenda en una celda unida. Hay que soltarla
-       y limpiar el texto residual antes de añadir o quitar columnas, o Google no deja. */
-    try { 
-      const cabecera = hoja.getRange(1, 1, FILAS_CABECERA, hoja.getMaxColumns());
-      cabecera.breakApart();
-      cabecera.clearContent();
-    }
-    catch (e) { /* no había nada unido */ }
-
-    // Dejar la pestaña con el número de columnas justo
-    if (hoja.getMaxColumns() < ancho) {
-      hoja.insertColumnsAfter(hoja.getMaxColumns(), ancho - hoja.getMaxColumns());
-    } else if (hoja.getMaxColumns() > ancho) {
-      hoja.deleteColumns(ancho + 1, hoja.getMaxColumns() - ancho);
-    }
-
     // Avisar de datos manuales que se pierden porque el alumno ya no está
     const ahora = {};
     for (let f = 0; f < alumnos.length; f++) {
@@ -1405,6 +1539,53 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
     const rotulos = [''];
     for (let c = 0; c < claves.length; c++) rotulos.push(ROTULOS[claves[c]] || claves[c]);
     const bloque = construirBloque(claves, alumnos, A.idx, previos);
+
+    /* La leyenda, a medida de este grupo: solo las siglas que salen aquí. Se
+       calcula ya aquí, aunque luego no haga falta reescribir la pestaña,
+       porque entra en la huella y porque las siglas sin explicar se cuentan
+       igual haya o no haya cambios. */
+    const siglas = siglasDelBloque_(bloque, claves);
+    const trozos = [];
+    for (let s = 0; s < siglas.length; s++) {
+      const e = explicacionDeSigla_(siglas[s]);
+      if (e) trozos.push(siglas[s] + ': ' + e + '.');
+      else siglasSinExplicar[siglas[s]] = true;
+    }
+
+    /* LA HUELLA. Si coincide con la de la última vez, y la pestaña sigue
+       teniendo las filas que le tocan, no hace falta reescribirla: solo se
+       actualiza la fecha de la cabecera. */
+    const huella = huellaDePestana_(rotulos, bloque, W.anchos, trozos);
+    const filaEsperada = FILA_DATOS + bloque.length - 1;
+    if (huellas[hoja.getName()] === huella && ultima === filaEsperada) {
+      const textoCabecera = alumnos.length + ' alumnos · ' + hoy;
+      const celdaCabecera = hoja.getRange(FILA_GRUPO, ancho);
+      celdaCabecera.setValue(textoCabecera)
+          .setFontSize(9).setFontStyle('italic').setHorizontalAlignment('right').setWrap(false);
+      informes.push({ hoja: hoja, nombre: grupo, celda: celdaCabecera, texto: textoCabecera });
+      resumen.push(hoja.getName() + ' (' + grupo + '): ' + bloque.length + ' alumnos (sin cambios)');
+      totalEscritos += bloque.length;
+      sinCambios++;
+      continue;
+    }
+
+    /* A partir de aquí, sí hay que reescribir la pestaña. */
+
+    /* Las filas 1 a 6 llevan la leyenda en una celda unida. Hay que soltarla
+       y limpiar el texto residual antes de añadir o quitar columnas, o Google no deja. */
+    try {
+      const cabecera = hoja.getRange(1, 1, FILAS_CABECERA, hoja.getMaxColumns());
+      cabecera.breakApart();
+      cabecera.clearContent();
+    }
+    catch (e) { /* no había nada unido */ }
+
+    // Dejar la pestaña con el número de columnas justo
+    if (hoja.getMaxColumns() < ancho) {
+      hoja.insertColumnsAfter(hoja.getMaxColumns(), ancho - hoja.getMaxColumns());
+    } else if (hoja.getMaxColumns() > ancho) {
+      hoja.deleteColumns(ancho + 1, hoja.getMaxColumns() - ancho);
+    }
 
     if (ultima >= FILA_TITULOS) {
       hoja.getRange(FILA_TITULOS, 1, ultima - FILA_TITULOS + 1, ancho).clearContent();
@@ -1448,19 +1629,23 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
     if (colsCentradas.length) hoja.getRangeList(colsCentradas).setWrap(false).setHorizontalAlignment('center');
     hoja.setRowHeight(FILA_TITULOS, altoDeLosRotulos_(claves, W.anchos));
     hoja.autoResizeRows(FILA_DATOS, bloque.length);
-    if (ponerMembrete_(hoja, membrete)) membretesCambiados++;
-    ajustarFilasDelLogo_(hoja);
 
-    /* La leyenda, a medida de este grupo: solo las siglas que salen aquí. */
-    const siglas = siglasDelBloque_(bloque, claves);
-    const trozos = [];
-    for (let s = 0; s < siglas.length; s++) {
-      const e = explicacionDeSigla_(siglas[s]);
-      if (e) trozos.push(siglas[s] + ': ' + e + '.');
-      else siglasSinExplicar[siglas[s]] = true;
+    /* El membrete y sus filas: se piden las imágenes UNA sola vez y se pasan
+       a las dos funciones, en vez de que cada una las vuelva a pedir. */
+    let imagenesCabecera = [];
+    try { imagenesCabecera = hoja.getImages(); } catch (e) { imagenesCabecera = []; }
+    const alturasAntes = alturasCabecera_(hoja);
+    const membreteOk = ponerMembrete_(hoja, membrete, imagenesCabecera);
+    if (membreteOk) {
+      membretesCambiados++;
+    } else if (membrete) {
+      avisos.push([grupo, hoja.getName(), 'No he podido poner el membrete',
+                   'Había un fichero de membrete pero no se ha podido colocar en esta pestaña.']);
     }
+    const alturasCab = ajustarFilasDelLogo_(hoja, imagenesCabecera, alturasAntes);
+
     try {
-      const L = escribirLeyendaCabecera_(hoja, claves, W.anchos, ancho, trozos);
+      const L = escribirLeyendaCabecera_(hoja, claves, W.anchos, ancho, trozos, alturasCab);
       if (L.aviso) avisos.push([grupo, hoja.getName(), 'La leyenda no cabe entera', L.aviso]);
     } catch (e) {
       avisos.push([grupo, hoja.getName(), 'No he podido escribir la leyenda', e.message]);
@@ -1475,6 +1660,11 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
 
     resumen.push(hoja.getName() + ' (' + grupo + '): ' + bloque.length + ' alumnos');
     totalEscritos += bloque.length;
+    reescritas++;
+    /* La huella se guarda solo si se ha llegado hasta aquí: la pestaña se ha
+       escrito bien. Si algo de arriba hubiera lanzado un error, no se
+       guardaría, y la próxima vez se volvería a intentar reescribir entera. */
+    huellas[hoja.getName()] = huella;
   }
 
   /* Una sigla que sale en el informe y no está en el diccionario deja al tutor
@@ -1508,7 +1698,8 @@ function rellenarUnCuaderno_(libro, etapa, avisosFuera) {
 
   return { grupos: resumen.length, alumnos: totalEscritos, avisos: avisos.length,
            membretes: membretesCambiados, sinUnidad: A.sinUnidad.length,
-           siglasSinExplicar: listaSinExplicar, pendientesSeneca: nPend };
+           siglasSinExplicar: listaSinExplicar, pendientesSeneca: nPend,
+           reescritas: reescritas, sinCambios: sinCambios };
 }
 
 /*** ================= BOTONES 2 Y 3: LOS PDF =================

@@ -1,5 +1,5 @@
 /*** ================= CONFIGURACIÓN ================= ***/
-const VERSION = 'BD v63';
+const VERSION = 'BD v64';
 const CARPETA_ID = '1twbbpoPRKP9qRprASME42K6kIeZMwXFN';
 const ID_PROPUESTA = '1-1M5u2GgbBCpl09KYSGkAZjeGZveap_IbrtGerwEEdQ';
 const CURSO_ACTUAL = '26-27';
@@ -211,12 +211,17 @@ function nivelESO(texto) {
   return m ? m[1] + 'º' : '';
 }
 
+/* El mapa {normalizar(largo): abreviatura} se construye una sola vez por
+   ejecución, en vez de recorrer ABREVIATURAS entera (y normalizar cada
+   nombre) cada una de las miles de veces que se llama a abreviar(). */
+let MAPA_ABREVIATURAS_NORM_;
 function abreviar(nombre) {
-  const objetivo = normalizar(nombre);
-  for (const largo in ABREVIATURAS) {
-    if (normalizar(largo) === objetivo) return ABREVIATURAS[largo];
+  if (!MAPA_ABREVIATURAS_NORM_) {
+    MAPA_ABREVIATURAS_NORM_ = {};
+    for (const largo in ABREVIATURAS) MAPA_ABREVIATURAS_NORM_[normalizar(largo)] = ABREVIATURAS[largo];
   }
-  return nombre;
+  const objetivo = normalizar(nombre);
+  return MAPA_ABREVIATURAS_NORM_[objetivo] === undefined ? nombre : MAPA_ABREVIATURAS_NORM_[objetivo];
 }
 
 function esNumero(v) {
@@ -1716,6 +1721,17 @@ function construirAlumnado() {
   try { escribirPrimaria_(P.porNombre, unidadesPorNombre, enAlumnado); }
   catch (e) { avisos.push({ curso: '', grupo: '', alumno: '',
     aviso: 'No he podido escribir la pestaña PRIMARIA', detalle: e.message }); }
+
+  /* La caché de expedientes de Séneca (Cache.gs) se guarda ya aquí, por si
+     construirAlumnado se ejecuta ella sola, y para que un fallo al leerla o
+     guardarla pueda salir en esta misma pestaña AVISOS. Panel.gs la vuelve a
+     llamar más tarde, justo antes de escribir el panel; si aquí ya se ha
+     guardado todo, esa segunda llamada no hace nada. */
+  guardarCacheDeFicheros_();
+  if (avisoDeCacheExpedientes_()) {
+    avisos.push({ curso: '', grupo: '', alumno: '', aviso: 'Caché de expedientes',
+      detalle: avisoDeCacheExpedientes_() });
+  }
 
   escribirAvisos(avisos);
 

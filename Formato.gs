@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v63';
+const VERSION_BD = 'BD v64';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -571,14 +571,20 @@ function fmtDesplegables_(hoja, def, filaCab, ultimaFila, titulos) {
    veinte llamadas por pestaña. Y se quitan siempre las protecciones de la vez
    anterior. */
 function fmtProtegerCalculadas_(hoja, def, filaCab, ultimaFila, titulos) {
-  const anteriores = hoja.getProtections(SpreadsheetApp.ProtectionType.RANGE);
-  for (let i = 0; i < anteriores.length; i++) {
-    try { anteriores[i].remove(); } catch (e) { /* si no se puede, se sigue */ }
-  }
   const nDatos = ultimaFila - filaCab;
-  if (nDatos <= 0) return;
+  if (nDatos <= 0) {
+    const vacias = hoja.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+    for (let i = 0; i < vacias.length; i++) {
+      try { vacias[i].remove(); } catch (e) { /* si no se puede, se sigue */ }
+    }
+    return;
+  }
 
+  /* Los tramos que hacen falta, EN NOTACIÓN A1, calculados antes de tocar
+     ninguna protección. Son las columnas seguidas que ni son manuales ni
+     están libres para escribir. */
   const libres = def.manuales.concat(def.noProteger || []);
+  const tramos = [];
   let inicio = -1;
   for (let c = 0; c <= titulos.length; c++) {
     const fin = c === titulos.length;
@@ -590,15 +596,37 @@ function fmtProtegerCalculadas_(hoja, def, filaCab, ultimaFila, titulos) {
       continue;
     }
     if (inicio !== -1) {
-      try {
-        hoja.getRange(filaCab + 1, inicio + 1, nDatos, c - inicio)
-            .protect()
-            .setWarningOnly(true)
-            .setDescription('Lo escribe el programa. Lo que pongas aquí se pierde ' +
-                            'en la próxima actualización.');
-      } catch (e) { /* si Google no deja proteger, se sigue */ }
+      tramos.push(fmtLetraColumna_(inicio + 1) + (filaCab + 1) + ':' +
+                  fmtLetraColumna_(c) + ultimaFila);
       inicio = -1;
     }
+  }
+
+  /* Si las protecciones que ya hay son EXACTAMENTE esos mismos rangos, todas
+     con aviso y no bloqueo, no se borra ni se crea nada: son ocho protecciones
+     por pestaña que casi nunca cambian de una actualización a la siguiente. */
+  const previas = hoja.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+  if (previas.length === tramos.length) {
+    const actuales = previas.map(function (p) { return p.getRange().getA1Notation(); }).sort();
+    const esperados = tramos.slice().sort();
+    let iguales = true;
+    for (let i = 0; i < actuales.length; i++) {
+      if (actuales[i] !== esperados[i]) { iguales = false; break; }
+    }
+    if (iguales && previas.every(function (p) { return p.isWarningOnly(); })) return;
+  }
+
+  for (let i = 0; i < previas.length; i++) {
+    try { previas[i].remove(); } catch (e) { /* si no se puede, se sigue */ }
+  }
+  for (let i = 0; i < tramos.length; i++) {
+    try {
+      hoja.getRange(tramos[i])
+          .protect()
+          .setWarningOnly(true)
+          .setDescription('Lo escribe el programa. Lo que pongas aquí se pierde ' +
+                          'en la próxima actualización.');
+    } catch (e) { /* si Google no deja proteger, se sigue */ }
   }
 }
 
@@ -613,7 +641,21 @@ function fmtOrdenarPestanas_() {
   for (let i = 0; i < FMT_ORDEN.length; i++) {
     const hoja = libro.getSheetByName(FMT_ORDEN[i]);
     if (!hoja) continue;
-    try { hoja.setTabColor(FMT_COLOR_SOLAPA[FMT_ORDEN[i]] || null); } catch (e) { }
+
+    /* El color, solo si no es ya el que le toca. */
+    const colorQueToca = FMT_COLOR_SOLAPA[FMT_ORDEN[i]] || null;
+    if (hoja.getTabColor() !== colorQueToca) {
+      try { hoja.setTabColor(colorQueToca); } catch (e) { }
+    }
+
+    /* Y la posición, solo si no está ya en la que le toca. Cuando las
+       pestañas ya están en orden (lo normal, salvo la primera vez o si
+       alguien las ha movido a mano), esto se ahorra el setActiveSheet y el
+       moveActiveSheet de las ocho pestañas. */
+    if (hoja.getIndex() === pos) {
+      pos++;
+      continue;
+    }
     try {
       libro.setActiveSheet(hoja);
       libro.moveActiveSheet(pos);
@@ -645,13 +687,15 @@ function formatearHoja_(nombre) {
         El ancho se decide por el TÍTULO de la columna, no por su posición,
         así que reordenarlas no rompe nada.
 
-        El ancho no se puede agrupar porque cada columna suele llevar el
-        suyo. Pero el ajuste de texto y la alineación solo tienen tres
-        combinaciones posibles (C, I, W), así que en vez de tocar cada
-        columna por separado se apuntan en tres grupos y se aplican al final
-        con getRangeList: tres llamadas en total en vez de una por columna.
-        Con 20-30 columnas por pestaña y ocho pestañas, son varios cientos
-        de llamadas menos cada vez que se pulsa "Actualizar los datos". */
+        El ancho de cada columna suele ser distinto, pero las que quedan
+        seguidas con el mismo ancho se agrupan y se ponen con una sola
+        llamada (setColumnWidths), más abajo. El ajuste de texto y la
+        alineación solo tienen tres combinaciones posibles (C, I, W), así que
+        en vez de tocar cada columna por separado se apuntan en tres grupos y
+        se aplican al final con getRangeList: tres llamadas en total en vez de
+        una por columna. Con 20-30 columnas por pestaña y ocho pestañas, son
+        varios cientos de llamadas menos cada vez que se pulsa "Actualizar
+        los datos". */
   const titulos = hoja.getRange(filaCab, 1, 1, ancho).getValues()[0];
   const nDatos = ultimaFila - filaCab;
 
@@ -661,18 +705,31 @@ function formatearHoja_(nombre) {
      así se borra la que hubiera de una versión anterior. */
   const notasFila = [];
   const grupoRangos = { W: [], I: [], C: [] };
+  const anchosPorColumna = [];
 
   for (let c = 0; c < ancho; c++) {
     const titulo = String(titulos[c] === null || titulos[c] === undefined
                           ? '' : titulos[c]).trim();
     const conf = def.cols[titulo] || [ANCHO_DEFECTO, 'C'];
-    hoja.setColumnWidth(c + 1, conf[0]);
+    anchosPorColumna.push(conf[0]);
     notasFila.push(def.notas && def.notas[titulo] ? def.notas[titulo] : '');
     if (nDatos <= 0) continue;
 
     const tipo = grupoRangos[conf[1]] ? conf[1] : 'C';
     const letra = fmtLetraColumna_(c + 1);
     grupoRangos[tipo].push(letra + (filaCab + 1) + ':' + letra + (filaCab + nDatos));
+  }
+
+  /* Los anchos: se agrupan las columnas seguidas que llevan el mismo ancho y
+     se ponen con una sola llamada por tramo (setColumnWidths), en vez de una
+     llamada por columna. En una pestaña de 20-30 columnas son varias
+     llamadas menos, y hay ocho pestañas cada vez que se pulsa "Actualizar
+     los datos". */
+  let desdeTramo = 0;
+  for (let c = 1; c <= ancho; c++) {
+    if (c < ancho && anchosPorColumna[c] === anchosPorColumna[desdeTramo]) continue;
+    hoja.setColumnWidths(desdeTramo + 1, c - desdeTramo, anchosPorColumna[desdeTramo]);
+    desdeTramo = c;
   }
 
   if (nDatos > 0) {

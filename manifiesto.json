@@ -1,5 +1,5 @@
 {
-  "version": "BD v63 — quien repite 2º de Bachillerato: lo aprobado no falta ni sobra; en Bachillerato se lee la columna OPT 2 de Jefatura (antes se perdía) y sus códigos por el principio del nombre (PSIC)",
+  "version": "BD v64 — más rápido y robusto: mide los tiempos de cada fase, cachea los expedientes de Séneca y evita reescribir lo que no ha cambiado",
   "ficheros": [
     "Ficheros.gs",
     "Carpetas.gs",
@@ -14,6 +14,7 @@
     "Informes.gs",
     "InformesBac.gs",
     "Orden.gs",
+    "Cache.gs",
     "Panel.gs"
   ],
   "menu": [

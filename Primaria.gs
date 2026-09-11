@@ -107,9 +107,31 @@ function nombreDelFichero_(nombreFichero) {
   return t.replace(/^[\s_-]+/, '').replace(/\s+/g, ' ').trim();
 }
 
-/*** ================= LEER UN EXPEDIENTE ================= ***/
+/*** ================= LEER UN EXPEDIENTE =================
+ *
+ * CACHÉ DE EXPEDIENTES (BD v64). Descargar y leer un CSV por cada alumno es
+ * lo que más tarda de "Actualizar los datos" cuando ya hay muchos expedientes
+ * acumulados de años anteriores. leerExpediente_ es ahora solo la envoltura
+ * que mira la caché (Cache.gs); leerExpedientePrimariaReal_ es la lectura de
+ * verdad, tal y como era antes.
+ *
+ * OJO CON sinDiccionario: es una lista que se va rellenando por el camino
+ * (las materias que no se han sabido abreviar), y hay que guardarla también
+ * en la caché, porque si el resultado sale de la caché ya no se vuelve a
+ * llamar a abreviarPrimaria_ y esos avisos se perderían. ***/
 
 function leerExpediente_(archivo, sinDiccionario) {
+  const r = conCacheDeFichero_('PRIMARIA', archivo, function (archivoDeVerdad) {
+    const propios = [];
+    return { salida: leerExpedientePrimariaReal_(archivoDeVerdad, propios), sinDic: propios };
+  });
+  if (sinDiccionario && r.sinDic && r.sinDic.length) {
+    for (let i = 0; i < r.sinDic.length; i++) sinDiccionario.push(r.sinDic[i]);
+  }
+  return r.salida;
+}
+
+function leerExpedientePrimariaReal_(archivo, sinDiccionario) {
   const alumno = nombreDelFichero_(archivo.getName());
   const salida = {
     nombre: alumno, fichero: archivo.getName(), anoPrimero: '', anoSexto: '', centro: '',

@@ -42,7 +42,7 @@
 
 /* La versión que se enseña en el panel. Codigo.gs tiene la suya; mientras
    esta exista, manda esta. */
-const VERSION_BD = 'BD v66';
+const VERSION_BD = 'BD v67';
 
 /* Ancho y alineación de una columna que no esté en las tablas de abajo. */
 const ANCHO_DEFECTO = 100;
@@ -815,6 +815,11 @@ function arreglarFormatoDeTodo_() {
   let hojas = 0;
   const fallos = [];
   for (let i = 0; i < orden.length; i++) {
+    /* EL RELOJ (Codigo.gs): el formato es lo último y lo más prescindible. Si
+       no queda tiempo para otra pestaña, se para: las que falten se arreglan
+       la próxima vez que se pulse "1". Los datos ya están escritos; lo que se
+       queda a medias es el ancho de las columnas y los colores. */
+    if (!quedaTiempo_(10)) { fallos.push(orden[i] + ': sin tiempo'); continue; }
     try {
       if (formatearHoja_(orden[i])) hojas++;
     } catch (e) {

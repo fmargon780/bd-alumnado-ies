@@ -354,7 +354,8 @@ function estadoDeLasFuentes_() {
 function pendientesDelSistema_() {
   const libro = SpreadsheetApp.getActiveSpreadsheet();
   const salida = { total: 0, sinDato: 0, sinUnidad: 0, discrepancias: 0, avisos: 0,
-                   primeroSinExpediente: 0, matriculasEso: 0, matriculasBac: 0, cuadre: 0, hayAlumnado: false };
+                   primeroSinExpediente: 0, matriculasEso: 0, matriculasBac: 0, cuadre: 0,
+                   asignaturas: 0, hayAlumnado: false };
 
   const hoja = libro.getSheetByName(HOJA_ALUMNADO);
   if (hoja && hoja.getLastRow() >= 3) {
@@ -366,6 +367,8 @@ function pendientesDelSistema_() {
     const iAsi = titulos.indexOf(normalizar('Asignaturas pendientes'));
     const iMns = titulos.indexOf(normalizar('MAT NO SUP.'));
     const iMat = titulos.indexOf(normalizar('MATRÍCULA'));
+    const iNum = titulos.indexOf(normalizar('Nº asignaturas'));
+    const iDebe = titulos.indexOf(normalizar('Debería tener'));
     const datos = hoja.getRange(3, 1, hoja.getLastRow() - 2, ancho).getValues();
     for (let f = 0; f < datos.length; f++) {
       if (!String(datos[f][0] || '').trim()) continue;
@@ -377,6 +380,11 @@ function pendientesDelSistema_() {
         salida.primeroSinExpediente++;
       }
       if (iUni !== -1 && !String(datos[f][iUni] || '').trim()) salida.sinUnidad++;
+      /* El arqueo de asignaturas: tiene un número distinto del de su curso. */
+      if (iNum !== -1 && iDebe !== -1) {
+        const nu = String(datos[f][iNum]).trim(), de = String(datos[f][iDebe]).trim();
+        if (nu !== '' && de !== '' && nu !== de) salida.asignaturas++;
+      }
     }
   }
 
@@ -480,6 +488,8 @@ function escribirPanel_(titulo, lineasResumen, fuentes, pend) {
          String(pend.matriculasEso + pend.matriculasBac) + '  (' + pend.matriculasEso + ' · ' + pend.matriculasBac + ')');
     mete('Diferencias de personas y grupos con Jefatura, sin marcar', String(pend.discrepancias));
     mete('CUADRE: diferencias que ninguna fila explica (si hay alguna, es fallo del programa)', String(pend.cuadre));
+    mete('Alumnado con un número de asignaturas distinto del de su curso (en rojo en ALUMNADO)',
+         String(pend.asignaturas));
     mete('Avisos anotados', String(pend.avisos));
     mete('');
   }

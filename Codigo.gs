@@ -164,7 +164,7 @@ const ABREVIATURAS = {
  *      ES LA QUE VA AL INFORME EN PAPEL desde la BD v34.
  *
  *   'No podrá repetir este curso'
- *      Si suspende en junio, ¿pasará al curso siguiente igualmente? Mira al FUTURO
+ *      Si suspende en junio, ¿pasará de curso igualmente? Mira al FUTURO
  *      PRÓXIMO. Es la que el programa llamaba "PIL" hasta la BD v33.
  *
  *   'Ha agotado las dos permanencias'

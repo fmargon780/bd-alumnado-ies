@@ -798,6 +798,20 @@ function cuentaDeMatricula_(a, j, hayJef) {
       C.sen.forEach(function (l) {
         if (!quiere[normalizar(l.materia)]) sobran.push({ l: l, tipo: 'jefatura', motivo: 'Jefatura dice ' + jefAbrevs });
       });
+      /* Jefatura pone más de las que hay que cursar (visto el 11-sep-2026: tres
+         de un cuadro de dos). Se avisa; y si en Séneca también hay de más, sobra
+         alguna de las que Jefatura pone, sin saber cuál: se listan todas. */
+      if (C.jef.length > C.cuantas) {
+        salida.notas.push('Jefatura le pone ' + C.jef.length + ' materias de "' + corto + '" (' + jefAbrevs +
+          ') y hay que cursar ' + C.cuantas + '.');
+        const deJef = C.sen.filter(function (l) { return quiere[normalizar(l.materia)]; });
+        if (deJef.length > C.cuantas) {
+          deJef.forEach(function (l) {
+            sobran.push({ l: l, tipo: 'demas', motivo: 'cuadro "' + corto + '": Jefatura le pone ' + C.jef.length +
+                                        ' y hay que cursar ' + C.cuantas });
+          });
+        }
+      }
       continue;
     }
     /* Jefatura no lo dice, o no entero: se cuenta. Lo que tendría después de
@@ -835,8 +849,26 @@ function cuentaDeMatricula_(a, j, hayJef) {
   /* Lo mismo, pero como datos y no como texto, para el CUADRE (Cuadre.gs):
      qué materia falta o sobra, o cuántas faltan de qué cuadro. El 'tipo' de
      cada sobrante dice por qué sobra: 'jefatura' (Jefatura eligió otra),
-     'cuadro' (tiene más de las que hay que cursar), 'repite', 'ajena' (no le
+     'cuadro' (tiene más de las que hay que cursar), 'demas' (Jefatura le pone
+     más de las que hay que cursar y las tiene todas), 'repite', 'ajena' (no le
      corresponde) o 'fuera' (no está en la oferta). */
+  /* Y por cuadro, el número: cuántas tiene en Séneca de más (o de menos, en
+     negativo) de las que hay que cursar. Solo de los cuadros que esta fila
+     menciona (algo falta o sobra de ellos): lo que la fila no dice, no lo
+     explica. Es lo que suma el control del cuadro en CUADRE CONTROLES: la
+     lista de materias puede llevar candidatas (tiene 3, sobra 1, no se sabe
+     cuál), pero el número es exacto. Quien repite no entra en los controles. */
+  const cuadrosMencionados = {};
+  if (!repite) {
+    const menciona = function (nombre) {
+      return faltan.some(function (x) { return (x.l ? x.l.cuadro : x.cuadro) === nombre; }) ||
+             sobran.some(function (x) { return x.l && x.l.cuadro === nombre && (x.tipo === 'jefatura' || x.tipo === 'cuadro' || x.tipo === 'demas'); });
+    };
+    for (let k = 0; k < ordenCuadros.length; k++) {
+      const C = cuadros[ordenCuadros[k]];
+      if (menciona(ordenCuadros[k])) cuadrosMencionados[ordenCuadros[k]] = C.sen.length - C.cuantas;
+    }
+  }
   salida.detalle = {
     repite: repite,
     faltan: faltan.map(function (x) {
@@ -846,7 +878,8 @@ function cuentaDeMatricula_(a, j, hayJef) {
     sobran: sobran.map(function (x) {
       return { materia: x.l ? x.l.materia : String(x.texto || ''), cuadro: x.l ? (x.l.cuadro || '') : '',
                tipo: x.tipo || '', n: 1 };
-    })
+    }),
+    cuadros: cuadrosMencionados
   };
   const partes = [];
   if (faltan.length) partes.push((faltan.length === 1 ? 'falta ' : 'faltan ') + faltan.map(cortoDe).join(', '));

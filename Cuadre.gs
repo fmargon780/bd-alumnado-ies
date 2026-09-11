@@ -196,20 +196,24 @@ function cuadre_(R) {
       if (!cuadreAlumnoCuenta_(R, a)) { fuera++; fueraU++; continue; }
       alumnos.push(a);
     }
-    const porClave = {};
-    for (let q = 0; q < alumnos.length; q++) porClave[normalizar(alumnos[q].nombre) + '|' + alumnos[q].curso] = alumnos[q];
+    const indice = {};
+    for (let q = 0; q < alumnos.length; q++) indice[normalizar(alumnos[q].nombre) + '|' + alumnos[q].curso] = q;
+    const repiteA = function (a) { return !!(a.aprobada && Object.keys(a.aprobada).length); };
 
     /* Lo que Jefatura escribe para esta unidad, materia por materia. Igual que
-       en la cuenta de cada alumno: solo lo que le corresponde a ese alumno. Y
-       si algún código no se sabe leer, los cuadros de esta unidad no se pueden
-       dar por cuadrados. */
-    const jefCuenta = {}, jefEscribeCuadro = {};
+       en la cuenta de cada alumno: solo lo que le corresponde a ese alumno, y
+       no lo que ya aprobó el año pasado (quien repite no vuelve a cursarlo,
+       aunque Jefatura lo escriba). Y si algún código no se sabe leer, los
+       cuadros de esta unidad no se pueden dar por cuadrados. */
+    const jefCuenta = {};
+    const jefCuadroDe = {};   // alumno → { cuadro: { materia: true } }: qué le escribe Jefatura en cada cuadro
     let codigosSinLeer = 0;
     const jefes = jefPorUnidad[k] || [];
     for (let q = 0; q < jefes.length; q++) {
       const j = jefes[q];
-      const a = porClave[normalizar(j.nombre) + '|' + j.curso];
-      if (!a) continue;
+      const ia = indice[normalizar(j.nombre) + '|' + j.curso];
+      if (ia === undefined) continue;
+      const a = alumnos[ia];
       const codigos = codigosDeJefatura_(j);
       for (let z = 0; z < codigos.length; z++) {
         const l = lineaDeCodigoJef_(lineas, codigos[z]);
@@ -222,31 +226,39 @@ function cuadre_(R) {
           if (lineaAplica_(lineas[y], a)) { aplica = true; cuadro = lineas[y].cuadro || ''; break; }
         }
         if (!aplica) continue;
+        if (cuadro) {
+          if (!jefCuadroDe[ia]) jefCuadroDe[ia] = {};
+          if (!jefCuadroDe[ia][cuadro]) jefCuadroDe[ia][cuadro] = {};
+          jefCuadroDe[ia][cuadro][m] = true;
+        }
+        if (a.aprobada && a.aprobada[m]) continue;
         jefCuenta[m] = (jefCuenta[m] || 0) + 1;
-        if (cuadro) jefEscribeCuadro[cuadro] = true;
       }
     }
 
     /* Lo que explican las filas de MATRÍCULA de esta unidad: por materia (todo
-       el alumnado que entra) y por cuadro (sin repetidores ni sobrantes ajenos,
-       que es lo que no entra en los controles). */
+       el alumnado que entra) y por cuadro, en número (lo que cada fila tiene
+       de más o de menos en ese cuadro; sin repetidores, que no entran en los
+       controles). */
     const explMateria = {}, explCuadro = {};
     for (let q = 0; q < alumnos.length; q++) {
       const d = R.detalle[normalizar(alumnos[q].nombre) + '|' + alumnos[q].curso];
       if (!d || !d.detalle) continue;
       const D = d.detalle;
       for (let z = 0; z < D.sobran.length; z++) {
-        const x = D.sobran[z];
-        const m = normalizar(x.materia);
+        /* 'demas': Jefatura le pone más materias de las que hay que cursar y
+           Séneca las tiene todas. Materia por materia no hay diferencia (está
+           en las dos fuentes): solo la hay en el control del cuadro. */
+        if (D.sobran[z].tipo === 'demas') continue;
+        const m = normalizar(D.sobran[z].materia);
         explMateria[m] = (explMateria[m] || 0) + 1;
-        if (!D.repite && x.cuadro && (x.tipo === 'jefatura' || x.tipo === 'cuadro')) {
-          explCuadro[x.cuadro] = (explCuadro[x.cuadro] || 0) + 1;
-        }
       }
       for (let z = 0; z < D.faltan.length; z++) {
         const f = D.faltan[z];
         if (f.materia) explMateria[normalizar(f.materia)] = (explMateria[normalizar(f.materia)] || 0) - 1;
-        if (!D.repite && f.cuadro) explCuadro[f.cuadro] = (explCuadro[f.cuadro] || 0) - (f.n || 1);
+      }
+      if (!D.repite && D.cuadros) {
+        for (const c in D.cuadros) explCuadro[c] = (explCuadro[c] || 0) + D.cuadros[c];
       }
     }
 
@@ -283,15 +295,22 @@ function cuadre_(R) {
          alumno al que le toca (y no repite), cuántas debe y cuántas tiene. */
       if (l.cuadro) {
         if (!cuadros[l.cuadro]) {
-          cuadros[l.cuadro] = { cuantas: l.cuantas, esperado: 0, real: 0, contado: {}, tenida: {} };
+          cuadros[l.cuadro] = { cuantas: l.cuantas, esperado: 0, real: 0, contado: {}, tenida: {}, aplican: 0, sinJef: 0 };
           ordenCuadros.push(l.cuadro);
         }
         const C = cuadros[l.cuadro];
         for (let q = 0; q < alumnos.length; q++) {
           const a = alumnos[q];
-          if (a.aprobada && Object.keys(a.aprobada).length) continue;   // repetidores, fuera
+          if (repiteA(a)) continue;   // repetidores, fuera
           if (!lineaAplica_(l, a)) continue;
-          if (!C.contado[q]) { C.contado[q] = true; C.esperado += l.cuantas; }
+          if (!C.contado[q]) {
+            C.contado[q] = true; C.esperado += l.cuantas; C.aplican++;
+            /* Jefatura le escribe el cuadro entero (tantas como hay que cursar)?
+               Es el mismo criterio con el que MATRÍCULA compara con Jefatura en
+               vez de contar. */
+            const escritas = jefCuadroDe[q] && jefCuadroDe[q][l.cuadro] ? Object.keys(jefCuadroDe[q][l.cuadro]).length : 0;
+            if (escritas < l.cuantas) C.sinJef++;
+          }
           if (a.tiene[m] && !C.tenida[q + '|' + m]) { C.tenida[q + '|' + m] = true; C.real++; }
         }
       }
@@ -320,14 +339,25 @@ function cuadre_(R) {
           continue;
         }
       } else {
-        const escrito = hayJef && V.cuadros.some(function (c) { return jefEscribeCuadro[c]; });
+        /* Solo se compara con Jefatura si Jefatura escribe el cuadro entero
+           para TODO el alumnado al que le toca (sin contar a quien repite). Si
+           a alguien le escribe menos de las que hay que cursar, MATRÍCULA se
+           lo comprueba contando (y si sobra alguna no sabe cuál) y aquí no hay
+           con qué comparar: se mira en los controles. */
+        const conGente = V.cuadros.filter(function (c) { return cuadros[c] && cuadros[c].aplican > 0; });
+        const sinJef = conGente.reduce(function (s, c) { return s + cuadros[c].sinJef; }, 0);
+        const escrito = hayJef && conGente.length > 0 && sinJef === 0;
         if (escrito) {
           esperado = jefCuenta[m] || 0;
           nota = 'lo que escribe Jefatura';
         } else {
           esperado = '';
-          nota = hayJef ? 'Jefatura no escribe este cuadro: se mira en los controles'
-                        : 'sin fichero de Jefatura para este curso: se mira en los controles';
+          nota = !hayJef ? 'sin fichero de Jefatura para este curso: se mira en los controles'
+               : sinJef && sinJef < conGente.reduce(function (s, c) { return s + cuadros[c].aplican; }, 0)
+                 ? 'Jefatura no escribe este cuadro entero para ' + sinJef + ' de la unidad' +
+                   (codigosSinLeer ? ' (o escribe códigos que no sé leer, ver AVISOS)' : '') + ': se mira en los controles'
+                 : 'Jefatura no escribe este cuadro' + (codigosSinLeer ? ' (o escribe códigos que no sé leer, ver AVISOS)' : '') +
+                   ': se mira en los controles';
         }
       }
       const expl = explMateria[m] || 0;
